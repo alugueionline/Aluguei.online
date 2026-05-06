@@ -8,13 +8,12 @@ import {
   Plus, 
   Search, 
   Filter, 
-  Home, 
-  Building, 
   MapPin, 
-  MoreVertical,
-  ArrowUpRight
+  ArrowUpRight,
+  Edit2
 } from 'lucide-react';
 import { Property } from '@/types/rental';
+import { PropertyModal } from '@/components/modals/PropertyModal';
 
 const mockProperties: Property[] = [
   { id: '1', name: 'Apto 101', type: 'apartamento', address: 'Rua Central, 123', baseRent: 1200, status: 'alugado' },
@@ -25,6 +24,18 @@ const mockProperties: Property[] = [
 
 const Properties = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+
+  const handleEdit = (property: Property) => {
+    setSelectedProperty(property);
+    setIsModalOpen(true);
+  };
+
+  const handleNew = () => {
+    setSelectedProperty(null);
+    setIsModalOpen(true);
+  };
 
   return (
     <DashboardLayout title="Imóveis">
@@ -42,7 +53,7 @@ const Properties = () => {
           <Button variant="outline" className="bg-white border-none shadow-sm gap-2">
             <Filter className="w-4 h-4" /> Filtros
           </Button>
-          <Button className="bg-blue-600 hover:bg-blue-700 gap-2 flex-1 md:flex-none">
+          <Button className="bg-blue-600 hover:bg-blue-700 gap-2 flex-1 md:flex-none" onClick={handleNew}>
             <Plus className="w-4 h-4" /> Novo Imóvel
           </Button>
         </div>
@@ -77,15 +88,31 @@ const Properties = () => {
                     <p className="text-xs text-gray-400 uppercase font-semibold">Aluguel Base</p>
                     <p className="text-lg font-bold text-gray-900">R$ {property.baseRent.toLocaleString('pt-BR')}</p>
                   </div>
-                  <Button variant="ghost" size="icon" className="rounded-full hover:bg-blue-50 hover:text-blue-600">
-                    <ArrowUpRight className="w-5 h-5" />
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="rounded-full hover:bg-blue-50 hover:text-blue-600"
+                      onClick={() => handleEdit(property)}
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="rounded-full hover:bg-blue-50 hover:text-blue-600">
+                      <ArrowUpRight className="w-5 h-5" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      <PropertyModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        property={selectedProperty} 
+      />
     </DashboardLayout>
   );
 };
