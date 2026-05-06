@@ -8,7 +8,8 @@ import {
   Receipt, 
   DollarSign, 
   BarChart3,
-  Settings
+  Settings,
+  Wallet
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -30,9 +31,9 @@ export const Sidebar = () => {
       <div className="p-6">
         <div className="flex items-center gap-2 mb-8">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <Building2 className="text-white w-5 h-5" />
+            <Wallet className="text-white w-5 h-5" />
           </div>
-          <span className="text-xl font-bold tracking-tight text-gray-900">RentMaster</span>
+          <span className="text-xl font-bold tracking-tight text-gray-900">JonasPay</span>
         </div>
 
         <nav className="space-y-1">
