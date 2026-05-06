@@ -8,6 +8,8 @@ import Billing from "./pages/Billing";
 import Properties from "./pages/Properties";
 import Condos from "./pages/Condos";
 import Tenants from "./pages/Tenants";
+import Financial from "./pages/Financial";
+import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +26,8 @@ const App = () => (
           <Route path="/properties" element={<Properties />} />
           <Route path="/condos" element={<Condos />} />
           <Route path="/tenants" element={<Tenants />} />
+          <Route path="/financial" element={<Financial />} />
+          <Route path="/reports" element={<Reports />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
