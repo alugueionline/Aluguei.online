@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,8 +12,6 @@ import {
   ArrowUpRight, 
   ArrowDownRight,
   Calendar,
-  Users,
-  Home,
   Activity,
   ChevronRight,
   Clock
@@ -24,10 +23,7 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell
+  ResponsiveContainer
 } from 'recharts';
 
 const cashFlowData = [
@@ -36,7 +32,7 @@ const cashFlowData = [
   { day: '10', entradas: 8500, saidas: 2100, lucro: 6400 },
   { day: '15', entradas: 9800, saidas: 2800, lucro: 7000 },
   { day: '20', entradas: 12400, saidas: 3100, lucro: 9300 },
-  { day: '25', entradas: 14200, saidas: 3400, lucro: 10800 },
+  { day: '25', entradas: 14200, slashing: 3400, lucro: 10800 },
   { day: '30', entradas: 15420, saidas: 3150, lucro: 12270 },
 ];
 
@@ -48,6 +44,8 @@ const propertyPerformance = [
 ];
 
 const Index = () => {
+  const navigate = useNavigate();
+
   return (
     <DashboardLayout title="Painel de Controle Financeiro">
       {/* SEÇÃO 1 — RESUMO PRINCIPAL */}
@@ -187,7 +185,10 @@ const Index = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-4 rounded-xl bg-rose-50 border border-rose-100 flex items-start gap-3">
+              <div 
+                className="p-4 rounded-xl bg-rose-50 border border-rose-100 flex items-start gap-3 cursor-pointer hover:bg-rose-100 transition-colors group"
+                onClick={() => navigate('/financial')}
+              >
                 <div className="p-2 bg-rose-500 rounded-lg text-white">
                   <Clock className="w-4 h-4" />
                 </div>
@@ -196,12 +197,13 @@ const Index = () => {
                   <p className="text-xs text-rose-700">Kitnet A • 5 dias de atraso</p>
                   <p className="text-sm font-bold text-rose-600 mt-1">R$ 900,00</p>
                 </div>
-                <Button variant="ghost" size="icon" className="text-rose-400 hover:text-rose-600">
-                  <ChevronRight className="w-5 h-5" />
-                </Button>
+                <ChevronRight className="w-5 h-5 text-rose-400 group-hover:text-rose-600 transition-colors self-center" />
               </div>
 
-              <div className="p-4 rounded-xl bg-amber-50 border border-amber-100 flex items-start gap-3">
+              <div 
+                className="p-4 rounded-xl bg-amber-50 border border-amber-100 flex items-start gap-3 cursor-pointer hover:bg-amber-100 transition-colors group"
+                onClick={() => navigate('/billing')}
+              >
                 <div className="p-2 bg-amber-500 rounded-lg text-white">
                   <Calendar className="w-4 h-4" />
                 </div>
@@ -210,9 +212,7 @@ const Index = () => {
                   <p className="text-xs text-amber-700">Vence hoje</p>
                   <p className="text-sm font-bold text-amber-600 mt-1">R$ 145,20</p>
                 </div>
-                <Button variant="ghost" size="icon" className="text-amber-400 hover:text-amber-600">
-                  <ChevronRight className="w-5 h-5" />
-                </Button>
+                <ChevronRight className="w-5 h-5 text-amber-400 group-hover:text-amber-600 transition-colors self-center" />
               </div>
             </CardContent>
           </Card>
@@ -301,7 +301,11 @@ const Index = () => {
                 </div>
               </div>
             ))}
-            <Button variant="ghost" className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-sm font-bold">
+            <Button 
+              variant="ghost" 
+              className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-sm font-bold"
+              onClick={() => navigate('/financial')}
+            >
               Ver todo o histórico
             </Button>
           </CardContent>
