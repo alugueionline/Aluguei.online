@@ -29,6 +29,18 @@ export interface Tenant {
   rentValue: number;
 }
 
+export interface Maintenance {
+  id: string;
+  propertyId: string;
+  propertyName: string;
+  description: string;
+  category: 'eletrica' | 'hidraulica' | 'pintura' | 'estrutura' | 'outros';
+  status: 'pendente' | 'em_andamento' | 'concluido';
+  priority: 'baixa' | 'media' | 'alta';
+  date: string;
+  cost?: number;
+}
+
 export interface Bill {
   id: string;
   propertyId: string;

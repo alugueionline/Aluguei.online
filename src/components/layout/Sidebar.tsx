@@ -9,7 +9,8 @@ import {
   DollarSign, 
   BarChart3,
   Settings,
-  Wallet
+  Wallet,
+  Wrench
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +20,7 @@ const menuItems = [
   { icon: Building2, label: 'Condomínios', path: '/condos' },
   { icon: Users, label: 'Inquilinos', path: '/tenants' },
   { icon: Receipt, label: 'Contas/Utilidades', path: '/billing' },
+  { icon: Wrench, label: 'Manutenção', path: '/maintenance' },
   { icon: DollarSign, label: 'Financeiro', path: '/financial' },
   { icon: BarChart3, label: 'Relatórios', path: '/reports' },
 ];
