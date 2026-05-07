@@ -39,6 +39,7 @@ const Register = () => {
       return;
     }
 
+    // Validação da Chave de Acesso (Regra de negócio do Aluguei.Online)
     const MASTER_KEY = "Aluguei.Online@2026";
     if (formData.accessKey !== MASTER_KEY) {
       showError('Chave de acesso inválida');
@@ -91,7 +92,7 @@ const Register = () => {
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
                 <Input 
                   placeholder="Seu nome completo" 
-                  className="h-12 pl-12 rounded-2xl bg-slate-50 border-none font-bold"
+                  className="h-12 pl-12 rounded-2xl bg-slate-50 border-none font-bold focus-visible:ring-2 focus-visible:ring-blue-600/10"
                   value={formData.fullName}
                   onChange={(e) => setFormData({...formData, fullName: e.target.value})}
                   required
@@ -105,7 +106,7 @@ const Register = () => {
                 <Input 
                   type="email" 
                   placeholder="seu@email.com" 
-                  className="h-12 pl-12 rounded-2xl bg-slate-50 border-none font-bold"
+                  className="h-12 pl-12 rounded-2xl bg-slate-50 border-none font-bold focus-visible:ring-2 focus-visible:ring-blue-600/10"
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
                   required
@@ -120,7 +121,7 @@ const Register = () => {
                   <Input 
                     type="password" 
                     placeholder="••••••••" 
-                    className="h-12 pl-12 rounded-2xl bg-slate-50 border-none font-bold"
+                    className="h-12 pl-12 rounded-2xl bg-slate-50 border-none font-bold focus-visible:ring-2 focus-visible:ring-blue-600/10"
                     value={formData.password}
                     onChange={(e) => setFormData({...formData, password: e.target.value})}
                     required
@@ -134,7 +135,7 @@ const Register = () => {
                   <Input 
                     type="password" 
                     placeholder="••••••••" 
-                    className="h-12 pl-12 rounded-2xl bg-slate-50 border-none font-bold"
+                    className="h-12 pl-12 rounded-2xl bg-slate-50 border-none font-bold focus-visible:ring-2 focus-visible:ring-blue-600/10"
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
                     required
@@ -149,14 +150,18 @@ const Register = () => {
                 <Input 
                   type="password" 
                   placeholder="Insira sua chave de convite" 
-                  className="h-14 pl-12 rounded-2xl bg-blue-50/30 border-2 border-blue-100 font-bold"
+                  className="h-14 pl-12 rounded-2xl bg-blue-50/30 border-2 border-blue-100 font-bold focus-visible:ring-2 focus-visible:ring-blue-600/10"
                   value={formData.accessKey}
                   onChange={(e) => setFormData({...formData, accessKey: e.target.value})}
                   required
                 />
               </div>
             </div>
-            <Button type="submit" disabled={isLoading} className="w-full h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-lg shadow-xl">
+            <Button 
+              type="submit" 
+              disabled={isLoading} 
+              className="w-full h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-lg shadow-xl shadow-blue-100 transition-all active:scale-95"
+            >
               {isLoading ? 'Validando Acesso...' : 'Criar Minha Conta'}
               {!isLoading && <ArrowRight className="ml-2 w-5 h-5" />}
             </Button>
