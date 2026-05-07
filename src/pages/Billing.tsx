@@ -23,7 +23,8 @@ import {
   Edit2, 
   Trash2,
   CheckCircle2,
-  Clock
+  Clock,
+  DollarSign
 } from 'lucide-react';
 import { BillingModal } from '@/components/modals/BillingModal';
 
@@ -69,6 +70,7 @@ const Billing = () => {
       case 'energia': return <Zap className="w-4 h-4" />;
       case 'agua': return <Droplets className="w-4 h-4" />;
       case 'iptu': return <Percent className="w-4 h-4" />;
+      case 'aluguel': return <DollarSign className="w-4 h-4" />;
       default: return <FileText className="w-4 h-4" />;
     }
   };
@@ -160,6 +162,7 @@ const Billing = () => {
                         <div className={`p-2 rounded-lg ${
                           bill.type === 'energia' ? 'bg-orange-50 text-orange-600' : 
                           bill.type === 'agua' ? 'bg-blue-50 text-blue-600' : 
+                          bill.type === 'aluguel' ? 'bg-emerald-50 text-emerald-600' :
                           'bg-purple-50 text-purple-600'
                         }`}>
                           {getIcon(bill.type)}

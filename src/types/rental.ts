@@ -1,6 +1,6 @@
 export type PropertyType = 'casa' | 'apartamento' | 'kitnet';
 export type PropertyStatus = 'disponivel' | 'alugado' | 'manutencao';
-export type BillingType = 'fixed' | 'per_person' | 'individual_meter';
+export type BillingType = 'fixo' | 'por_pessoa' | 'medidor_individual';
 
 export interface Condo {
   id: string;
@@ -45,7 +45,7 @@ export interface Maintenance {
 export interface Bill {
   id: string;
   propertyId: string;
-  type: 'energy' | 'water' | 'iptu' | 'extra';
+  type: 'energia' | 'agua' | 'iptu' | 'extra' | 'aluguel';
   month: string;
   year: number;
   billingMethod: BillingType;

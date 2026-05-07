@@ -9,11 +9,11 @@ import {
   MapPin, 
   User, 
   Receipt, 
-  TrendingUp, 
-  Calendar,
+  Edit2,
   Zap,
   Droplets,
-  Edit2
+  DollarSign,
+  FileText
 } from 'lucide-react';
 import { 
   Table, 
@@ -28,7 +28,7 @@ const PropertyDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Mock de dados para o exemplo
+  // Mock de dados traduzido
   const property = {
     id: '1',
     name: 'Apto 101 - Edifício Central',
@@ -42,10 +42,19 @@ const PropertyDetails = () => {
       entryDate: '10/01/2024'
     },
     history: [
-      { id: '1', type: 'energy', month: '06/2024', value: 145.20, status: 'pago' },
-      { id: '2', type: 'water', month: '06/2024', value: 80.00, status: 'pago' },
-      { id: '3', type: 'rent', month: '06/2024', value: 1200.00, status: 'pago' },
+      { id: '1', type: 'energia', month: '06/2024', value: 145.20, status: 'pago' },
+      { id: '2', type: 'agua', month: '06/2024', value: 80.00, status: 'pago' },
+      { id: '3', type: 'aluguel', month: '06/2024', value: 1200.00, status: 'pago' },
     ]
+  };
+
+  const getIcon = (type: string) => {
+    switch (type) {
+      case 'energia': return <Zap className="w-3.5 h-3.5 text-orange-500" />;
+      case 'agua': return <Droplets className="w-3.5 h-3.5 text-blue-500" />;
+      case 'aluguel': return <DollarSign className="w-3.5 h-3.5 text-emerald-500" />;
+      default: return <FileText className="w-3.5 h-3.5 text-gray-500" />;
+    }
   };
 
   return (
@@ -59,7 +68,6 @@ const PropertyDetails = () => {
       </Button>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Coluna Esquerda: Info Principal */}
         <div className="lg:col-span-2 space-y-8">
           <Card className="border-none shadow-sm">
             <CardContent className="p-8">
@@ -117,7 +125,12 @@ const PropertyDetails = () => {
                 <TableBody>
                   {property.history.map((item) => (
                     <TableRow key={item.id}>
-                      <TableCell className="capitalize font-medium">{item.type}</TableCell>
+                      <TableCell className="capitalize font-medium">
+                        <div className="flex items-center gap-2">
+                          {getIcon(item.type)}
+                          {item.type}
+                        </div>
+                      </TableCell>
                       <TableCell>{item.month}</TableCell>
                       <TableCell className="font-bold">R$ {item.value.toFixed(2)}</TableCell>
                       <TableCell>
@@ -131,7 +144,6 @@ const PropertyDetails = () => {
           </Card>
         </div>
 
-        {/* Coluna Direita: Inquilino e Widgets */}
         <div className="space-y-8">
           <Card className="border-none shadow-sm bg-blue-600 text-white">
             <CardHeader>
