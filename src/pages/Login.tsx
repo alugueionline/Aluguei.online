@@ -102,10 +102,22 @@ const Login = () => {
             </Button>
           </form>
 
-          <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3">
-            <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-            <p className="text-xs font-medium text-amber-800 leading-relaxed">
-              Este sistema é monitorado. O uso de chaves não autorizadas resultará no bloqueio permanente do IP.
+          <div className="flex flex-col gap-4">
+            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3">
+              <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-xs font-medium text-amber-800 leading-relaxed">
+                Este sistema é monitorado. O uso de chaves não autorizadas resultará no bloqueio permanente do IP.
+              </p>
+            </div>
+            
+            <p className="text-center text-sm font-bold text-slate-500">
+              Não tem uma conta?{' '}
+              <button 
+                onClick={() => navigate('/register')}
+                className="text-blue-600 hover:underline"
+              >
+                Cadastre-se com sua chave
+              </button>
             </p>
           </div>
         </div>
