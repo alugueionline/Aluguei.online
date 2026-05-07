@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Mail, Lock, ArrowRight, ChevronLeft, Key, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, ArrowRight, ChevronLeft, Key, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,7 +12,7 @@ const Login = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [accessKey, setAccessKey] = useState('');
-  const logoUrl = "https://i.ibb.co/HpMZDMpS/ICONE-ESCURO.png";
+  const logoUrl = "https://i.ibb.co/8nFsGk01/LOGO.png";
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +23,6 @@ const Login = () => {
     }
 
     setIsLoading(true);
-    // Simulação de validação de chave
     setTimeout(() => {
       showSuccess('Acesso autorizado!');
       navigate('/dashboard');
@@ -47,8 +46,8 @@ const Login = () => {
             <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-lg border border-slate-100 mb-6">
               <img src={logoUrl} alt="Logo" className="w-8 h-8 object-contain" />
             </div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Acesso Restrito</h1>
-            <p className="text-slate-500 font-medium">Insira suas credenciais e sua chave de acesso.</p>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Acesso Assinante</h1>
+            <p className="text-slate-500 font-medium">Insira suas credenciais e sua chave de acesso exclusiva.</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6">
@@ -71,7 +70,7 @@ const Login = () => {
                 <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-400" />
                 <Input 
                   type="password" 
-                  placeholder="Insira sua chave exclusiva" 
+                  placeholder="Insira sua chave de assinante" 
                   className="h-14 pl-12 rounded-2xl bg-blue-50/30 border-2 border-blue-100 font-bold focus-visible:ring-2 focus-visible:ring-blue-600/10"
                   value={accessKey}
                   onChange={(e) => setAccessKey(e.target.value)}
@@ -81,9 +80,7 @@ const Login = () => {
             </div>
 
             <div className="space-y-2">
-              <div className="flex justify-between items-center ml-1">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Senha</Label>
-              </div>
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Senha</Label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
                 <Input 
@@ -129,18 +126,6 @@ const Login = () => {
               <p className="text-slate-400 text-lg font-medium leading-relaxed max-w-md">
                 Acesse o painel de controle para gerenciar suas propriedades, contratos e fluxos financeiros com total privacidade.
               </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
-                  <ShieldCheck className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold">Criptografia de Ponta</p>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase">Dados Protegidos</p>
-                </div>
-              </div>
             </div>
           </div>
         </div>

@@ -13,9 +13,8 @@ import {
   FileText, 
   Calendar, 
   Bell, 
-  Settings, 
-  ChevronDown, 
-  LogOut 
+  LogOut,
+  ChevronDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -40,6 +39,7 @@ interface NavContentProps {
 export const NavContent = ({ onItemClick }: NavContentProps) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const logoUrl = "https://i.ibb.co/8nFsGk01/LOGO.png";
 
   const handleUserClick = () => {
     navigate('/settings');
@@ -55,9 +55,7 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
     <div className="flex flex-col h-full bg-white">
       <div className="p-8">
         <div className="flex items-center mb-10 px-2 cursor-pointer" onClick={() => navigate('/')}>
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mr-2">
-            <Home className="text-white w-5 h-5" />
-          </div>
+          <img src={logoUrl} alt="Logo" className="w-8 h-8 object-contain mr-2" />
           <span className="text-lg font-black text-slate-900 tracking-tight">Aluguei<span className="text-blue-600">Online</span></span>
         </div>
 
@@ -109,7 +107,7 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
             </Avatar>
             <div className="min-w-0">
               <p className="text-sm font-bold text-gray-900 truncate">Jonas Silva</p>
-              <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Proprietário</p>
+              <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Assinante</p>
             </div>
           </div>
           <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
