@@ -40,14 +40,15 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
   const location = useLocation();
 
   return (
-    <div className="flex flex-col h-full bg-[#0B0E14] border-r border-white/5">
+    <div className="flex flex-col h-full bg-white border-r border-gray-100">
       <div className="p-8">
         <div className="flex items-center mb-12">
           <img 
-            src="https://i.ibb.co/8nFsGk01/LOGO.png" 
+            src="https://i.ibb.co/HpMZDMpS/ICONE-ESCURO.png" 
             alt="Aluguei Online" 
-            className="h-12 w-auto object-contain"
+            className="h-10 w-auto object-contain mr-3"
           />
+          <span className="text-xl font-black text-gray-900 tracking-tight">Aluguei<span className="text-blue-600">Online</span></span>
         </div>
 
         <nav className="space-y-1">
@@ -61,13 +62,13 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group",
                   isActive 
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" 
-                    : "text-gray-400 hover:text-white hover:bg-white/5"
+                    ? "bg-blue-50 text-blue-600 shadow-sm" 
+                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
                 )}
               >
                 <item.icon className={cn(
                   "w-5 h-5", 
-                  isActive ? "text-white" : "text-gray-500 group-hover:text-blue-400"
+                  isActive ? "text-blue-600" : "text-gray-400 group-hover:text-blue-500"
                 )} />
                 {item.label}
               </Link>
@@ -83,26 +84,26 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
           className={cn(
             "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group",
             location.pathname === '/settings'
-              ? "bg-blue-600 text-white"
-              : "text-gray-400 hover:text-white hover:bg-white/5"
+              ? "bg-blue-50 text-blue-600"
+              : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
           )}
         >
           <Settings className="w-5 h-5" />
           Configurações
         </Link>
 
-        <div className="p-4 bg-[#161B22] rounded-2xl border border-white/5 flex items-center justify-between group cursor-pointer hover:bg-[#1c222b] transition-colors">
+        <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between group cursor-pointer hover:bg-gray-100 transition-colors">
           <div className="flex items-center gap-3">
-            <Avatar className="w-10 h-10 rounded-xl border border-white/10">
+            <Avatar className="w-10 h-10 rounded-xl border border-white shadow-sm">
               <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=Jonas" />
               <AvatarFallback className="bg-blue-600 text-white">JS</AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <p className="text-sm font-bold text-white truncate">Jonas Silva</p>
+              <p className="text-sm font-bold text-gray-900 truncate">Jonas Silva</p>
               <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Proprietário</p>
             </div>
           </div>
-          <ChevronDown className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />
+          <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
         </div>
       </div>
     </div>

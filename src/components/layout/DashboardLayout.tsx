@@ -5,7 +5,6 @@ import { Sidebar } from './Sidebar';
 import { MobileNav } from './MobileNav';
 import { Search, Bell, ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -14,41 +13,38 @@ interface DashboardLayoutProps {
 
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   return (
-    <div className="flex min-h-screen bg-[#0B0E14] text-white">
+    <div className="flex min-h-screen bg-[#F8FAFC] text-[#0F172A]">
       <Sidebar />
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="px-4 md:px-8 py-6 flex justify-between items-center">
+        <header className="px-4 md:px-8 py-6 flex justify-between items-center bg-white border-b border-gray-100">
           <div className="flex items-center gap-4 flex-1 max-w-xl">
             <MobileNav />
             <div className="relative w-full hidden md:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input 
                 placeholder="Buscar..." 
-                className="pl-10 bg-[#161B22] border-none text-white w-full h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-blue-500"
+                className="pl-10 bg-gray-50 border-none text-gray-900 w-full h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-blue-500"
               />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-500 bg-[#0B0E14] px-1.5 py-0.5 rounded border border-white/10">
-                ⌘ K
-              </div>
             </div>
           </div>
           
           <div className="flex items-center gap-6">
-            <button className="relative p-2 text-gray-400 hover:text-white transition-colors">
+            <button className="relative p-2 text-gray-400 hover:text-gray-600 transition-colors">
               <Bell className="w-6 h-6" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#0B0E14]"></span>
+              <span className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full border-2 border-white"></span>
             </button>
             
-            <div className="flex items-center gap-3 bg-[#161B22] p-1.5 pr-4 rounded-full border border-white/5 cursor-pointer hover:bg-[#1c222b] transition-colors">
-              <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full">
-                <CalendarIcon className="w-4 h-4 text-blue-400" />
-                <span className="text-xs font-bold">Maio de 2024</span>
-                <ChevronDown className="w-3 h-3 text-gray-500" />
+            <div className="flex items-center gap-3 bg-gray-50 p-1.5 pr-4 rounded-full border border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors">
+              <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm">
+                <CalendarIcon className="w-4 h-4 text-blue-500" />
+                <span className="text-xs font-bold text-gray-700">Maio de 2024</span>
+                <ChevronDown className="w-3 h-3 text-gray-400" />
               </div>
             </div>
           </div>
         </header>
         
-        <div className="flex-1 p-4 md:p-8 pt-0 overflow-y-auto">
+        <div className="flex-1 p-4 md:p-8 pt-8 overflow-y-auto">
           {children}
         </div>
       </main>
