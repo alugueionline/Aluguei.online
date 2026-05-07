@@ -3,8 +3,8 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { showSuccess } from '@/utils/toast';
 import { DollarSign, Calendar, Building2, User } from 'lucide-react';
@@ -15,10 +15,26 @@ interface TransactionModalProps {
   onSave: (data: any) => void;
 }
 
+// Mock de dados para os seletores
+const availableProperties = [
+  { id: '1', name: 'Apto 101' },
+  { id: '2', name: 'Casa 02' },
+  { id: '3', name: 'Kitnet A' },
+  { id: '4', name: 'Apto 202' },
+];
+
+const availableTenants = [
+  { id: '1', name: 'João Silva' },
+  { id: '2', name: 'Maria Oliveira' },
+  { id: '3', name: 'Pedro Santos' },
+  { id: '4', name: 'Ana Costa' },
+];
+
 export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalProps) => {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
+    
     const data = {
       type: formData.get('type'),
       category: formData.get('category'),
@@ -74,18 +90,37 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
 
           <div className="space-y-2">
             <Label className="text-xs font-bold uppercase text-slate-400">Imóvel</Label>
-            <div className="relative">
-              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-              <Input name="property" placeholder="Ex: Apto 101" className="pl-10 h-12 rounded-xl bg-slate-50 border-none font-bold" required />
-            </div>
+            <Select name="property" required>
+              <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-slate-300" />
+                  <SelectValue placeholder="Selecione o imóvel" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {availableProperties.map(p => (
+                  <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase text-slate-400">Inquilino (Opcional)</Label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-              <Input name="tenant" placeholder="Nome do inquilino" className="pl-10 h-12 rounded-xl bg-slate-50 border-none font-bold" />
-            </div>
+            <Label className="text-xs font-bold uppercase text-slate-400">Inquilino</Label>
+            <Select name="tenant">
+              <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-slate-300" />
+                  <SelectValue placeholder="Selecione o inquilino" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Nenhum">Nenhum / Outros</SelectItem>
+                {availableTenants.map(t => (
+                  <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
