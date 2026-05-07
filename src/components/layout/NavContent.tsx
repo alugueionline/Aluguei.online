@@ -3,15 +3,12 @@ import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Home, 
-  Building2, 
   Users, 
   ArrowUpDown, 
   DollarSign, 
   BarChart3,
   Settings,
-  Wallet,
-  Wrench,
-  FileText
+  Wrench
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -35,11 +32,12 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
   return (
     <div className="flex flex-col h-full">
       <div className="p-6">
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200/50">
-            <Wallet className="text-blue-500 w-6 h-6 stroke-[2.5px]" />
-          </div>
-          <span className="text-2xl font-black tracking-tighter text-slate-900">Jonas<span className="text-blue-600">Pay</span></span>
+        <div className="flex items-center mb-10 px-2">
+          <img 
+            src="dyad-media://media/JonasPay/.dyad/media/b4a42b39a45a352013aed21d72cd31a42c05df23.png" 
+            alt="Aluguei Online" 
+            className="h-10 w-auto object-contain"
+          />
         </div>
 
         <nav className="space-y-1.5">
