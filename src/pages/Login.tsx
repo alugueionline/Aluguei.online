@@ -2,23 +2,32 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Mail, Lock, ArrowRight, ChevronLeft, Github, Chrome } from 'lucide-react';
+import { Home, Mail, Lock, ArrowRight, ChevronLeft, Key, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { showSuccess } from '@/utils/toast';
+import { showSuccess, showError } from '@/utils/toast';
 
 const Login = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [accessKey, setAccessKey] = useState('');
+  const logoUrl = "https://i.ibb.co/HpMZDMpS/ICONE-ESCURO.png";
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!accessKey) {
+      showError('A chave de acesso é obrigatória.');
+      return;
+    }
+
     setIsLoading(true);
+    // Simulação de validação de chave
     setTimeout(() => {
-      showSuccess('Bem-vindo de volta!');
+      showSuccess('Acesso autorizado!');
       navigate('/dashboard');
-    }, 1000);
+    }, 1200);
   };
 
   return (
@@ -35,22 +44,37 @@ const Login = () => {
           </div>
 
           <div className="space-y-2">
-            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-100 mb-6">
-              <Home className="text-white w-7 h-7" />
+            <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-lg border border-slate-100 mb-6">
+              <img src={logoUrl} alt="Logo" className="w-8 h-8 object-contain" />
             </div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Acesse sua conta</h1>
-            <p className="text-slate-500 font-medium">Bem-vindo de volta ao Aluguei Online.</p>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Acesso Restrito</h1>
+            <p className="text-slate-500 font-medium">Insira suas credenciais e sua chave de acesso.</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">E-mail Profissional</Label>
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">E-mail Autorizado</Label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
                 <Input 
                   type="email" 
-                  placeholder="exemplo@email.com" 
+                  placeholder="seu@email.com" 
                   className="h-14 pl-12 rounded-2xl bg-slate-50 border-none font-bold focus-visible:ring-2 focus-visible:ring-blue-600/10"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Chave de Acesso (Obrigatório)</Label>
+              <div className="relative">
+                <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-400" />
+                <Input 
+                  type="password" 
+                  placeholder="Insira sua chave exclusiva" 
+                  className="h-14 pl-12 rounded-2xl bg-blue-50/30 border-2 border-blue-100 font-bold focus-visible:ring-2 focus-visible:ring-blue-600/10"
+                  value={accessKey}
+                  onChange={(e) => setAccessKey(e.target.value)}
                   required
                 />
               </div>
@@ -59,7 +83,6 @@ const Login = () => {
             <div className="space-y-2">
               <div className="flex justify-between items-center ml-1">
                 <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Senha</Label>
-                <button type="button" className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline">Esqueci a senha</button>
               </div>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
@@ -75,65 +98,48 @@ const Login = () => {
             <Button 
               type="submit" 
               disabled={isLoading}
-              className="w-full h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-lg shadow-xl shadow-blue-100 transition-all active:scale-95"
+              className="w-full h-14 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95"
             >
-              {isLoading ? 'Entrando...' : 'Entrar no Sistema'}
+              {isLoading ? 'Validando Chave...' : 'Entrar no Sistema'}
               {!isLoading && <ArrowRight className="ml-2 w-5 h-5" />}
             </Button>
           </form>
 
-          <div className="relative py-4">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
-            <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest"><span className="bg-white px-4 text-slate-400">Ou entrar com</span></div>
+          <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3">
+            <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-xs font-medium text-amber-800 leading-relaxed">
+              Este sistema é monitorado. O uso de chaves não autorizadas resultará no bloqueio permanente do IP.
+            </p>
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Button variant="outline" className="h-12 rounded-xl border-slate-100 font-bold gap-2 text-slate-600">
-              <Chrome className="w-4 h-4" /> Google
-            </Button>
-            <Button variant="outline" className="h-12 rounded-xl border-slate-100 font-bold gap-2 text-slate-600">
-              <Github className="w-4 h-4" /> GitHub
-            </Button>
-          </div>
-
-          <p className="text-center text-sm font-bold text-slate-400">
-            Não tem uma conta? <button onClick={() => navigate('/')} className="text-blue-600 hover:underline">Comece agora gratuitamente</button>
-          </p>
         </div>
 
         {/* Lado Direito - Visual */}
-        <div className="hidden lg:block bg-blue-600 p-20 relative overflow-hidden">
+        <div className="hidden lg:block bg-slate-900 p-20 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
-          <div className="absolute -bottom-20 -right-20 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
+          <div className="absolute -bottom-20 -right-20 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl" />
           
           <div className="relative h-full flex flex-col justify-between text-white">
             <div className="space-y-6">
-              <div className="w-16 h-1 bg-white/30 rounded-full" />
+              <div className="w-16 h-1 bg-blue-600 rounded-full" />
               <h2 className="text-4xl font-black leading-tight tracking-tight">
-                A plataforma que <br />
-                evolui com o seu <br />
-                negócio imobiliário.
+                Segurança e <br />
+                Exclusividade na <br />
+                sua Gestão.
               </h2>
-              <p className="text-blue-100 text-lg font-medium leading-relaxed max-w-md">
-                "O Aluguei Online mudou a forma como gerencio meus 20 imóveis. O que levava dias agora leva minutos."
+              <p className="text-slate-400 text-lg font-medium leading-relaxed max-w-md">
+                Acesse o painel de controle para gerenciar suas propriedades, contratos e fluxos financeiros com total privacidade.
               </p>
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center font-black">JS</div>
-                <div>
-                  <p className="font-black">Jonas Silva</p>
-                  <p className="text-xs font-bold text-blue-200 uppercase tracking-widest">Proprietário & Gestor</p>
-                </div>
-              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-8">
-              <div>
-                <p className="text-3xl font-black">94%</p>
-                <p className="text-xs font-bold text-blue-200 uppercase tracking-widest mt-1">Taxa de Ocupação</p>
-              </div>
-              <div>
-                <p className="text-3xl font-black">+12k</p>
-                <p className="text-xs font-bold text-blue-200 uppercase tracking-widest mt-1">Contratos Ativos</p>
+            <div className="space-y-4">
+              <div className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
+                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Criptografia de Ponta</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase">Dados Protegidos</p>
+                </div>
               </div>
             </div>
           </div>
