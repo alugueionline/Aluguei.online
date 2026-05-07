@@ -1,163 +1,158 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { 
-  DollarSign, 
-  TrendingUp, 
-  TrendingDown, 
-  Plus
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { InterestFineSettings } from '@/components/financial/InterestFineSettings';
-import { TransactionModal } from '@/components/modals/TransactionModal';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Card } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
-import { showSuccess, showError } from '@/utils/toast';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { 
+  Search, 
+  Plus, 
+  Filter, 
+  ArrowUpCircle, 
+  ArrowDownCircle, 
+  DollarSign,
+  Calendar as CalendarIcon,
+  MoreHorizontal,
+  FileText,
+  Wallet
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { BillModal } from '@/components/modals/BillModal';
 import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
 
 const Financial = () => {
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [bills, setBills] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ receita: 0, despesa: 0, saldo: 0 });
+  const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
 
-  const fetchFinancialData = async () => {
+  const fetchBills = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
       setLoading(true);
       const { data, error } = await supabase
         .from('bills')
-        .select(`*, properties(name), tenants(name)`)
-        .order('created_at', { ascending: false });
+        .select('*')
+        .order('due_date', { ascending: false });
 
       if (error) {
-        console.error('Erro Supabase:', error);
-        if (error.code === '42P01') {
-          showError('Tabela de contas não encontrada. Verifique o banco de dados.');
-        } else {
-          throw error;
-        }
+        if (error.code !== '42P01') console.error(error);
+        setBills([]);
+      } else {
+        const list = data || [];
+        setBills(list);
+        
+        // Calcular estatísticas
+        const income = list.filter(b => (b.type === 'receita' || b.type === 'aluguel') && b.status === 'pago')
+          .reduce((acc, curr) => acc + Number(curr.total_value), 0);
+        const expense = list.filter(b => b.type === 'despesa' && b.status === 'pago')
+          .reduce((acc, curr) => acc + Number(curr.total_value), 0);
+        
+        setStats({ income, expense, balance: income - expense });
       }
-      
-      setTransactions(data || []);
-
-      let rec = 0, des = 0;
-      data?.forEach(t => {
-        const val = Number(t.total_value);
-        if (t.type === 'receita' || t.type === 'aluguel') rec += val;
-        else des += val;
-      });
-      setStats({ receita: rec, despesa: des, saldo: rec - des });
-    } catch (error) {
-      showError('Erro ao carregar dados financeiros');
+    } catch (err) {
+      setBills([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchFinancialData();
+    fetchBills();
   }, []);
 
   return (
     <DashboardLayout title="Gestão Financeira">
-      <div className="space-y-10 max-w-7xl mx-auto pb-20">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Finanças</h1>
-            <p className="text-slate-500 mt-2 text-lg font-medium">Controle de receitas e despesas</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button onClick={() => setIsTransactionModalOpen(true)} className="bg-[#2563FF] hover:bg-blue-700 text-white rounded-2xl font-bold gap-2 h-12 px-8 shadow-lg">
-              <Plus className="w-5 h-5" /> Nova Transação
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <StatCard label="Receita Bruta" value={`R$ ${stats.receita.toLocaleString('pt-BR')}`} trend="+ 0%" type="up" icon={<TrendingUp className="w-6 h-6" />} />
-          <StatCard label="Despesas Totais" value={`R$ ${stats.despesa.toLocaleString('pt-BR')}`} trend="- 0%" type="down" icon={<TrendingDown className="w-6 h-6" />} />
-          <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-xl">
-            <p className="text-sm font-bold text-slate-400 uppercase tracking-[0.2em]">Saldo Líquido</p>
-            <h3 className="text-3xl font-black text-white mt-2">R$ {stats.saldo.toLocaleString('pt-BR')}</h3>
-          </div>
-        </div>
-
-        <Tabs defaultValue="overview" className="space-y-8">
-          <TabsList className="bg-white p-1.5 rounded-[1.5rem] border border-slate-100 shadow-sm">
-            <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-            <TabsTrigger value="settings">Regras</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview">
-            <Card className="premium-card rounded-[2.5rem] border-none overflow-hidden">
-              <div className="p-8 border-b border-slate-50 bg-slate-50/30">
-                <h3 className="text-lg font-black text-slate-900">Últimas Movimentações</h3>
-              </div>
-              <div className="overflow-x-auto">
-                {loading ? (
-                  <div className="p-10 text-center">Carregando...</div>
-                ) : transactions.length > 0 ? (
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-slate-50/50">
-                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase">Imóvel</th>
-                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase">Categoria</th>
-                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase">Valor</th>
-                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {transactions.map((t) => (
-                        <tr key={t.id} className="border-t border-slate-50">
-                          <td className="p-6 font-bold text-sm">{t.properties?.name || 'N/A'}</td>
-                          <td className="p-6 text-xs uppercase font-bold text-slate-500">{t.type}</td>
-                          <td className="p-6 font-black text-sm">R$ {Number(t.total_value).toLocaleString('pt-BR')}</td>
-                          <td className="p-6">
-                            <Badge className={cn("rounded-full px-3 py-1 text-[10px] font-black uppercase", t.status === 'pago' ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>
-                              {t.status}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="p-20 text-center text-gray-400">Nenhuma transação registrada.</div>
-                )}
-              </div>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="settings">
-            <InterestFineSettings />
-          </TabsContent>
-        </Tabs>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <StatCard label="Receitas (Pago)" value={`R$ ${stats.income.toLocaleString('pt-BR')}`} icon={<ArrowUpCircle className="text-emerald-500" />} />
+        <StatCard label="Despesas (Pago)" value={`R$ ${stats.expense.toLocaleString('pt-BR')}`} icon={<ArrowDownCircle className="text-rose-500" />} />
+        <StatCard label="Saldo Atual" value={`R$ ${stats.balance.toLocaleString('pt-BR')}`} icon={<Wallet className="text-blue-500" />} />
       </div>
 
-      <TransactionModal 
-        isOpen={isTransactionModalOpen} 
-        onClose={() => { setIsTransactionModalOpen(false); fetchFinancialData(); }} 
-        onSave={() => {}} 
-      />
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
+        <div className="relative w-full md:w-96">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input placeholder="Buscar transação..." className="pl-12 h-12 rounded-2xl border-none premium-shadow bg-white" />
+        </div>
+        <Button onClick={() => setIsModalOpen(true)} className="w-full md:w-auto h-12 px-8 rounded-2xl bg-[#2563FF] hover:bg-blue-700 font-bold gap-2 shadow-lg">
+          <Plus className="w-5 h-5" /> Nova Transação
+        </Button>
+      </div>
+
+      <Card className="premium-card border-none rounded-[2.5rem] overflow-hidden">
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="p-20 text-center text-gray-400">Carregando finanças...</div>
+          ) : bills.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-50/50 border-b border-gray-50">
+                    <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Descrição</th>
+                    <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Vencimento</th>
+                    <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Valor</th>
+                    <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bills.map((bill) => (
+                    <tr key={bill.id} className="border-b border-gray-50 hover:bg-gray-50/30 transition-colors">
+                      <td className="p-6">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-10 h-10 rounded-xl flex items-center justify-center",
+                            bill.type === 'despesa' ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
+                          )}>
+                            {bill.type === 'despesa' ? <ArrowDownCircle className="w-5 h-5" /> : <ArrowUpCircle className="w-5 h-5" />}
+                          </div>
+                          <span className="font-bold text-gray-900">{bill.description}</span>
+                        </div>
+                      </td>
+                      <td className="p-6 text-sm text-gray-500 font-medium">
+                        {new Date(bill.due_date).toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="p-6 font-black text-gray-900">
+                        R$ {Number(bill.total_value).toLocaleString('pt-BR')}
+                      </td>
+                      <td className="p-6">
+                        <Badge className={cn(
+                          "border-none px-3 py-1 rounded-lg font-black text-[10px] uppercase",
+                          bill.status === 'pago' ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                        )}>
+                          {bill.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-20 text-center flex flex-col items-center">
+              <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-300 mb-4">
+                <DollarSign className="w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Nenhuma transação</h3>
+              <p className="text-gray-400 text-sm max-w-xs mx-auto mt-2">Seu histórico financeiro aparecerá aqui assim que você registrar receitas ou despesas.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <BillModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); fetchBills(); }} />
     </DashboardLayout>
   );
 };
 
-const StatCard = ({ label, value, trend, type, icon }: any) => (
-  <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-    <div className="flex items-center justify-between mb-6">
-      <div className={cn("p-3 rounded-2xl", type === 'up' ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600")}>{icon}</div>
-      <Badge className={cn("border-none font-black text-[10px] uppercase px-3 py-1", type === 'up' ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700")}>{trend}</Badge>
+const StatCard = ({ label, value, icon }: any) => (
+  <Card className="premium-card border-none p-8 rounded-[2rem]">
+    <div className="flex justify-between items-start mb-4">
+      <div className="p-3 bg-gray-50 rounded-2xl">{icon}</div>
     </div>
-    <p className="text-sm font-bold text-slate-400 uppercase tracking-[0.2em]">{label}</p>
-    <h3 className="text-3xl font-black text-slate-900 mt-2">{value}</h3>
-  </div>
+    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{label}</p>
+    <h3 className="text-2xl font-black text-gray-900 mt-1">{value}</h3>
+  </Card>
 );
 
 export default Financial;
