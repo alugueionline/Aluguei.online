@@ -9,6 +9,7 @@ import Properties from "./pages/Properties";
 import PropertyDetails from "./pages/PropertyDetails";
 import Condos from "./pages/Condos";
 import Tenants from "./pages/Tenants";
+import TenantDetails from "./pages/TenantDetails";
 import Financial from "./pages/Financial";
 import Reports from "./pages/Reports";
 import Maintenance from "./pages/Maintenance";
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/properties/:id" element={<PropertyDetails />} />
           <Route path="/condos" element={<Condos />} />
           <Route path="/tenants" element={<Tenants />} />
+          <Route path="/tenants/:id" element={<TenantDetails />} />
           <Route path="/maintenance" element={<Maintenance />} />
           <Route path="/financial" element={<Financial />} />
           <Route path="/reports" element={<Reports />} />

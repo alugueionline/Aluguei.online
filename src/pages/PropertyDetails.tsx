@@ -37,6 +37,7 @@ const PropertyDetails = () => {
     status: 'alugado',
     baseRent: 1200,
     tenant: {
+      id: '1',
       name: 'João Silva',
       phone: '(11) 98888-7777',
       entryDate: '10/01/2024'
@@ -166,7 +167,10 @@ const PropertyDetails = () => {
                   <p className="text-xs text-blue-200 font-bold uppercase">Data de Entrada</p>
                   <p className="text-sm">{property.tenant.entryDate}</p>
                 </div>
-                <Button className="w-full bg-white text-blue-600 hover:bg-blue-50 font-bold">
+                <Button 
+                  className="w-full bg-white text-blue-600 hover:bg-blue-50 font-bold"
+                  onClick={() => navigate(`/tenants/${property.tenant.id}`)}
+                >
                   Ver Perfil Completo
                 </Button>
               </div>
