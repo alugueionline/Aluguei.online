@@ -44,6 +44,7 @@ const featuredProperties = [
   { id: '1', name: 'Apto 101', address: 'Rua Central, 123', rent: 'R$ 1.200', status: 'alugado', image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=400&q=80' },
   { id: '2', name: 'Casa 02', address: 'Av. das Flores, 45', rent: 'R$ 2.500', status: 'disponivel', image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&q=80' },
   { id: '3', name: 'Kitnet A', address: 'Rua 10, 500', rent: 'R$ 850', status: 'alugado', image: 'https://images.unsplash.com/photo-1536376074432-c26412749023?w=400&q=80' },
+  { id: '4', name: 'Loja 05', address: 'Centro Comercial', rent: 'R$ 3.800', status: 'disponivel', image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&q=80' },
 ];
 
 const Index = () => {
@@ -62,7 +63,7 @@ const Index = () => {
           onClick={() => navigate('/properties')}
           className="bg-[#2563FF] hover:bg-[#1d4ed8] rounded-2xl h-12 px-6 font-bold shadow-lg shadow-blue-100 gap-2"
         >
-          Ver todos imóveis <ChevronRight className="w-4 h-4" />
+          Novo Imóvel <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
 
@@ -104,47 +105,6 @@ const Index = () => {
             />
           </div>
 
-          {/* Featured Properties Section */}
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h3 className="text-xl font-bold text-gray-900 tracking-tight">Meus Imóveis</h3>
-              <button 
-                onClick={() => navigate('/properties')}
-                className="text-sm font-bold text-[#2563FF] hover:underline"
-              >
-                Ver lista completa
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {featuredProperties.map((prop) => (
-                <Card key={prop.id} className="premium-card rounded-[2rem] overflow-hidden group cursor-pointer" onClick={() => navigate(`/properties/${prop.id}`)}>
-                  <div className="relative h-40">
-                    <img src={prop.image} alt={prop.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                    <div className="absolute top-4 right-4">
-                      <Badge className={cn(
-                        "border-none px-2.5 py-1 rounded-lg font-bold text-[9px] uppercase tracking-wider",
-                        prop.status === 'alugado' ? 'bg-emerald-500 text-white' : 'bg-[#2563FF] text-white'
-                      )}>
-                        {prop.status}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="p-6">
-                    <h4 className="font-bold text-gray-900 text-lg">{prop.name}</h4>
-                    <div className="flex items-center gap-2 text-gray-500 text-xs mt-1 mb-4">
-                      <MapPin className="w-3 h-3 text-[#2563FF]" />
-                      <span className="truncate">{prop.address}</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-4 border-t border-gray-50">
-                      <span className="text-sm font-bold text-gray-900">{prop.rent}</span>
-                      <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-[#2563FF] transition-colors" />
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </div>
-
           {/* Cash Flow Chart */}
           <Card className="premium-card p-8 rounded-[2rem]">
             <div className="flex justify-between items-center mb-10">
@@ -157,7 +117,7 @@ const Index = () => {
                 <Button size="sm" variant="ghost" className="text-gray-500 h-9 px-5 text-xs font-bold hover:text-gray-900">Trimestral</Button>
               </div>
             </div>
-            <div className="h-[380px] -ml-4">
+            <div className="h-[320px] -ml-4">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={cashFlowData}>
                   <defs>
@@ -215,6 +175,47 @@ const Index = () => {
               </ResponsiveContainer>
             </div>
           </Card>
+
+          {/* Featured Properties Section - Now Smaller and Below Chart */}
+          <div className="space-y-5">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-900 tracking-tight">Meus Imóveis</h3>
+              <button 
+                onClick={() => navigate('/properties')}
+                className="text-xs font-bold text-[#2563FF] hover:underline"
+              >
+                Ver todos
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              {featuredProperties.map((prop) => (
+                <Card key={prop.id} className="premium-card rounded-3xl overflow-hidden group cursor-pointer border-none" onClick={() => navigate(`/properties/${prop.id}`)}>
+                  <div className="relative h-28">
+                    <img src={prop.image} alt={prop.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                    <div className="absolute top-2 right-2">
+                      <Badge className={cn(
+                        "border-none px-2 py-0.5 rounded-md font-bold text-[8px] uppercase tracking-wider",
+                        prop.status === 'alugado' ? 'bg-emerald-500 text-white' : 'bg-[#2563FF] text-white'
+                      )}>
+                        {prop.status}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <h4 className="font-bold text-gray-900 text-sm truncate">{prop.name}</h4>
+                    <div className="flex items-center gap-1.5 text-gray-400 text-[10px] mt-1">
+                      <MapPin className="w-2.5 h-2.5 text-[#2563FF]" />
+                      <span className="truncate">{prop.address}</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-50">
+                      <span className="text-xs font-bold text-gray-900">{prop.rent}</span>
+                      <ArrowUpRight className="w-3 h-3 text-gray-300 group-hover:text-[#2563FF] transition-colors" />
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Sidebar Info */}
