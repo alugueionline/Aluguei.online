@@ -14,7 +14,8 @@ import {
   Calendar,
   Bell,
   Settings,
-  ChevronDown
+  ChevronDown,
+  Building2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -42,13 +43,13 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-100">
       <div className="p-8">
-        <div className="flex items-center mb-12">
-          <img 
-            src="https://i.ibb.co/HpMZDMpS/ICONE-ESCURO.png" 
-            alt="Aluguei Online" 
-            className="h-10 w-auto object-contain mr-3"
-          />
-          <span className="text-xl font-black text-gray-900 tracking-tight">Aluguei<span className="text-blue-600">Online</span></span>
+        <div className="flex items-center mb-12 group cursor-pointer">
+          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center mr-3 shadow-lg shadow-blue-200 group-hover:scale-110 transition-transform">
+            <Building2 className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-xl font-black text-gray-900 tracking-tight">
+            Aluguei<span className="text-blue-600">Online</span>
+          </span>
         </div>
 
         <nav className="space-y-1">
