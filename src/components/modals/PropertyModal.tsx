@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,8 @@ import {
   DollarSign,
   Home,
   Info,
-  X
+  X,
+  Upload
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -40,6 +41,8 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
   const isEdit = !!property;
   const [step, setStep] = useState<Step>('photo');
   const [loading, setLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -106,6 +109,35 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
       setStep('photo');
     }
   }, [property, isOpen]);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `property-images/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('properties')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('properties')
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, image_url: publicUrl });
+      showSuccess('Foto carregada com sucesso!');
+    } catch (error: any) {
+      showError('Erro ao carregar foto: ' + error.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleSave = async () => {
     setLoading(true);
@@ -205,39 +237,65 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex flex-col items-center justify-center">
                 <div className="relative group">
-                  <div className={cn(
-                    "w-full aspect-video md:w-[500px] rounded-[2.5rem] overflow-hidden bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center transition-all group-hover:border-blue-400 group-hover:bg-blue-50/30",
-                    formData.image_url && "border-none"
-                  )}>
-                    {formData.image_url ? (
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className={cn(
+                      "w-full aspect-video md:w-[500px] rounded-[2.5rem] overflow-hidden bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center transition-all group-hover:border-blue-400 group-hover:bg-blue-50/30 cursor-pointer",
+                      formData.image_url && "border-none"
+                    )}
+                  >
+                    {isUploading ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+                        <p className="text-sm font-bold text-blue-600">Enviando arquivo...</p>
+                      </div>
+                    ) : formData.image_url ? (
                       <img src={formData.image_url} alt="Preview" className="w-full h-full object-cover" />
                     ) : (
                       <>
                         <div className="w-16 h-16 rounded-full bg-white shadow-sm flex items-center justify-center mb-4 text-slate-400 group-hover:text-blue-500 transition-colors">
                           <Camera className="w-8 h-8" />
                         </div>
-                        <p className="text-sm font-black text-slate-400 group-hover:text-blue-600">Capa do Imóvel</p>
-                        <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-1">Recomendado: 1200x800px</p>
+                        <p className="text-sm font-black text-slate-400 group-hover:text-blue-600">Clique para selecionar foto</p>
+                        <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-1">Galeria ou Computador</p>
                       </>
                     )}
                   </div>
-                  {formData.image_url && (
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    accept="image/*" 
+                    onChange={handleFileUpload} 
+                  />
+                  {formData.image_url && !isUploading && (
                     <button 
-                      onClick={() => setFormData({...formData, image_url: ''})}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFormData({...formData, image_url: ''});
+                      }}
                       className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center backdrop-blur-md hover:bg-red-500 transition-all"
                     >
                       <X className="w-5 h-5" />
                     </button>
                   )}
                 </div>
-                <div className="w-full max-w-[500px] mt-6">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Link da Imagem (URL)</Label>
-                  <Input 
-                    placeholder="https://exemplo.com/foto-imovel.jpg" 
-                    value={formData.image_url}
-                    onChange={e => setFormData({...formData, image_url: e.target.value})}
-                    className="h-14 rounded-2xl bg-slate-50 border-none font-bold text-slate-900 focus-visible:ring-2 focus-visible:ring-blue-500/20"
-                  />
+                
+                <div className="w-full max-w-[500px] mt-8 space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="h-px bg-slate-100 flex-1" />
+                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Ou use um link externo</span>
+                    <div className="h-px bg-slate-100 flex-1" />
+                  </div>
+                  <div className="relative">
+                    <Upload className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                    <Input 
+                      placeholder="https://exemplo.com/foto.jpg" 
+                      value={formData.image_url}
+                      onChange={e => setFormData({...formData, image_url: e.target.value})}
+                      className="h-14 pl-12 rounded-2xl bg-slate-50 border-none font-bold text-slate-900 focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -448,7 +506,7 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
               <Button 
                 type="button" 
                 onClick={handleSave} 
-                disabled={loading}
+                disabled={loading || isUploading}
                 className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl px-12 font-black h-14 shadow-xl shadow-blue-200 gap-2 transition-all hover:scale-105 active:scale-95"
               >
                 {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <CheckCircle2 className="w-6 h-6" />}
