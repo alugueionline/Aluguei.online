@@ -28,8 +28,11 @@ const Tenants = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchTenants = async () => {
-    setLoading(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      setLoading(true);
       const { data, error } = await supabase
         .from('tenants')
         .select(`
@@ -38,7 +41,15 @@ const Tenants = () => {
         `)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Erro Supabase:', error);
+        // Se o erro for que a tabela não existe, mostramos uma mensagem mais clara
+        if (error.code === '42P01') {
+          showError('Tabela de inquilinos não encontrada. Verifique o banco de dados.');
+        } else {
+          throw error;
+        }
+      }
       setTenants(data || []);
     } catch (error: any) {
       showError('Erro ao carregar inquilinos');

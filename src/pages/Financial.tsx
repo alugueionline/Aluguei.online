@@ -5,23 +5,12 @@ import {
   DollarSign, 
   TrendingUp, 
   TrendingDown, 
-  Download,
-  Plus,
-  Search,
-  Calculator,
-  Settings2,
-  Building2,
-  MessageSquare,
-  Send,
-  ArrowRight
+  Plus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InterestFineSettings } from '@/components/financial/InterestFineSettings';
-import { ApportionmentModule } from '@/components/financial/ApportionmentModule';
-import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
 import { TransactionModal } from '@/components/modals/TransactionModal';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
@@ -31,21 +20,30 @@ import { supabase } from '@/integrations/supabase/client';
 
 const Financial = () => {
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
-  const [selectedData, setSelectedData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ receita: 0, despesa: 0, saldo: 0 });
 
   const fetchFinancialData = async () => {
-    setLoading(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      setLoading(true);
       const { data, error } = await supabase
         .from('bills')
         .select(`*, properties(name), tenants(name)`)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro Supabase:', error);
+        if (error.code === '42P01') {
+          showError('Tabela de contas não encontrada. Verifique o banco de dados.');
+        } else {
+          throw error;
+        }
+      }
+      
       setTransactions(data || []);
 
       let rec = 0, des = 0;
@@ -65,11 +63,6 @@ const Financial = () => {
   useEffect(() => {
     fetchFinancialData();
   }, []);
-
-  const handleOpenSummary = (data?: any) => {
-    setSelectedData(data || null);
-    setIsSummaryModalOpen(true);
-  };
 
   return (
     <DashboardLayout title="Gestão Financeira">
