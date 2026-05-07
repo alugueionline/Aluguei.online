@@ -18,14 +18,24 @@ export interface Condo {
 
 export interface Property {
   id: string;
+  user_id: string;
   name: string;
   type: PropertyType;
   address: string;
-  condoId?: string;
-  baseRent: number;
+  description?: string;
+  bedrooms: number;
+  bathrooms: number;
+  parking_spots: number;
+  size_sqm: number;
+  condo_name?: string;
+  block?: string;
+  tower?: string;
+  unit_number?: string;
+  floor?: string;
+  base_rent: number;
   status: PropertyStatus;
-  imageUrl?: string;
-  financialConfig?: FinancialConfig; // Specific rules per property
+  image_url?: string;
+  created_at?: string;
 }
 
 export interface Tenant {
