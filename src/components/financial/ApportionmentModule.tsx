@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ApportionmentModal } from '@/components/modals/ApportionmentModal';
 import { cn } from '@/lib/utils';
+import { showSuccess } from '@/utils/toast';
 
 export const ApportionmentModule = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -25,6 +26,11 @@ export const ApportionmentModule = () => {
       individual: data.individualValue
     };
     setExpenses([newExpense, ...expenses]);
+  };
+
+  const handleDelete = (id: number) => {
+    setExpenses(expenses.filter(e => e.id !== id));
+    showSuccess('Rateio removido com sucesso!');
   };
 
   return (
@@ -89,7 +95,12 @@ export const ApportionmentModule = () => {
               </div>
 
               <div className="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-slate-50/50">
-                <Button variant="ghost" size="sm" className="text-slate-400 hover:text-rose-600 rounded-xl h-10 px-4 font-bold">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => handleDelete(expense.id)}
+                  className="text-slate-400 hover:text-rose-600 rounded-xl h-10 px-4 font-bold"
+                >
                   <Trash2 className="w-4 h-4 mr-2" /> Excluir
                 </Button>
                 <Button variant="ghost" size="sm" className="text-[#2563FF] hover:bg-blue-50 rounded-xl h-10 px-6 font-bold gap-2">
@@ -113,11 +124,13 @@ export const ApportionmentModule = () => {
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-blue-600/70">Rateios este mês</span>
-                <span className="font-black text-xl text-blue-900">04</span>
+                <span className="font-black text-xl text-blue-900">{expenses.length}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-blue-600/70">Total rateado</span>
-                <span className="font-black text-xl text-[#2563FF]">R$ 1.250,00</span>
+                <span className="font-black text-xl text-[#2563FF]">
+                  R$ {expenses.reduce((acc, curr) => acc + curr.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
               </div>
               <div className="pt-6 border-t border-blue-100">
                 <p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em] mb-4">Ações Rápidas</p>
@@ -125,25 +138,6 @@ export const ApportionmentModule = () => {
                   <Button variant="outline" className="border-blue-200 bg-white hover:bg-blue-100 rounded-xl h-12 text-xs font-bold text-blue-600">Relatório PDF</Button>
                   <Button variant="outline" className="border-blue-200 bg-white hover:bg-blue-100 rounded-xl h-12 text-xs font-bold text-blue-600">Enviar Alertas</Button>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="p-2.5 bg-blue-50 rounded-2xl">
-                <Calculator className="w-6 h-6 text-blue-600" />
-              </div>
-              <h3 className="text-lg font-black text-slate-900 tracking-tight">Regras de Divisão</h3>
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-                <span className="text-sm font-bold text-slate-700">Divisão Igual</span>
-                <Badge className="bg-blue-600 text-white border-none font-bold">Padrão</Badge>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-slate-50 opacity-50 rounded-2xl">
-                <span className="text-sm font-bold text-slate-700">Por Metragem</span>
-                <Badge variant="outline" className="text-[8px] font-black uppercase text-slate-400">Em Breve</Badge>
               </div>
             </div>
           </div>

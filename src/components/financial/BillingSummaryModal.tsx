@@ -1,15 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Copy, Send, Calculator, Landmark, User } from 'lucide-react';
+import { MessageSquare, Copy, Send, Calculator, Landmark, User, Trash2, Plus } from 'lucide-react';
 import { showSuccess } from '@/utils/toast';
-import { cn } from '@/lib/utils';
 
 interface BillingSummaryModalProps {
   isOpen: boolean;
@@ -20,25 +17,44 @@ export const BillingSummaryModal = ({ isOpen, onClose }: BillingSummaryModalProp
   const [tenant, setTenant] = useState('');
   const [pixKey, setPixKey] = useState('seu-pix@email.com');
   const [rentValue, setRentValue] = useState('1200');
+  const [condoValue, setCondoValue] = useState('0');
   const [extraValues, setExtraValues] = useState([
-    { label: 'Energia', value: '145.20' },
-    { label: 'Água', value: '80.00' }
+    { label: 'Energia', value: '0' },
+    { label: 'Água', value: '0' }
   ]);
   const [generatedMessage, setGeneratedMessage] = useState('');
 
-  const total = parseFloat(rentValue) + extraValues.reduce((acc, curr) => acc + (parseFloat(curr.value) || 0), 0);
+  const calculateTotal = () => {
+    const rent = parseFloat(rentValue) || 0;
+    const condo = parseFloat(condoValue) || 0;
+    const extras = extraValues.reduce((acc, curr) => acc + (parseFloat(curr.value) || 0), 0);
+    return rent + condo + extras;
+  };
+
+  const total = calculateTotal();
 
   useEffect(() => {
     const tenantName = tenant || 'Inquilino';
-    const extrasText = extraValues
-      .filter(e => e.value && parseFloat(e.value) > 0)
-      .map(e => `• ${e.label}: R$ ${parseFloat(e.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)
-      .join('\n');
+    const rent = parseFloat(rentValue) || 0;
+    const condo = parseFloat(condoValue) || 0;
+    
+    let details = `• Aluguel: R$ ${rent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+    
+    if (condo > 0) {
+      details += `• Condomínio: R$ ${condo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+    }
 
-    const message = `Olá ${tenantName}! 👋\n\nEstou enviando o resumo do aluguel e demais valores deste mês:\n\n• Aluguel: R$ ${parseFloat(rentValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n${extrasText}\n\n💰 *Total a pagar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n\n🔑 *Chave PIX:* ${pixKey}\n\nQualquer dúvida, estou à disposição!`;
+    extraValues.forEach(e => {
+      const val = parseFloat(e.value) || 0;
+      if (val > 0 && e.label) {
+        details += `• ${e.label}: R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+      }
+    });
+
+    const message = `Olá ${tenantName}! 👋\n\nEstou enviando o resumo do aluguel e demais valores deste mês:\n\n${details}\n💰 *Total a pagar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n\n🔑 *Chave PIX:* ${pixKey}\n\nQualquer dúvida, estou à disposição!`;
     
     setGeneratedMessage(message);
-  }, [tenant, rentValue, extraValues, pixKey, total]);
+  }, [tenant, rentValue, condoValue, extraValues, pixKey, total]);
 
   const handleSendWhatsApp = () => {
     const encodedMessage = encodeURIComponent(generatedMessage);
@@ -48,15 +64,18 @@ export const BillingSummaryModal = ({ isOpen, onClose }: BillingSummaryModalProp
 
   const handleCopy = () => {
     navigator.clipboard.writeText(generatedMessage);
-    showSuccess('Mensagem copiada para a área de transferência!');
+    showSuccess('Mensagem copiada!');
   };
+
+  const addExtra = () => setExtraValues([...extraValues, { label: '', value: '0' }]);
+  const removeExtra = (index: number) => setExtraValues(extraValues.filter((_, i) => i !== index));
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[650px] rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
-        <div className="grid grid-cols-1 md:grid-cols-2 h-full">
+      <DialogContent className="sm:max-w-[700px] rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 h-[600px]">
           {/* Configurações */}
-          <div className="p-8 space-y-6 bg-white">
+          <div className="p-8 space-y-6 bg-white overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">Resumo de Cobrança</DialogTitle>
             </DialogHeader>
@@ -86,61 +105,78 @@ export const BillingSummaryModal = ({ isOpen, onClose }: BillingSummaryModalProp
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chave PIX</Label>
-                  <div className="relative">
-                    <Landmark className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                    <Input 
-                      className="pl-10 h-11 rounded-xl bg-slate-50 border-none font-bold text-xs"
-                      value={pixKey}
-                      onChange={(e) => setPixKey(e.target.value)}
-                    />
-                  </div>
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Condomínio (R$)</Label>
+                  <Input 
+                    type="number" 
+                    className="h-11 rounded-xl bg-slate-50 border-none font-bold"
+                    value={condoValue}
+                    onChange={(e) => setCondoValue(e.target.value)}
+                  />
                 </div>
               </div>
 
               <div className="space-y-3">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valores Adicionais</Label>
-                {extraValues.map((extra, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input 
-                      placeholder="Ex: Luz" 
-                      className="h-10 rounded-xl bg-slate-50 border-none text-xs font-bold flex-1"
-                      value={extra.label}
-                      onChange={(e) => {
-                        const newExtras = [...extraValues];
-                        newExtras[index].label = e.target.value;
-                        setExtraValues(newExtras);
-                      }}
-                    />
-                    <Input 
-                      type="number" 
-                      placeholder="0,00" 
-                      className="h-10 rounded-xl bg-slate-50 border-none text-xs font-bold w-24"
-                      value={extra.value}
-                      onChange={(e) => {
-                        const newExtras = [...extraValues];
-                        newExtras[index].value = e.target.value;
-                        setExtraValues(newExtras);
-                      }}
-                    />
-                  </div>
-                ))}
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-blue-600 font-bold text-[10px] uppercase tracking-widest hover:bg-blue-50"
-                  onClick={() => setExtraValues([...extraValues, { label: '', value: '' }])}
-                >
-                  + Adicionar Item
-                </Button>
+                <div className="flex justify-between items-center">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Outros Custos (Luz, Água, etc.)</Label>
+                  <Button variant="ghost" size="sm" onClick={addExtra} className="h-6 px-2 text-blue-600 font-bold text-[10px]">
+                    <Plus className="w-3 h-3 mr-1" /> ADICIONAR
+                  </Button>
+                </div>
+                
+                <div className="space-y-2">
+                  {extraValues.map((extra, index) => (
+                    <div key={index} className="flex gap-2 group">
+                      <Input 
+                        placeholder="Ex: Luz" 
+                        className="h-10 rounded-xl bg-slate-50 border-none text-xs font-bold flex-1"
+                        value={extra.label}
+                        onChange={(e) => {
+                          const newExtras = [...extraValues];
+                          newExtras[index].label = e.target.value;
+                          setExtraValues(newExtras);
+                        }}
+                      />
+                      <Input 
+                        type="number" 
+                        className="h-10 rounded-xl bg-slate-50 border-none text-xs font-bold w-24"
+                        value={extra.value}
+                        onChange={(e) => {
+                          const newExtras = [...extraValues];
+                          newExtras[index].value = e.target.value;
+                          setExtraValues(newExtras);
+                        }}
+                      />
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => removeExtra(index)}
+                        className="h-10 w-10 rounded-xl text-slate-300 hover:text-rose-500"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chave PIX</Label>
+                <div className="relative">
+                  <Landmark className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                  <Input 
+                    className="pl-10 h-11 rounded-xl bg-slate-50 border-none font-bold text-xs"
+                    value={pixKey}
+                    onChange={(e) => setPixKey(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-50">
+            <div className="pt-4 border-t border-slate-50 sticky bottom-0 bg-white">
               <div className="flex justify-between items-center p-4 bg-blue-50 rounded-2xl">
                 <div className="flex items-center gap-2 text-blue-600">
                   <Calculator className="w-5 h-5" />
-                  <span className="text-xs font-black uppercase tracking-widest">Total Geral</span>
+                  <span className="text-xs font-black uppercase tracking-widest">Total Real</span>
                 </div>
                 <span className="text-xl font-black text-blue-900">R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
@@ -154,7 +190,7 @@ export const BillingSummaryModal = ({ isOpen, onClose }: BillingSummaryModalProp
               <span className="text-xs font-black uppercase tracking-widest">Preview WhatsApp</span>
             </div>
             
-            <div className="flex-1 bg-slate-800/50 rounded-3xl p-6 text-slate-300 text-sm font-medium whitespace-pre-wrap leading-relaxed border border-slate-700/50">
+            <div className="flex-1 bg-slate-800/50 rounded-3xl p-6 text-slate-300 text-sm font-medium whitespace-pre-wrap leading-relaxed border border-slate-700/50 overflow-y-auto">
               {generatedMessage}
             </div>
 
