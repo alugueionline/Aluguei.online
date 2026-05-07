@@ -18,19 +18,10 @@ import {
   MapPin,
   ArrowUpRight
 } from 'lucide-react';
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer
-} from 'recharts';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
-const Index = () => {
+const Dashboard = () => {
   const navigate = useNavigate();
   const [userName, setUserName] = useState('');
   const [stats, setStats] = useState({
@@ -44,44 +35,52 @@ const Index = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate('/login');
-        return;
-      }
-
-      setUserName(user.user_metadata?.full_name?.split(' ')[0] || 'Usuário');
-
-      // Buscar Imóveis
-      const { data: props } = await supabase
-        .from('properties')
-        .select('*')
-        .limit(4);
-      setProperties(props || []);
-
-      // Buscar Resumo Financeiro (Exemplo simplificado)
-      const { data: bills } = await supabase
-        .from('bills')
-        .select('total_value, type, status');
-      
-      let rec = 0, des = 0, pen = 0;
-      bills?.forEach(b => {
-        if (b.type === 'receita' || b.type === 'aluguel') {
-          if (b.status === 'pago') rec += Number(b.total_value);
-          else pen += Number(b.total_value);
-        } else {
-          if (b.status === 'pago') des += Number(b.total_value);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          navigate('/login');
+          return;
         }
-      });
 
-      setStats({
-        receitas: rec,
-        despesas: des,
-        lucro: rec - des,
-        pendente: pen
-      });
+        setUserName(user.user_metadata?.full_name?.split(' ')[0] || 'Usuário');
 
-      setLoading(false);
+        // Buscar Imóveis
+        const { data: props, error: propsError } = await supabase
+          .from('properties')
+          .select('*')
+          .limit(4);
+        
+        if (!propsError) setProperties(props || []);
+
+        // Buscar Resumo Financeiro
+        const { data: bills, error: billsError } = await supabase
+          .from('bills')
+          .select('total_value, type, status');
+        
+        if (!billsError && bills) {
+          let rec = 0, des = 0, pen = 0;
+          bills.forEach(b => {
+            const val = Number(b.total_value) || 0;
+            if (b.type === 'receita' || b.type === 'aluguel') {
+              if (b.status === 'pago') rec += val;
+              else pen += val;
+            } else {
+              if (b.status === 'pago') des += val;
+            }
+          });
+
+          setStats({
+            receitas: rec,
+            despesas: des,
+            lucro: rec - des,
+            pendente: pen
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao carregar dashboard:', err);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();
@@ -203,4 +202,4 @@ const SummaryCard = ({ label, value, icon, color, showArrow }: any) => (
   </Card>
 );
 
-export default Index;
+export default Dashboard;

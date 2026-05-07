@@ -19,6 +19,7 @@ import { Plus, Edit2, Trash2, ExternalLink, UserX } from 'lucide-react';
 import { TenantModal } from '@/components/modals/TenantModal';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
+import { cn } from '@/lib/utils';
 
 const Tenants = () => {
   const navigate = useNavigate();
@@ -42,17 +43,16 @@ const Tenants = () => {
         .order('created_at', { ascending: false });
       
       if (error) {
-        console.error('Erro Supabase:', error);
-        // Se o erro for que a tabela não existe, mostramos uma mensagem mais clara
-        if (error.code === '42P01') {
-          showError('Tabela de inquilinos não encontrada. Verifique o banco de dados.');
-        } else {
-          throw error;
+        // Silenciamos o erro de tabela não encontrada (42P01)
+        if (error.code !== '42P01') {
+          console.error('Erro Supabase:', error);
         }
+        setTenants([]);
+      } else {
+        setTenants(data || []);
       }
-      setTenants(data || []);
     } catch (error: any) {
-      showError('Erro ao carregar inquilinos');
+      setTenants([]);
     } finally {
       setLoading(false);
     }
