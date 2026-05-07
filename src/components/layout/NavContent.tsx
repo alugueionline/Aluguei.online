@@ -9,19 +9,19 @@ import {
   DollarSign, 
   ArrowUpDown, 
   Wrench, 
-  BarChart3,
-  FileText,
-  Calendar,
-  Bell,
-  Settings,
-  ChevronDown,
-  LogOut
+  BarChart3, 
+  FileText, 
+  Calendar, 
+  Bell, 
+  Settings, 
+  ChevronDown, 
+  LogOut 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: Home, label: 'Imóveis', path: '/properties' },
   { icon: Users, label: 'Locatários', path: '/tenants' },
   { icon: DollarSign, label: 'Financeiro', path: '/financial' },
@@ -46,15 +46,19 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
     if (onItemClick) onItemClick();
   };
 
+  const handleLogout = () => {
+    navigate('/');
+    if (onItemClick) onItemClick();
+  };
+
   return (
     <div className="flex flex-col h-full bg-white">
       <div className="p-8">
-        <div className="flex items-center mb-10 px-2">
-          <img 
-            src="https://i.ibb.co/8nFsGk01/LOGO.png" 
-            alt="Aluguei Online" 
-            className="h-10 w-auto object-contain"
-          />
+        <div className="flex items-center mb-10 px-2 cursor-pointer" onClick={() => navigate('/')}>
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mr-2">
+            <Home className="text-white w-5 h-5" />
+          </div>
+          <span className="text-lg font-black text-slate-900 tracking-tight">Aluguei<span className="text-blue-600">Online</span></span>
         </div>
 
         <nav className="space-y-1.5">
@@ -85,19 +89,13 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
 
       <div className="mt-auto p-6 space-y-4">
         <div className="px-2">
-          <Link
-            to="/settings"
-            onClick={onItemClick}
-            className={cn(
-              "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group",
-              location.pathname === '/settings'
-                ? "bg-gray-100 text-gray-900"
-                : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-            )}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-all duration-200 group"
           >
-            <Settings className="w-5 h-5" />
-            Configurações
-          </Link>
+            <LogOut className="w-5 h-5 text-gray-400 group-hover:text-rose-600" />
+            Sair do Sistema
+          </button>
         </div>
 
         <div 
