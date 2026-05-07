@@ -1,20 +1,20 @@
-import React, { useState } from 'react';
+"use client";
+
+import React from 'react';
 import { 
   DollarSign, 
   TrendingUp, 
   TrendingDown, 
-  ArrowUpRight, 
-  ArrowDownRight,
   Filter,
   Download,
   Plus,
   Search,
-  Percent,
   Calculator,
   Settings2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InterestFineSettings } from '@/components/financial/InterestFineSettings';
 import { ApportionmentModule } from '@/components/financial/ApportionmentModule';
@@ -101,7 +101,7 @@ const Financial = () => {
               </div>
             </div>
             <div className="p-8 text-center text-gray-500 font-medium">
-              Lista de transações e histórico financeiro...
+              Aqui será exibido o histórico detalhado de transações financeiras.
             </div>
           </div>
         </TabsContent>
