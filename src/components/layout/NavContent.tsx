@@ -36,7 +36,7 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
           <img 
             src="https://i.ibb.co/8nFsGk01/LOGO.png" 
             alt="Aluguei Online" 
-            className="h-10 w-auto object-contain"
+            className="h-14 w-auto object-contain"
           />
         </div>
 
