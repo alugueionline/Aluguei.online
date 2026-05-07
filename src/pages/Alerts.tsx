@@ -1,13 +1,14 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Bell, AlertCircle, Clock, CheckCircle2, Trash2, MoreVertical } from 'lucide-react';
+import { Bell, AlertCircle, CheckCircle2, Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { showSuccess } from '@/utils/toast';
 
-const alerts = [
+const initialAlerts = [
   { id: '1', title: 'Pagamento Atrasado', desc: 'Pedro Santos (Kitnet A) está com 5 dias de atraso no aluguel.', type: 'error', time: 'Há 2 horas', read: false },
   { id: '2', title: 'Contrato a Vencer', desc: 'O contrato de João Silva (Apto 101) vence em 30 dias.', type: 'warning', time: 'Há 5 horas', read: false },
   { id: '3', title: 'Manutenção Concluída', desc: 'A troca de fiação na Casa 02 foi finalizada pelo prestador.', type: 'success', time: 'Ontem', read: true },
@@ -15,11 +16,27 @@ const alerts = [
 ];
 
 const Alerts = () => {
+  const [alerts, setAlerts] = useState(initialAlerts);
+
+  const handleDelete = (id: string) => {
+    setAlerts(alerts.filter(a => a.id !== id));
+    showSuccess('Notificação removida.');
+  };
+
+  const markAllRead = () => {
+    setAlerts(alerts.map(a => ({ ...a, read: true })));
+    showSuccess('Todas as notificações marcadas como lidas.');
+  };
+
   return (
     <DashboardLayout title="Avisos e Notificações">
       <div className="flex justify-between items-center mb-8">
-        <p className="text-gray-500">Você tem 2 notificações não lidas.</p>
-        <Button variant="ghost" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-bold">
+        <p className="text-gray-500">Você tem {alerts.filter(a => !a.read).length} notificações não lidas.</p>
+        <Button 
+          variant="ghost" 
+          onClick={markAllRead}
+          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-bold"
+        >
           Marcar todas como lidas
         </Button>
       </div>
@@ -53,12 +70,7 @@ const Alerts = () => {
                 </div>
                 
                 <div className="flex items-center gap-4 mt-4">
-                  {!alert.read && (
-                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700 h-8 px-4 text-xs">
-                      Ver Detalhes
-                    </Button>
-                  )}
-                  <Button variant="ghost" size="sm" className="h-8 px-3 text-gray-400 hover:text-red-600 gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => handleDelete(alert.id)} className="h-8 px-3 text-gray-400 hover:text-red-600 gap-2">
                     <Trash2 className="w-4 h-4" /> Excluir
                   </Button>
                 </div>
@@ -66,10 +78,15 @@ const Alerts = () => {
             </CardContent>
           </Card>
         ))}
+        {alerts.length === 0 && (
+          <div className="text-center py-20 text-gray-400">
+            <Bell className="w-12 h-12 mx-auto mb-4 opacity-20" />
+            <p>Nenhuma notificação por aqui.</p>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
 };
 
-import { cn } from '@/lib/utils';
 export default Alerts;
