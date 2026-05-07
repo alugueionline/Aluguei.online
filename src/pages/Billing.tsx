@@ -27,14 +27,15 @@ import {
 } from 'lucide-react';
 import { BillingModal } from '@/components/modals/BillingModal';
 
-const mockBills = [
-  { id: '1', property: 'Apto 101', type: 'energy', month: '06', year: 2024, totalValue: 145.20, calculatedValue: 145.20, status: 'pendente' },
-  { id: '2', property: 'Casa 02', type: 'water', month: '06', year: 2024, totalValue: 80.00, calculatedValue: 80.00, status: 'pago' },
+const initialBills = [
+  { id: '1', property: 'Apto 101', type: 'energia', month: '06', year: 2024, totalValue: 145.20, calculatedValue: 145.20, status: 'pendente' },
+  { id: '2', property: 'Casa 02', type: 'agua', month: '06', year: 2024, totalValue: 80.00, calculatedValue: 80.00, status: 'pago' },
   { id: '3', property: 'Apto 101', type: 'iptu', month: '06', year: 2024, totalValue: 120.00, calculatedValue: 120.00, status: 'pago' },
-  { id: '4', property: 'Kitnet A', type: 'energy', month: '05', year: 2024, totalValue: 95.00, calculatedValue: 95.00, status: 'atrasado' },
+  { id: '4', property: 'Kitnet A', type: 'energia', month: '05', year: 2024, totalValue: 95.00, calculatedValue: 95.00, status: 'atrasado' },
 ];
 
 const Billing = () => {
+  const [bills, setBills] = useState(initialBills);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBill, setSelectedBill] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,10 +50,24 @@ const Billing = () => {
     setIsModalOpen(true);
   };
 
+  const handleSaveBill = (newBillData: any) => {
+    if (selectedBill) {
+      setBills(bills.map(b => b.id === selectedBill.id ? { ...b, ...newBillData } : b));
+    } else {
+      const newBill = {
+        ...newBillData,
+        id: Math.random().toString(36).substr(2, 9),
+        status: 'pendente',
+        property: newBillData.propertyId === "1" ? "Apto 101" : newBillData.propertyId === "2" ? "Casa 02" : "Kitnet A"
+      };
+      setBills([newBill, ...bills]);
+    }
+  };
+
   const getIcon = (type: string) => {
     switch (type) {
-      case 'energy': return <Zap className="w-4 h-4" />;
-      case 'water': return <Droplets className="w-4 h-4" />;
+      case 'energia': return <Zap className="w-4 h-4" />;
+      case 'agua': return <Droplets className="w-4 h-4" />;
       case 'iptu': return <Percent className="w-4 h-4" />;
       default: return <FileText className="w-4 h-4" />;
     }
@@ -66,6 +81,10 @@ const Billing = () => {
     }
   };
 
+  const filteredBills = bills.filter(bill => 
+    bill.property.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <DashboardLayout title="Gestão de Contas e Utilidades">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -76,7 +95,9 @@ const Billing = () => {
             </div>
             <div>
               <p className="text-sm text-gray-500 font-medium">Total Pendente</p>
-              <h3 className="text-2xl font-bold text-gray-900">R$ 240,20</h3>
+              <h3 className="text-2xl font-bold text-gray-900">
+                R$ {bills.filter(b => b.status !== 'pago').reduce((acc, b) => acc + b.calculatedValue, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </h3>
             </div>
           </CardContent>
         </Card>
@@ -87,7 +108,9 @@ const Billing = () => {
             </div>
             <div>
               <p className="text-sm text-gray-500 font-medium">Pago este Mês</p>
-              <h3 className="text-2xl font-bold text-gray-900">R$ 200,00</h3>
+              <h3 className="text-2xl font-bold text-gray-900">
+                R$ {bills.filter(b => b.status === 'pago').reduce((acc, b) => acc + b.calculatedValue, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </h3>
             </div>
           </CardContent>
         </Card>
@@ -129,13 +152,13 @@ const Billing = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockBills.map((bill) => (
+              {filteredBills.map((bill) => (
                 <TableRow key={bill.id} className="hover:bg-gray-50/50 transition-colors">
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div className={`p-2 rounded-lg ${
-                        bill.type === 'energy' ? 'bg-orange-50 text-orange-600' : 
-                        bill.type === 'water' ? 'bg-blue-50 text-blue-600' : 
+                        bill.type === 'energia' ? 'bg-orange-50 text-orange-600' : 
+                        bill.type === 'agua' ? 'bg-blue-50 text-blue-600' : 
                         'bg-purple-50 text-purple-600'
                       }`}>
                         {getIcon(bill.type)}
@@ -145,7 +168,7 @@ const Billing = () => {
                   </TableCell>
                   <TableCell className="font-medium text-gray-900">{bill.property}</TableCell>
                   <TableCell className="text-gray-500">{bill.month}/{bill.year}</TableCell>
-                  <TableCell className="font-bold">R$ {bill.calculatedValue.toFixed(2)}</TableCell>
+                  <TableCell className="font-bold">R$ {bill.calculatedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
                   <TableCell>{getStatusBadge(bill.status)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
@@ -157,13 +180,25 @@ const Billing = () => {
                       >
                         <Edit2 className="w-4 h-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-red-50 hover:text-red-600">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 rounded-full hover:bg-red-50 hover:text-red-600"
+                        onClick={() => setBills(bills.filter(b => b.id !== bill.id))}
+                      >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </TableCell>
                 </TableRow>
               ))}
+              {filteredBills.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                    Nenhum lançamento encontrado.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -172,6 +207,7 @@ const Billing = () => {
       <BillingModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
+        onSave={handleSaveBill}
         bill={selectedBill} 
       />
     </DashboardLayout>

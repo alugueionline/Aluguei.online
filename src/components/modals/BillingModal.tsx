@@ -10,17 +10,27 @@ import { Calculator } from 'lucide-react';
 interface BillingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSave: (data: any) => void;
   bill?: any;
 }
 
-export const BillingModal = ({ isOpen, onClose, bill }: BillingModalProps) => {
+export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProps) => {
   const isEdit = !!bill;
-  const [type, setType] = useState(bill?.type || 'energy');
-  const [method, setMethod] = useState(bill?.billingMethod || 'fixed');
+  const [type, setType] = useState(bill?.type || 'energia');
+  const [propertyId, setPropertyId] = useState(bill?.propertyId || "1");
+  const [date, setDate] = useState(`${bill?.year || 2024}-${bill?.month || '06'}`);
   const [totalValue, setTotalValue] = useState(bill?.totalValue?.toString() || '');
   const [calculated, setCalculated] = useState<number>(bill?.calculatedValue || 0);
 
-  // Lógica simplificada de cálculo para o modal
+  useEffect(() => {
+    if (isOpen) {
+      setType(bill?.type || 'energia');
+      setPropertyId(bill?.propertyId || "1");
+      setDate(`${bill?.year || 2024}-${bill?.month || '06'}`);
+      setTotalValue(bill?.totalValue?.toString() || '');
+    }
+  }, [isOpen, bill]);
+
   useEffect(() => {
     const val = parseFloat(totalValue) || 0;
     setCalculated(val);
@@ -28,6 +38,18 @@ export const BillingModal = ({ isOpen, onClose, bill }: BillingModalProps) => {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const [year, month] = date.split('-');
+    
+    onSave({
+      type,
+      propertyId,
+      month,
+      year: parseInt(year),
+      totalValue: parseFloat(totalValue),
+      calculatedValue: calculated
+    });
+
     showSuccess(isEdit ? 'Conta atualizada!' : 'Conta lançada com sucesso!');
     onClose();
   };
@@ -41,14 +63,14 @@ export const BillingModal = ({ isOpen, onClose, bill }: BillingModalProps) => {
         <form onSubmit={handleSave} className="space-y-4 py-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Tipo</Label>
+              <Label>Tipo de Conta</Label>
               <Select value={type} onValueChange={setType}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="energy">Energia</SelectItem>
-                  <SelectItem value="water">Água</SelectItem>
+                  <SelectItem value="energia">Energia</SelectItem>
+                  <SelectItem value="agua">Água</SelectItem>
                   <SelectItem value="iptu">IPTU</SelectItem>
                   <SelectItem value="extra">Taxa Extra</SelectItem>
                 </SelectContent>
@@ -56,7 +78,7 @@ export const BillingModal = ({ isOpen, onClose, bill }: BillingModalProps) => {
             </div>
             <div className="space-y-2">
               <Label>Imóvel</Label>
-              <Select defaultValue={bill?.propertyId || "1"}>
+              <Select value={propertyId} onValueChange={setPropertyId}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -71,13 +93,19 @@ export const BillingModal = ({ isOpen, onClose, bill }: BillingModalProps) => {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Mês/Ano</Label>
-              <Input type="month" defaultValue={`${bill?.year || 2024}-${bill?.month || '06'}`} />
+              <Label>Mês/Ano de Referência</Label>
+              <Input 
+                type="month" 
+                value={date} 
+                onChange={(e) => setDate(e.target.value)} 
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label>Valor Total (R$)</Label>
               <Input 
                 type="number" 
+                step="0.01"
                 value={totalValue} 
                 onChange={(e) => setTotalValue(e.target.value)} 
                 placeholder="0,00" 
@@ -91,7 +119,7 @@ export const BillingModal = ({ isOpen, onClose, bill }: BillingModalProps) => {
               <Calculator className="w-4 h-4" />
               <span className="text-sm font-medium">Valor Calculado</span>
             </div>
-            <span className="text-lg font-bold text-blue-900">R$ {calculated.toFixed(2)}</span>
+            <span className="text-lg font-bold text-blue-900">R$ {calculated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
           </div>
 
           <DialogFooter className="pt-4">
