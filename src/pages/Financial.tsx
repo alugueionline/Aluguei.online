@@ -1,128 +1,120 @@
-import React from 'react';
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import React, { useState } from 'react';
 import { 
   DollarSign, 
-  ArrowUpCircle, 
-  ArrowDownCircle, 
-  Clock,
+  TrendingUp, 
+  TrendingDown, 
+  ArrowUpRight, 
+  ArrowDownRight,
   Filter,
-  Download
+  Download,
+  Plus,
+  Search,
+  Percent,
+  Calculator,
+  Settings2
 } from 'lucide-react';
-
-const payments = [
-  { id: '1', tenant: 'João Silva', property: 'Apto 101', type: 'Aluguel + Luz', value: 1345.20, dueDate: '10/06/2024', status: 'pago' },
-  { id: '2', tenant: 'Maria Oliveira', property: 'Casa 02', type: 'Aluguel', value: 2500.00, dueDate: '15/06/2024', status: 'pendente' },
-  { id: '3', tenant: 'Pedro Santos', property: 'Kitnet A', type: 'Aluguel + Água', value: 900.00, dueDate: '05/06/2024', status: 'atrasado' },
-];
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { InterestFineSettings } from '@/components/financial/InterestFineSettings';
+import { ApportionmentModule } from '@/components/financial/ApportionmentModule';
 
 const Financial = () => {
   return (
-    <DashboardLayout title="Financeiro">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Card className="border-none shadow-sm bg-green-50">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-green-500 rounded-xl text-white">
-              <ArrowUpCircle className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm text-green-600 font-medium">Recebido (Mês)</p>
-              <h3 className="text-2xl font-bold text-green-900">R$ 12.450,00</h3>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-none shadow-sm bg-orange-50">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-orange-500 rounded-xl text-white">
-              <Clock className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm text-orange-600 font-medium">Pendente</p>
-              <h3 className="text-2xl font-bold text-orange-900">R$ 3.200,00</h3>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-none shadow-sm bg-red-50">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-red-500 rounded-xl text-white">
-              <ArrowDownCircle className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm text-red-600 font-medium">Atrasado</p>
-              <h3 className="text-2xl font-bold text-red-900">R$ 850,00</h3>
-            </div>
-          </CardContent>
-        </Card>
+    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Gestão Financeira</h1>
+          <p className="text-gray-500 mt-1 font-medium">Controle avançado de recebimentos, juros e rateios</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" className="rounded-xl border-gray-200 font-bold gap-2 h-11">
+            <Download className="w-4 h-4" />
+            Exportar
+          </Button>
+          <Button className="bg-[#2563FF] hover:bg-blue-700 text-white rounded-xl font-bold gap-2 h-11 shadow-lg shadow-blue-100">
+            <Plus className="w-4 h-4" />
+            Nova Transação
+          </Button>
+        </div>
       </div>
 
-      <Card className="border-none shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg font-semibold">Fluxo de Pagamentos</CardTitle>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="gap-2">
-              <Filter className="w-4 h-4" /> Filtrar
-            </Button>
-            <Button variant="outline" size="sm" className="gap-2">
-              <Download className="w-4 h-4" /> Exportar
-            </Button>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-2 bg-green-50 rounded-xl">
+              <TrendingUp className="w-6 h-6 text-green-600" />
+            </div>
+            <Badge className="bg-green-50 text-green-700 border-none">+12.5%</Badge>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Inquilino / Imóvel</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Vencimento</TableHead>
-                <TableHead>Valor</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {payments.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell>
-                    <p className="font-medium text-gray-900">{p.tenant}</p>
-                    <p className="text-xs text-gray-500">{p.property}</p>
-                  </TableCell>
-                  <TableCell className="text-sm text-gray-600">{p.type}</TableCell>
-                  <TableCell className="text-sm text-gray-600">{p.dueDate}</TableCell>
-                  <TableCell className="font-bold">R$ {p.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant={p.status === 'pago' ? 'secondary' : 'outline'}
-                      className={
-                        p.status === 'pago' ? 'bg-green-100 text-green-700 border-none' :
-                        p.status === 'atrasado' ? 'bg-red-100 text-red-700 border-none' :
-                        'bg-orange-100 text-orange-700 border-none'
-                      }
-                    >
-                      {p.status.toUpperCase()}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-                      Confirmar
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </DashboardLayout>
+          <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">Receita Total</p>
+          <h3 className="text-2xl font-black text-gray-900 mt-1">R$ 45.280,00</h3>
+        </div>
+
+        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-2 bg-red-50 rounded-xl">
+              <TrendingDown className="w-6 h-6 text-red-600" />
+            </div>
+            <Badge className="bg-red-50 text-red-700 border-none">-2.4%</Badge>
+          </div>
+          <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">Despesas</p>
+          <h3 className="text-2xl font-black text-gray-900 mt-1">R$ 12.450,00</h3>
+        </div>
+
+        <div className="bg-[#2563FF] p-6 rounded-3xl shadow-xl shadow-blue-100">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-2 bg-white/20 rounded-xl">
+              <DollarSign className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <p className="text-sm font-bold text-white/70 uppercase tracking-wider">Saldo Líquido</p>
+          <h3 className="text-2xl font-black text-white mt-1">R$ 32.830,00</h3>
+        </div>
+      </div>
+
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList className="bg-gray-100/50 p-1 rounded-2xl border border-gray-100">
+          <TabsTrigger value="overview" className="rounded-xl px-6 font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm">Visão Geral</TabsTrigger>
+          <TabsTrigger value="apportionment" className="rounded-xl px-6 font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2">
+            <Calculator className="w-4 h-4" />
+            Rateio de Contas
+          </TabsTrigger>
+          <TabsTrigger value="settings" className="rounded-xl px-6 font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2">
+            <Settings2 className="w-4 h-4" />
+            Configurações
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input placeholder="Buscar transações..." className="pl-10 bg-gray-50 border-none rounded-xl h-11" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" className="rounded-xl gap-2 font-bold text-gray-500">
+                  <Filter className="w-4 h-4" />
+                  Filtros
+                </Button>
+              </div>
+            </div>
+            <div className="p-8 text-center text-gray-500 font-medium">
+              Lista de transações e histórico financeiro...
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="apportionment">
+          <ApportionmentModule />
+        </TabsContent>
+
+        <TabsContent value="settings">
+          <InterestFineSettings />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 };
 

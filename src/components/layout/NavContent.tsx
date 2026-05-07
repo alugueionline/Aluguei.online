@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Home, 
@@ -39,6 +39,12 @@ interface NavContentProps {
 
 export const NavContent = ({ onItemClick }: NavContentProps) => {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleUserClick = () => {
+    navigate('/settings');
+    if (onItemClick) onItemClick();
+  };
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -94,7 +100,10 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
           </Link>
         </div>
 
-        <div className="p-4 bg-[#F7F9FC] rounded-2xl border border-gray-100 flex items-center justify-between group cursor-pointer hover:bg-gray-100 transition-colors">
+        <div 
+          onClick={handleUserClick}
+          className="p-4 bg-[#F7F9FC] rounded-2xl border border-gray-100 flex items-center justify-between group cursor-pointer hover:bg-gray-100 transition-colors"
+        >
           <div className="flex items-center gap-3">
             <Avatar className="w-10 h-10 rounded-xl border-2 border-white shadow-sm">
               <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=Jonas" />
