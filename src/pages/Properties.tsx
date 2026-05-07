@@ -1,22 +1,23 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   Plus, 
   Search, 
-  Filter, 
   MapPin, 
   ArrowUpRight,
   Edit2,
   Trash2,
   Image as ImageIcon,
-  Building2
+  Building2,
+  Loader2
 } from 'lucide-react';
 import { PropertyModal } from '@/components/modals/PropertyModal';
 import { cn } from '@/lib/utils';
@@ -25,39 +26,23 @@ import { supabase } from '@/integrations/supabase/client';
 
 const Properties = () => {
   const navigate = useNavigate();
-  const [properties, setProperties] = useState<any[]>([]);
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
 
-  const fetchProperties = async () => {
-    try {
-      setLoading(true);
+  const { data: properties = [], isLoading } = useQuery({
+    queryKey: ['properties'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('properties')
         .select('*')
         .order('created_at', { ascending: false });
       
-      if (error) {
-        // Se a tabela não existir (42P01), apenas tratamos como vazio
-        if (error.code !== '42P01') {
-          console.error('Erro ao buscar imóveis:', error);
-        }
-        setProperties([]);
-      } else {
-        setProperties(data || []);
-      }
-    } catch (err) {
-      setProperties([]);
-    } finally {
-      setLoading(false);
+      if (error && error.code !== '42P01') throw error;
+      return data || [];
     }
-  };
-
-  useEffect(() => {
-    fetchProperties();
-  }, []);
+  });
 
   const handleEdit = (property: any) => {
     setSelectedProperty(property);
@@ -75,7 +60,7 @@ const Properties = () => {
       if (error) showError('Erro ao excluir imóvel');
       else {
         showSuccess('Imóvel removido com sucesso!');
-        fetchProperties();
+        queryClient.invalidateQueries({ queryKey: ['properties'] });
       }
     }
   };
@@ -102,8 +87,11 @@ const Properties = () => {
         </Button>
       </div>
 
-      {loading ? (
-        <div className="text-center py-20 text-gray-400 font-medium">Carregando seu workspace...</div>
+      {isLoading ? (
+        <div className="h-[40vh] flex flex-col items-center justify-center gap-4">
+          <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+          <p className="text-gray-400 font-medium">Carregando seu workspace...</p>
+        </div>
       ) : filteredProperties.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredProperties.map((property) => (
@@ -169,7 +157,7 @@ const Properties = () => {
 
       <PropertyModal 
         isOpen={isModalOpen} 
-        onClose={() => { setIsModalOpen(false); fetchProperties(); }} 
+        onClose={() => { setIsModalOpen(false); queryClient.invalidateQueries({ queryKey: ['properties'] }); }} 
         property={selectedProperty} 
       />
     </DashboardLayout>

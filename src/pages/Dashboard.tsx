@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { 
   DollarSign, 
   TrendingDown, 
@@ -14,65 +15,73 @@ import {
   AlertCircle,
   Activity,
   MapPin,
-  CheckCircle2
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [userName, setUserName] = useState('');
-  const [stats, setStats] = useState({ receitas: 0, despesas: 0, lucro: 0, pendente: 0 });
-  const [properties, setProperties] = useState<any[]>([]);
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { navigate('/login'); return; }
+  // Busca dados do usuário
+  const { data: user } = useQuery({
+    queryKey: ['user'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      return user;
+    }
+  });
 
-        setUserName(user.user_metadata?.full_name?.split(' ')[0] || 'Usuário');
+  // Busca imóveis com cache
+  const { data: properties = [], isLoading: loadingProps } = useQuery({
+    queryKey: ['properties-preview'],
+    queryFn: async () => {
+      const { data } = await supabase.from('properties').select('*').limit(4);
+      return data || [];
+    }
+  });
 
-        // Buscar Imóveis
-        const { data: props } = await supabase.from('properties').select('*').limit(4);
-        setProperties(props || []);
+  // Busca contas e calcula estatísticas com cache
+  const { data: financialData, isLoading: loadingBills } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: async () => {
+      const { data: bills } = await supabase.from('bills').select('*');
+      let rec = 0, des = 0, pen = 0;
+      const overdue: any[] = [];
 
-        // Buscar Contas e gerar estatísticas
-        const { data: bills } = await supabase.from('bills').select('*');
-        if (bills) {
-          let rec = 0, des = 0, pen = 0;
-          const overdue: any[] = [];
-
-          bills.forEach(b => {
-            const val = Number(b.total_value || b.calculated_value) || 0;
-            if (b.status === 'pago') {
-              if (b.type === 'receita' || b.type === 'aluguel') rec += val;
-              else des += val;
-            } else {
-              if (b.type === 'receita' || b.type === 'aluguel') pen += val;
-              // Alerta simples de atraso
-              if (b.due_date && new Date(b.due_date) < new Date()) {
-                overdue.push({ id: b.id, title: `Atraso: ${b.description || b.type}`, type: 'error' });
-              }
+      if (bills) {
+        bills.forEach(b => {
+          const val = Number(b.total_value || b.calculated_value) || 0;
+          if (b.status === 'pago') {
+            if (b.type === 'receita' || b.type === 'aluguel') rec += val;
+            else des += val;
+          } else {
+            if (b.type === 'receita' || b.type === 'aluguel') pen += val;
+            if (b.due_date && new Date(b.due_date) < new Date()) {
+              overdue.push({ id: b.id, title: `Atraso: ${b.description || b.type}`, type: 'error' });
             }
-          });
-
-          setStats({ receitas: rec, despesas: des, lucro: rec - des, pendente: pen });
-          setAlerts(overdue);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+          }
+        });
       }
-    };
+      return { stats: { receitas: rec, despesas: des, lucro: rec - des, pendente: pen }, alerts: overdue };
+    }
+  });
 
-    fetchData();
-  }, [navigate]);
+  const userName = user?.user_metadata?.full_name?.split(' ')[0] || 'Usuário';
+  const stats = financialData?.stats || { receitas: 0, despesas: 0, lucro: 0, pendente: 0 };
+  const alerts = financialData?.alerts || [];
 
-  if (loading) return <DashboardLayout>Carregando seu workspace...</DashboardLayout>;
+  if (loadingProps || loadingBills) {
+    return (
+      <DashboardLayout>
+        <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
+          <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+          <p className="text-gray-500 font-medium">Sincronizando seu workspace...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
