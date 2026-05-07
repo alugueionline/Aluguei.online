@@ -21,30 +21,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             <MobileNav />
             <div className="relative w-full hidden md:block group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#2563FF] transition-colors" />
-<dyad-write path="src/components/layout/DashboardLayout.tsx" description="Refinando o Header e Layout para visual Fintech">
-"use client";
-
-import React from 'react';
-import { Sidebar } from './Sidebar';
-import { MobileNav } from './MobileNav';
-import { Search, Bell, ChevronDown, Calendar as CalendarIcon } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-
-interface DashboardLayoutProps {
-  children: React.ReactNode;
-  title?: string;
-}
-
-export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
-  return (
-    <div className="flex min-h-screen bg-[#F7F9FC] text-[#0F172A]">
-      <Sidebar />
-      <main className="flex-1 flex flex-col min-w-0">
-        <header className="px-6 md:px-10 py-5 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-10 border-b border-gray-100/50">
-          <div className="flex items-center gap-6 flex-1 max-w-2xl">
-            <MobileNav />
-            <div className="relative w-full hidden md:block group">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#2563FF] transition-colors" />
               <Input 
                 placeholder="Buscar por imóveis, inquilinos ou contratos..." 
                 className="pl-11 bg-gray-50/50 border-none text-gray-900 w-full h-12 rounded-2xl focus-visible:ring-2 focus-visible:ring-[#2563FF]/20 transition-all"
