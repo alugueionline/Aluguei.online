@@ -2,6 +2,13 @@ export type PropertyType = 'casa' | 'apartamento' | 'kitnet';
 export type PropertyStatus = 'disponivel' | 'alugado' | 'manutencao';
 export type BillingType = 'fixo' | 'por_pessoa' | 'medidor_individual';
 
+export interface FinancialConfig {
+  fixedFine: number; // %
+  monthlyInterest: number; // %
+  gracePeriod: number; // days
+  autoBilling: boolean;
+}
+
 export interface Condo {
   id: string;
   name: string;
@@ -18,6 +25,7 @@ export interface Property {
   baseRent: number;
   status: PropertyStatus;
   imageUrl?: string;
+  financialConfig?: FinancialConfig; // Specific rules per property
 }
 
 export interface Tenant {
@@ -58,10 +66,21 @@ export interface Bill {
   totalValue: number;
   calculatedValue: number;
   status: 'pago' | 'pendente' | 'atrasado';
+  dueDate?: string;
+  paidDate?: string;
+  lateDetails?: {
+    daysLate: number;
+    fineValue: number;
+    interestValue: number;
+    totalUpdated: number;
+  };
   details?: {
     residents?: number;
     previousReading?: number;
     currentReading?: number;
     kwhPrice?: number;
+    isApportionment?: boolean;
+    apportionmentTotal?: number;
+    participantsCount?: number;
   };
 }
