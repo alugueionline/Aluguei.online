@@ -37,6 +37,7 @@ export const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [user, setUser] = useState<any>(null);
   const logoUrl = "https://i.ibb.co/8nFsGk01/LOGO.png";
+  const ICON_LOGO = "https://i.ibb.co/cKz69Xd3/ICONE-CLARO.png";
   const DEFAULT_ICON = "https://i.ibb.co/cKz69Xd3/ICONE-CLARO.png";
 
   useEffect(() => {
@@ -73,8 +74,8 @@ export const Sidebar = () => {
             <img src={logoUrl} alt="Aluguei.Online" className="h-10 w-auto object-contain" />
           </div>
         ) : (
-          <div className="w-10 h-10 flex items-center justify-center">
-            <img src={logoUrl} alt="Logo" className="h-6 w-auto object-contain" />
+          <div className="w-10 h-10 flex items-center justify-center cursor-pointer" onClick={() => navigate('/dashboard')}>
+            <img src={ICON_LOGO} alt="Logo" className="h-10 w-10 object-contain rounded-xl" />
           </div>
         )}
         <Button 
@@ -141,3 +142,5 @@ export const Sidebar = () => {
     </aside>
   );
 };
+
+export default Sidebar;

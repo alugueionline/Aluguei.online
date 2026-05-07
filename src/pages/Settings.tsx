@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { User, Bell, Globe, Save, Camera, Loader2 } from 'lucide-react';
+import { User, Bell, Globe, Save, Camera, Loader2, Upload } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -17,9 +17,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 const Settings = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [fullName, setFullName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const DEFAULT_ICON = "https://i.ibb.co/cKz69Xd3/ICONE-CLARO.png";
 
@@ -36,6 +38,37 @@ const Settings = () => {
     };
     fetchUser();
   }, []);
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    try {
+      setIsUploading(true);
+      
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user.id}/${Math.random()}.${fileExt}`;
+
+      // Upload para o bucket 'avatars'
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Pegar URL pública
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      setAvatarUrl(publicUrl);
+      showSuccess('Foto carregada! Não esqueça de salvar as alterações.');
+    } catch (error: any) {
+      showError('Erro ao fazer upload: ' + error.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,20 +136,48 @@ const Settings = () => {
                           {fullName.substring(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="absolute inset-0 bg-black/40 rounded-[2rem] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
-                        <Camera className="text-white w-8 h-8" />
-                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="absolute inset-0 bg-black/40 rounded-[2rem] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer border-none"
+                        disabled={isUploading}
+                      >
+                        {isUploading ? <Loader2 className="text-white w-8 h-8 animate-spin" /> : <Camera className="text-white w-8 h-8" />}
+                      </button>
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        className="hidden" 
+                        accept="image/*"
+                        onChange={handleFileChange}
+                      />
                     </div>
                     <div className="flex-1 space-y-4 w-full">
                       <div className="space-y-2">
-                        <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">URL da Foto de Perfil</Label>
-                        <Input 
-                          value={avatarUrl}
-                          onChange={(e) => setAvatarUrl(e.target.value)}
-                          placeholder="https://link-da-sua-foto.com/imagem.jpg"
-                          className="h-12 rounded-xl bg-slate-50 border-none font-bold"
-                        />
-                        <p className="text-[10px] text-slate-400 font-medium italic">Dica: Cole o link de uma imagem ou deixe em branco para usar o ícone padrão.</p>
+                        <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Foto de Perfil</Label>
+                        <div className="flex gap-3">
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            className="h-12 rounded-xl border-slate-200 font-bold gap-2 flex-1"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isUploading}
+                          >
+                            <Upload className="w-4 h-4" />
+                            {isUploading ? 'Enviando...' : 'Fazer Upload da Foto'}
+                          </Button>
+                          {avatarUrl !== DEFAULT_ICON && (
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              className="h-12 rounded-xl text-rose-500 hover:bg-rose-50 font-bold"
+                              onClick={() => setAvatarUrl(DEFAULT_ICON)}
+                            >
+                              Remover
+                            </Button>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-medium italic">Formatos aceitos: JPG, PNG ou GIF. Tamanho máx: 2MB.</p>
                       </div>
                     </div>
                   </div>
@@ -144,7 +205,7 @@ const Settings = () => {
                   <div className="pt-4 flex justify-end">
                     <Button 
                       type="submit" 
-                      disabled={isSaving}
+                      disabled={isSaving || isUploading}
                       className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl h-14 px-10 font-black shadow-lg shadow-blue-100 transition-all active:scale-95 gap-2"
                     >
                       {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
