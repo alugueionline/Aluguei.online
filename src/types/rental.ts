@@ -28,6 +28,8 @@ export interface Tenant {
   email?: string;
   propertyId: string;
   entryDate: string;
+  contractStartDate: string;
+  contractEndDate: string;
   rentValue: number;
   securityDeposit?: number;
   securityDepositDate?: string;

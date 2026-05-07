@@ -17,7 +17,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar Inquilino' : 'Novo Inquilino'}</DialogTitle>
         </DialogHeader>
@@ -36,6 +36,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
               <Input placeholder="(00) 00000-0000" defaultValue={tenant?.phone} />
             </div>
           </div>
+          
           <div className="space-y-2">
             <Label>Imóvel Vinculado</Label>
             <Select defaultValue={tenant?.property}>
@@ -49,29 +50,32 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
             <div className="space-y-2">
-              <Label>Data de Entrada</Label>
-              <Input type="date" defaultValue={tenant?.entryDate} />
+              <Label className="text-blue-700">Início do Contrato</Label>
+              <Input type="date" defaultValue={tenant?.contractStartDate || tenant?.entryDate} required />
             </div>
             <div className="space-y-2">
-              <Label>Valor do Aluguel (R$)</Label>
-              <Input type="number" defaultValue={tenant?.rent} />
+              <Label className="text-blue-700">Término do Contrato</Label>
+              <Input type="date" defaultValue={tenant?.contractEndDate} required />
             </div>
           </div>
+
           <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Valor do Aluguel (R$)</Label>
+              <Input type="number" defaultValue={tenant?.rent} required />
+            </div>
             <div className="space-y-2">
               <Label>Valor da Caução (R$)</Label>
               <Input type="number" placeholder="0,00" defaultValue={tenant?.securityDeposit} />
             </div>
-            <div className="space-y-2">
-              <Label>Data do Depósito</Label>
-              <Input type="date" defaultValue={tenant?.securityDepositDate} />
-            </div>
           </div>
+
           <DialogFooter className="pt-4">
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700">Salvar</Button>
+            <Button type="submit" className="bg-blue-600 hover:bg-blue-700">Salvar Inquilino</Button>
           </DialogFooter>
         </form>
       </DialogContent>

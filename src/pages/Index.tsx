@@ -14,7 +14,8 @@ import {
   Calendar,
   Activity,
   ChevronRight,
-  Clock
+  Clock,
+  FileWarning
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -186,6 +187,22 @@ const Index = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Alerta de Contrato a Vencer */}
+              <div 
+                className="p-4 rounded-xl bg-blue-50 border border-blue-100 flex items-start gap-3 cursor-pointer hover:bg-blue-100 transition-colors group"
+                onClick={() => navigate('/tenants/1')}
+              >
+                <div className="p-2 bg-blue-600 rounded-lg text-white">
+                  <FileWarning className="w-4 h-4" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-blue-900">Contrato a Vencer</p>
+                  <p className="text-xs text-blue-700">João Silva • Vence em 30 dias</p>
+                  <p className="text-[10px] font-bold text-blue-600 mt-1 uppercase">Apto 101</p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-blue-400 group-hover:text-blue-600 transition-colors self-center" />
+              </div>
+
               <div 
                 className="p-4 rounded-xl bg-rose-50 border border-rose-100 flex items-start gap-3 cursor-pointer hover:bg-rose-100 transition-colors group"
                 onClick={() => navigate('/financial')}

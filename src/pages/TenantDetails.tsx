@@ -14,14 +14,15 @@ import {
   Home,
   CreditCard,
   History,
-  ShieldCheck
+  ShieldCheck,
+  Clock
 } from 'lucide-react';
 
 const TenantDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Mock de dados do inquilino com caução
+  // Mock de dados do inquilino com datas de contrato
   const tenant = {
     id: '1',
     name: 'João Silva',
@@ -30,8 +31,10 @@ const TenantDetails = () => {
     phone: '(11) 98888-7777',
     property: 'Apto 101 - Edifício Central',
     entryDate: '10/01/2024',
+    contractStartDate: '10/01/2024',
+    contractEndDate: '10/01/2025',
     rentValue: 1200.00,
-    securityDeposit: 3600.00, // Ex: 3 meses de aluguel
+    securityDeposit: 3600.00,
     securityDepositDate: '10/01/2024',
     status: 'ativo',
     documents: [
@@ -85,6 +88,30 @@ const TenantDetails = () => {
             </CardContent>
           </Card>
 
+          <Card className="border-none shadow-sm bg-blue-50 border-blue-100">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-bold text-blue-800 flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Vigência do Contrato
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <p className="text-[10px] text-blue-600 font-bold uppercase">Início</p>
+                <p className="text-sm font-bold text-blue-900">{new Date(tenant.contractStartDate).toLocaleDateString('pt-BR')}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-blue-600 font-bold uppercase">Término</p>
+                <p className="text-sm font-bold text-blue-900">{new Date(tenant.contractEndDate).toLocaleDateString('pt-BR')}</p>
+              </div>
+              <div className="pt-2">
+                <Badge className="bg-blue-600 text-white border-none text-[10px]">
+                  Faltam 6 meses
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="border-none shadow-sm bg-emerald-50 border-emerald-100">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-bold text-emerald-800 flex items-center gap-2">
@@ -101,25 +128,6 @@ const TenantDetails = () => {
                   Recebido em: {tenant.securityDepositDate}
                 </p>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg font-bold">Documentos</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {tenant.documents.map((doc, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl group cursor-pointer hover:bg-blue-50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-4 h-4 text-gray-400 group-hover:text-blue-600" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{doc.name}</p>
-                      <p className="text-[10px] text-gray-500">{doc.date}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
             </CardContent>
           </Card>
         </div>
