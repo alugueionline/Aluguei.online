@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InterestFineSettings } from '@/components/financial/InterestFineSettings';
 import { ApportionmentModule } from '@/components/financial/ApportionmentModule';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { cn } from '@/lib/utils';
 
 const Financial = () => {
   return (
