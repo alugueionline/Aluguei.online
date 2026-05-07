@@ -33,6 +33,7 @@ import {
   AreaChart,
   Area
 } from 'recharts';
+import { cn } from '@/lib/utils';
 
 const profitData = [
   { name: 'Apto 101', receita: 1200, custos: 150 },
