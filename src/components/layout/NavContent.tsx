@@ -1,16 +1,23 @@
+"use client";
+
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Home, 
   Users, 
-  ArrowUpDown, 
   DollarSign, 
+  ArrowUpDown, 
+  Wrench, 
   BarChart3,
+  FileText,
+  Calendar,
+  Bell,
   Settings,
-  Wrench
+  ChevronDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -20,6 +27,9 @@ const menuItems = [
   { icon: ArrowUpDown, label: 'Receitas / Despesas', path: '/billing' },
   { icon: Wrench, label: 'Manutenção', path: '/maintenance' },
   { icon: BarChart3, label: 'Relatórios', path: '/reports' },
+  { icon: FileText, label: 'Contratos', path: '/contracts' },
+  { icon: Calendar, label: 'Calendário', path: '/calendar' },
+  { icon: Bell, label: 'Avisos', path: '/alerts' },
 ];
 
 interface NavContentProps {
@@ -30,17 +40,17 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
   const location = useLocation();
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-6">
-        <div className="flex items-center mb-10 px-2">
+    <div className="flex flex-col h-full bg-[#0B0E14] border-r border-white/5">
+      <div className="p-8">
+        <div className="flex items-center mb-12">
           <img 
             src="https://i.ibb.co/8nFsGk01/LOGO.png" 
             alt="Aluguei Online" 
-            className="h-14 w-auto object-contain"
+            className="h-12 w-auto object-contain"
           />
         </div>
 
-        <nav className="space-y-1.5">
+        <nav className="space-y-1">
           {menuItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
@@ -49,15 +59,15 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
                 to={item.path}
                 onClick={onItemClick}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold transition-all duration-200 group",
+                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group",
                   isActive 
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-200" 
-                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" 
+                    : "text-gray-400 hover:text-white hover:bg-white/5"
                 )}
               >
                 <item.icon className={cn(
-                  "w-5 h-5 stroke-[2.5px]", 
-                  isActive ? "text-white" : "text-slate-400 group-hover:text-blue-600"
+                  "w-5 h-5", 
+                  isActive ? "text-white" : "text-gray-500 group-hover:text-blue-400"
                 )} />
                 {item.label}
               </Link>
@@ -66,23 +76,34 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
         </nav>
       </div>
 
-      <div className="mt-auto p-6 border-t border-slate-50">
+      <div className="mt-auto p-6 space-y-4">
         <Link
           to="/settings"
           onClick={onItemClick}
           className={cn(
-            "flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold transition-all duration-200 group",
+            "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group",
             location.pathname === '/settings'
-              ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
-              : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+              ? "bg-blue-600 text-white"
+              : "text-gray-400 hover:text-white hover:bg-white/5"
           )}
         >
-          <Settings className={cn(
-            "w-5 h-5 stroke-[2.5px]", 
-            location.pathname === '/settings' ? "text-white" : "text-slate-400 group-hover:text-blue-600"
-          )} />
+          <Settings className="w-5 h-5" />
           Configurações
         </Link>
+
+        <div className="p-4 bg-[#161B22] rounded-2xl border border-white/5 flex items-center justify-between group cursor-pointer hover:bg-[#1c222b] transition-colors">
+          <div className="flex items-center gap-3">
+            <Avatar className="w-10 h-10 rounded-xl border border-white/10">
+              <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=Jonas" />
+              <AvatarFallback className="bg-blue-600 text-white">JS</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white truncate">Jonas Silva</p>
+              <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Proprietário</p>
+            </div>
+          </div>
+          <ChevronDown className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />
+        </div>
       </div>
     </div>
   );
