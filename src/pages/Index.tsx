@@ -15,7 +15,9 @@ import {
   Activity,
   ChevronRight,
   Clock,
-  FileWarning
+  FileWarning,
+  ArrowUpDown,
+  PieChart
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -48,64 +50,64 @@ const Index = () => {
   const navigate = useNavigate();
 
   return (
-    <DashboardLayout title="Painel de Controle Financeiro">
+    <DashboardLayout title="Dashboard">
       {/* SEÇÃO 1 — RESUMO PRINCIPAL */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
         <Card className="border-none shadow-sm bg-white overflow-hidden group hover:shadow-md transition-all">
           <CardContent className="p-6">
             <div className="flex justify-between items-start mb-4">
-              <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
-                <TrendingUp className="w-6 h-6" />
+              <div className="p-2.5 bg-slate-50 rounded-xl text-slate-900 border border-slate-100">
+                <TrendingUp className="w-6 h-6 stroke-[2.5px] text-blue-600" />
               </div>
-              <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-none">
+              <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-none font-bold">
                 +12.5%
               </Badge>
             </div>
-            <p className="text-sm font-medium text-gray-500">Receita do Mês</p>
-            <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mt-1">R$ 15.420,00</h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Receita do Mês</p>
+            <h3 className="text-2xl md:text-3xl font-black text-slate-900 mt-1">R$ 15.420,00</h3>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm bg-white overflow-hidden group hover:shadow-md transition-all">
           <CardContent className="p-6">
             <div className="flex justify-between items-start mb-4">
-              <div className="p-2 bg-rose-50 rounded-lg text-rose-600">
-                <TrendingDown className="w-6 h-6" />
+              <div className="p-2.5 bg-slate-50 rounded-xl text-slate-900 border border-slate-100">
+                <TrendingDown className="w-6 h-6 stroke-[2.5px] text-rose-500" />
               </div>
-              <Badge variant="secondary" className="bg-rose-50 text-rose-700 border-none">
+              <Badge variant="secondary" className="bg-rose-50 text-rose-700 border-none font-bold">
                 -2.4%
               </Badge>
             </div>
-            <p className="text-sm font-medium text-gray-500">Despesas do Mês</p>
-            <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mt-1">R$ 3.150,00</h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Despesas do Mês</p>
+            <h3 className="text-2xl md:text-3xl font-black text-slate-900 mt-1">R$ 3.150,00</h3>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-blue-600 text-white overflow-hidden group hover:shadow-lg transition-all">
+        <Card className="border-none shadow-sm bg-slate-900 text-white overflow-hidden group hover:shadow-lg transition-all">
           <CardContent className="p-6">
             <div className="flex justify-between items-start mb-4">
-              <div className="p-2 bg-white/20 rounded-lg text-white">
-                <DollarSign className="w-6 h-6" />
+              <div className="p-2.5 bg-white/10 rounded-xl text-white">
+                <DollarSign className="w-6 h-6 stroke-[2.5px] text-blue-400" />
               </div>
-              <Badge variant="secondary" className="bg-white/20 text-white border-none">
+              <Badge variant="secondary" className="bg-blue-500/20 text-blue-200 border-none font-bold">
                 79.5% Margem
               </Badge>
             </div>
-            <p className="text-sm font-medium text-blue-100">Lucro Líquido</p>
-            <h3 className="text-2xl md:text-3xl font-bold mt-1">R$ 12.270,00</h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Lucro Líquido</p>
+            <h3 className="text-2xl md:text-3xl font-black mt-1">R$ 12.270,00</h3>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white overflow-hidden group hover:shadow-md transition-all border-l-4 border-l-rose-500">
+        <Card className="border-none shadow-sm bg-white overflow-hidden group hover:shadow-md transition-all border-l-4 border-l-blue-600">
           <CardContent className="p-6">
             <div className="flex justify-between items-start mb-4">
-              <div className="p-2 bg-rose-50 rounded-lg text-rose-600">
-                <AlertCircle className="w-6 h-6" />
+              <div className="p-2.5 bg-slate-50 rounded-xl text-slate-900 border border-slate-100">
+                <AlertCircle className="w-6 h-6 stroke-[2.5px] text-blue-600" />
               </div>
-              <span className="text-xs font-bold text-rose-600 uppercase tracking-wider">Crítico</span>
+              <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Pendências</span>
             </div>
-            <p className="text-sm font-medium text-gray-500">Valor em Atraso</p>
-            <h3 className="text-2xl md:text-3xl font-bold text-rose-600 mt-1">R$ 1.850,00</h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Valor em Atraso</p>
+            <h3 className="text-2xl md:text-3xl font-black text-slate-900 mt-1">R$ 1.850,00</h3>
           </CardContent>
         </Card>
       </div>
@@ -115,12 +117,12 @@ const Index = () => {
         <Card className="lg:col-span-2 border-none shadow-sm bg-white">
           <CardHeader className="flex flex-row items-center justify-between pb-8">
             <div>
-              <CardTitle className="text-lg md:text-xl font-bold text-gray-900">Fluxo de Caixa</CardTitle>
-              <p className="text-xs md:text-sm text-gray-500">Entradas vs Saídas acumuladas</p>
+              <CardTitle className="text-lg md:text-xl font-black text-slate-900">Fluxo de Caixa</CardTitle>
+              <p className="text-xs md:text-sm text-slate-500 font-medium">Entradas vs Saídas acumuladas</p>
             </div>
             <div className="flex gap-1 md:gap-2">
-              <Button variant="outline" size="sm" className="text-[10px] md:text-xs font-semibold h-8">Mensal</Button>
-              <Button variant="ghost" size="sm" className="text-[10px] md:text-xs font-semibold text-gray-500 h-8">Trimestral</Button>
+              <Button variant="outline" size="sm" className="text-[10px] md:text-xs font-bold h-8 border-slate-100">Mensal</Button>
+              <Button variant="ghost" size="sm" className="text-[10px] md:text-xs font-bold text-slate-400 h-8">Trimestral</Button>
             </div>
           </CardHeader>
           <CardContent className="h-[250px] md:h-[350px] px-2">
@@ -141,24 +143,24 @@ const Index = () => {
                   dataKey="day" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{fontSize: 10, fill: '#94a3b8'}} 
+                  tick={{fontSize: 10, fill: '#94a3b8', fontWeight: 700}} 
                   dy={10}
                 />
                 <YAxis 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{fontSize: 10, fill: '#94a3b8'}}
+                  tick={{fontSize: 10, fill: '#94a3b8', fontWeight: 700}}
                   tickFormatter={(value) => `R$ ${value}`}
                   width={45}
                 />
                 <Tooltip 
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 700 }}
                 />
                 <Area 
                   type="monotone" 
                   dataKey="entradas" 
                   stroke="#2563eb" 
-                  strokeWidth={3} 
+                  strokeWidth={4} 
                   fillOpacity={1} 
                   fill="url(#colorEntradas)" 
                   name="Entradas"
@@ -167,7 +169,7 @@ const Index = () => {
                   type="monotone" 
                   dataKey="lucro" 
                   stroke="#10b981" 
-                  strokeWidth={3} 
+                  strokeWidth={4} 
                   fillOpacity={1} 
                   fill="url(#colorLucro)" 
                   name="Lucro Acumulado"
@@ -181,73 +183,58 @@ const Index = () => {
         <div className="space-y-6">
           <Card className="border-none shadow-sm bg-white">
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-rose-500" />
-                Alertas Críticos
+              <CardTitle className="text-lg font-black flex items-center gap-2 text-slate-900">
+                <AlertCircle className="w-5 h-5 text-blue-600 stroke-[2.5px]" />
+                Avisos e Pendências
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Alerta de Contrato a Vencer */}
               <div 
-                className="p-4 rounded-xl bg-blue-50 border border-blue-100 flex items-start gap-3 cursor-pointer hover:bg-blue-100 transition-colors group"
+                className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-start gap-3 cursor-pointer hover:bg-blue-50 hover:border-blue-100 transition-all group"
                 onClick={() => navigate('/tenants/1')}
               >
-                <div className="p-2 bg-blue-600 rounded-lg text-white">
-                  <FileWarning className="w-4 h-4" />
+                <div className="p-2.5 bg-white rounded-xl text-slate-900 shadow-sm group-hover:text-blue-600">
+                  <FileWarning className="w-5 h-5 stroke-[2.5px]" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-bold text-blue-900">Contrato a Vencer</p>
-                  <p className="text-xs text-blue-700">João Silva • Vence em 30 dias</p>
-                  <p className="text-[10px] font-bold text-blue-600 mt-1 uppercase">Apto 101</p>
+                  <p className="text-sm font-black text-slate-900">Contrato a Vencer</p>
+                  <p className="text-xs text-slate-500 font-bold">João Silva • Vence em 30 dias</p>
+                  <p className="text-[10px] font-black text-blue-600 mt-1.5 uppercase tracking-widest">Apto 101</p>
                 </div>
-                <ChevronRight className="w-5 h-5 text-blue-400 group-hover:text-blue-600 transition-colors self-center" />
+                <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-600 transition-colors self-center" />
               </div>
 
               <div 
-                className="p-4 rounded-xl bg-rose-50 border border-rose-100 flex items-start gap-3 cursor-pointer hover:bg-rose-100 transition-colors group"
+                className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-start gap-3 cursor-pointer hover:bg-rose-50 hover:border-rose-100 transition-all group"
                 onClick={() => navigate('/financial')}
               >
-                <div className="p-2 bg-rose-500 rounded-lg text-white">
-                  <Clock className="w-4 h-4" />
+                <div className="p-2.5 bg-white rounded-xl text-slate-900 shadow-sm group-hover:text-rose-600">
+                  <Clock className="w-5 h-5 stroke-[2.5px]" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-bold text-rose-900">Pedro Santos</p>
-                  <p className="text-xs text-rose-700">Kitnet A • 5 dias de atraso</p>
-                  <p className="text-sm font-bold text-rose-600 mt-1">R$ 900,00</p>
+                  <p className="text-sm font-black text-slate-900">Pedro Santos</p>
+                  <p className="text-xs text-slate-500 font-bold">Kitnet A • 5 dias de atraso</p>
+                  <p className="text-sm font-black text-rose-600 mt-1.5">R$ 900,00</p>
                 </div>
-                <ChevronRight className="w-5 h-5 text-rose-400 group-hover:text-rose-600 transition-colors self-center" />
-              </div>
-
-              <div 
-                className="p-4 rounded-xl bg-amber-50 border border-amber-100 flex items-start gap-3 cursor-pointer hover:bg-amber-100 transition-colors group"
-                onClick={() => navigate('/billing')}
-              >
-                <div className="p-2 bg-amber-500 rounded-lg text-white">
-                  <Calendar className="w-4 h-4" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-amber-900">Conta de Luz - Apto 101</p>
-                  <p className="text-xs text-amber-700">Vence hoje</p>
-                  <p className="text-sm font-bold text-amber-600 mt-1">R$ 145,20</p>
-                </div>
-                <ChevronRight className="w-5 h-5 text-amber-400 group-hover:text-amber-600 transition-colors self-center" />
+                <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-rose-600 transition-colors self-center" />
               </div>
             </CardContent>
           </Card>
 
           {/* SEÇÃO 5 — MÉTRICAS INTELIGENTES */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 bg-white rounded-2xl shadow-sm">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase">Inadimplência</p>
-              <h4 className="text-lg font-bold text-gray-900 mt-1">5.2%</h4>
-              <div className="w-full bg-gray-100 h-1.5 rounded-full mt-2">
-                <div className="bg-rose-500 h-full rounded-full" style={{ width: '5.2%' }}></div>
+            <div className="p-5 bg-white rounded-3xl shadow-sm border border-slate-50">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Desempenho</p>
+              <h4 className="text-xl font-black text-slate-900 mt-1">94.8%</h4>
+              <div className="w-full bg-slate-100 h-2 rounded-full mt-3 overflow-hidden">
+                <div className="bg-blue-600 h-full rounded-full" style={{ width: '94.8%' }}></div>
               </div>
             </div>
-            <div className="p-4 bg-white rounded-2xl shadow-sm">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase">Ticket Médio</p>
-              <h4 className="text-lg font-bold text-gray-900 mt-1">R$ 1.450</h4>
-              <p className="text-[10px] text-emerald-600 font-bold mt-1">+3% vs mês ant.</p>
+            <div className="p-5 bg-white rounded-3xl shadow-sm border border-slate-50">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ticket Médio</p>
+              <h4 className="text-xl font-black text-slate-900 mt-1">R$ 1.450</h4>
+              <p className="text-[10px] text-emerald-600 font-black mt-1.5">+3% vs mês ant.</p>
             </div>
           </div>
         </div>
@@ -257,31 +244,31 @@ const Index = () => {
         {/* SEÇÃO 4 — PERFORMANCE POR IMÓVEL */}
         <Card className="lg:col-span-2 border-none shadow-sm bg-white">
           <CardHeader>
-            <CardTitle className="text-lg font-bold">Ranking de Lucratividade</CardTitle>
+            <CardTitle className="text-lg font-black text-slate-900">Ranking de Lucratividade</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-slate-50">
               {propertyPerformance.map((prop, i) => (
-                <div key={i} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center gap-3 md:gap-4">
-                    <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 font-bold text-xs md:text-sm">
+                <div key={i} className="p-5 flex items-center justify-between hover:bg-slate-50 transition-colors group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 font-black text-sm group-hover:bg-blue-600 group-hover:text-white transition-all">
                       #{i + 1}
                     </div>
                     <div>
-                      <p className="text-xs md:text-sm font-bold text-gray-900">{prop.name}</p>
-                      <div className="flex items-center gap-2 md:gap-3 mt-1">
-                        <span className="text-[10px] md:text-xs text-gray-500 flex items-center gap-1">
-                          <ArrowUpRight className="w-3 h-3 text-emerald-500" /> R$ {prop.revenue}
+                      <p className="text-sm font-black text-slate-900">{prop.name}</p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                          <ArrowUpRight className="w-3 h-3 text-emerald-500 stroke-[3px]" /> R$ {prop.revenue}
                         </span>
-                        <span className="text-[10px] md:text-xs text-gray-500 flex items-center gap-1">
-                          <ArrowDownRight className="w-3 h-3 text-rose-500" /> R$ {prop.expenses}
+                        <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                          <ArrowDownRight className="w-3 h-3 text-rose-500 stroke-[3px]" /> R$ {prop.expenses}
                         </span>
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs md:text-sm font-bold text-emerald-600">R$ {prop.profit}</p>
-                    <Badge className="bg-emerald-50 text-emerald-700 border-none text-[9px] md:text-[10px] h-4 px-1">
+                    <p className="text-sm font-black text-emerald-600">R$ {prop.profit}</p>
+                    <Badge className="bg-emerald-50 text-emerald-700 border-none text-[10px] font-black h-5 px-2">
                       {((prop.profit / prop.revenue) * 100).toFixed(0)}%
                     </Badge>
                   </div>
@@ -294,34 +281,34 @@ const Index = () => {
         {/* SEÇÃO 6 — ATIVIDADE RECENTE */}
         <Card className="border-none shadow-sm bg-white">
           <CardHeader>
-            <CardTitle className="text-lg font-bold">Atividade Recente</CardTitle>
+            <CardTitle className="text-lg font-black text-slate-900">Atividade Recente</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             {[
               { user: 'João Silva', action: 'Pagamento recebido', time: 'Há 2 horas', amount: 'R$ 1.200,00', type: 'success' },
-              { user: 'Sistema', action: 'Nova conta de luz gerada', time: 'Há 5 horas', amount: 'R$ 145,20', type: 'info' },
+              { user: 'Sistema', action: 'Nova cobrança gerada', time: 'Há 5 horas', amount: 'R$ 145,20', type: 'info' },
               { user: 'Maria Oliveira', action: 'Pagamento recebido', time: 'Ontem', amount: 'R$ 2.500,00', type: 'success' },
             ].map((activity, i) => (
               <div key={i} className="flex gap-4 relative">
-                {i !== 2 && <div className="absolute left-5 top-10 bottom-0 w-px bg-gray-100"></div>}
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                {i !== 2 && <div className="absolute left-5 top-10 bottom-0 w-0.5 bg-slate-50"></div>}
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
                   activity.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'
                 }`}>
-                  {activity.type === 'success' ? <DollarSign className="w-5 h-5" /> : <Activity className="w-5 h-5" />}
+                  {activity.type === 'success' ? <DollarSign className="w-5 h-5 stroke-[2.5px]" /> : <Activity className="w-5 h-5 stroke-[2.5px]" />}
                 </div>
                 <div className="flex-1">
                   <div className="flex justify-between items-start">
-                    <p className="text-sm font-bold text-gray-900">{activity.user}</p>
-                    <span className="text-[10px] text-gray-400">{activity.time}</span>
+                    <p className="text-sm font-black text-slate-900">{activity.user}</p>
+                    <span className="text-[10px] font-bold text-slate-400">{activity.time}</span>
                   </div>
-                  <p className="text-xs text-gray-500">{activity.action}</p>
-                  <p className="text-sm font-bold text-gray-900 mt-1">{activity.amount}</p>
+                  <p className="text-xs text-slate-500 font-medium">{activity.action}</p>
+                  <p className="text-sm font-black text-slate-900 mt-1">{activity.amount}</p>
                 </div>
               </div>
             ))}
             <Button 
               variant="ghost" 
-              className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-sm font-bold"
+              className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-sm font-black"
               onClick={() => navigate('/financial')}
             >
               Ver todo o histórico
