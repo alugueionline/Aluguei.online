@@ -4,6 +4,7 @@ import React from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -13,7 +14,9 @@ import {
   AlertCircle,
   FileWarning,
   Activity,
-  Wrench
+  Wrench,
+  MapPin,
+  ArrowUpRight
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -36,18 +39,35 @@ const cashFlowData = [
   { day: '30', entradas: 15420, saidas: 3150 },
 ];
 
+const featuredProperties = [
+  { id: '1', name: 'Apto 101', address: 'Rua Central, 123', rent: 'R$ 1.200', status: 'alugado', image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=400&q=80' },
+  { id: '2', name: 'Casa 02', address: 'Av. das Flores, 45', rent: 'R$ 2.500', status: 'disponivel', image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&q=80' },
+  { id: '3', name: 'Kitnet A', address: 'Rua 10, 500', rent: 'R$ 850', status: 'alugado', image: 'https://images.unsplash.com/photo-1536376074432-c26412749023?w=400&q=80' },
+];
+
 const Index = () => {
+  const navigate = useNavigate();
+
   return (
     <DashboardLayout>
-      <div className="mb-10">
-        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
-          Olá, Jonas! 👋
-        </h1>
-        <p className="text-gray-500 mt-1.5 text-lg">Aqui está o resumo geral da sua gestão hoje.</p>
+      <div className="mb-10 flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
+            Olá, Jonas! 👋
+          </h1>
+          <p className="text-gray-500 mt-1.5 text-lg">Aqui está o resumo geral da sua gestão hoje.</p>
+        </div>
+        <Button 
+          onClick={() => navigate('/properties')}
+          className="bg-[#2563FF] hover:bg-[#1d4ed8] rounded-2xl h-12 px-6 font-bold shadow-lg shadow-blue-100 gap-2"
+        >
+          Ver todos imóveis <ChevronRight className="w-4 h-4" />
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
         <div className="xl:col-span-3 space-y-10">
+          {/* Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <SummaryCard 
               label="Receitas do mês" 
@@ -83,6 +103,48 @@ const Index = () => {
             />
           </div>
 
+          {/* Featured Properties Section */}
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-900 tracking-tight">Meus Imóveis</h3>
+              <button 
+                onClick={() => navigate('/properties')}
+                className="text-sm font-bold text-[#2563FF] hover:underline"
+              >
+                Ver lista completa
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {featuredProperties.map((prop) => (
+                <Card key={prop.id} className="premium-card rounded-[2rem] overflow-hidden group cursor-pointer" onClick={() => navigate(`/properties/${prop.id}`)}>
+                  <div className="relative h-40">
+                    <img src={prop.image} alt={prop.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                    <div className="absolute top-4 right-4">
+                      <Badge className={cn(
+                        "border-none px-2.5 py-1 rounded-lg font-bold text-[9px] uppercase tracking-wider",
+                        prop.status === 'alugado' ? 'bg-emerald-500 text-white' : 'bg-[#2563FF] text-white'
+                      )}>
+                        {prop.status}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="p-6">
+                    <h4 className="font-bold text-gray-900 text-lg">{prop.name}</h4>
+                    <div className="flex items-center gap-2 text-gray-500 text-xs mt-1 mb-4">
+                      <MapPin className="w-3 h-3 text-[#2563FF]" />
+                      <span className="truncate">{prop.address}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-4 border-t border-gray-50">
+                      <span className="text-sm font-bold text-gray-900">{prop.rent}</span>
+                      <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-[#2563FF] transition-colors" />
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          {/* Cash Flow Chart */}
           <Card className="premium-card p-8 rounded-[2rem]">
             <div className="flex justify-between items-center mb-10">
               <div>
@@ -152,15 +214,9 @@ const Index = () => {
               </ResponsiveContainer>
             </div>
           </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <MiniStatCard label="Taxa de ocupação" value="94,8%" icon={<Activity className="w-4 h-4" />} color="blue" />
-            <MiniStatCard label="Inadimplência" value="2,6%" icon={<AlertCircle className="w-4 h-4" />} color="red" />
-            <MiniStatCard label="Ticket médio" value="R$ 1.450" icon={<DollarSign className="w-4 h-4" />} color="green" />
-            <MiniStatCard label="Rentabilidade" value="8,7%" icon={<TrendingUp className="w-4 h-4" />} color="purple" />
-          </div>
         </div>
 
+        {/* Sidebar Info */}
         <div className="space-y-8">
           <Card className="premium-card p-7 rounded-[2rem]">
             <div className="flex justify-between items-center mb-8">
@@ -244,23 +300,6 @@ const SummaryCard = ({ label, value, trend, trendType, subtext, icon, color, sho
         </span>
       )}
       {subtext && <span className="text-xs text-gray-400 font-bold">{subtext}</span>}
-    </div>
-  </Card>
-);
-
-const MiniStatCard = ({ label, value, icon, color }: any) => (
-  <Card className="premium-card p-5 rounded-2xl flex items-center gap-4">
-    <div className={cn(
-      "p-3 rounded-xl",
-      color === 'blue' ? 'bg-blue-50 text-[#2563FF]' : 
-      color === 'red' ? 'bg-rose-50 text-rose-600' : 
-      color === 'green' ? 'bg-emerald-50 text-emerald-600' : 'bg-purple-50 text-purple-600'
-    )}>
-      {icon}
-    </div>
-    <div>
-      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{label}</p>
-      <h4 className="text-lg font-bold text-gray-900 tracking-tight">{value}</h4>
     </div>
   </Card>
 );
