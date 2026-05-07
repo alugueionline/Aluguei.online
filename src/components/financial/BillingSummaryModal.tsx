@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MessageSquare, Copy, Send, Calculator, Landmark, User, Trash2, Plus } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MessageSquare, Copy, Send, Calculator, Landmark, User, Trash2, Plus, Search } from 'lucide-react';
 import { showSuccess } from '@/utils/toast';
 
 interface BillingSummaryModalProps {
@@ -13,6 +14,14 @@ interface BillingSummaryModalProps {
   onClose: () => void;
   initialData?: any;
 }
+
+// Mock de dados para seleção rápida
+const availableTenants = [
+  { id: '1', name: 'João Silva', property: 'Apto 101', rent: 1200 },
+  { id: '2', name: 'Maria Oliveira', property: 'Casa 02', rent: 2500 },
+  { id: '3', name: 'Pedro Santos', property: 'Kitnet A', rent: 850 },
+  { id: '4', name: 'Ana Costa', property: 'Apto 202', rent: 1300 },
+];
 
 export const BillingSummaryModal = ({ isOpen, onClose, initialData }: BillingSummaryModalProps) => {
   const [tenant, setTenant] = useState('');
@@ -25,19 +34,26 @@ export const BillingSummaryModal = ({ isOpen, onClose, initialData }: BillingSum
   ]);
   const [generatedMessage, setGeneratedMessage] = useState('');
 
-  // Atualiza os campos quando o modal abre com dados iniciais
+  // Função para carregar dados de um inquilino selecionado
+  const handleSelectTenant = (id: string) => {
+    const selected = availableTenants.find(t => t.id === id);
+    if (selected) {
+      setTenant(selected.name);
+      setRentValue(selected.rent.toString());
+      showSuccess(`Dados de ${selected.name} carregados!`);
+    }
+  };
+
   useEffect(() => {
     if (isOpen && initialData) {
       setTenant(initialData.tenant || '');
       if (initialData.category === 'Aluguel') {
         setRentValue(initialData.value?.toString() || '0');
       } else {
-        // Se for outra categoria, adiciona como extra
         setExtraValues([{ label: initialData.category, value: initialData.value?.toString() || '0' }]);
         setRentValue('0');
       }
     } else if (isOpen && !initialData) {
-      // Reset se abrir vazio
       setTenant('');
       setRentValue('0');
       setCondoValue('0');
@@ -60,14 +76,8 @@ export const BillingSummaryModal = ({ isOpen, onClose, initialData }: BillingSum
     const condo = parseFloat(condoValue) || 0;
     
     let details = '';
-    
-    if (rent > 0) {
-      details += `• Aluguel: R$ ${rent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
-    }
-    
-    if (condo > 0) {
-      details += `• Condomínio: R$ ${condo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
-    }
+    if (rent > 0) details += `• Aluguel: R$ ${rent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+    if (condo > 0) details += `• Condomínio: R$ ${condo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
 
     extraValues.forEach(e => {
       const val = parseFloat(e.value) || 0;
@@ -97,17 +107,37 @@ export const BillingSummaryModal = ({ isOpen, onClose, initialData }: BillingSum
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px] rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
-        <div className="grid grid-cols-1 md:grid-cols-2 h-[600px]">
+      <DialogContent className="sm:max-w-[750px] rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 h-[650px]">
           {/* Configurações */}
           <div className="p-8 space-y-6 bg-white overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">Resumo de Cobrança</DialogTitle>
             </DialogHeader>
             
-            <div className="space-y-4">
+            <div className="space-y-5">
+              {/* Seletor de Inquilino */}
               <div className="space-y-2">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Inquilino</Label>
+                <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Selecionar Inquilino Ativo</Label>
+                <Select onValueChange={handleSelectTenant}>
+                  <SelectTrigger className="h-12 rounded-xl bg-blue-50/50 border-blue-100 font-bold text-blue-900">
+                    <div className="flex items-center gap-2">
+                      <Search className="w-4 h-4" />
+                      <SelectValue placeholder="Escolha um inquilino..." />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTenants.map(t => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name} ({t.property})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nome na Mensagem</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                   <Input 
@@ -142,7 +172,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, initialData }: BillingSum
 
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Outros Custos (Luz, Água, etc.)</Label>
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Outros Custos</Label>
                   <Button variant="ghost" size="sm" onClick={addExtra} className="h-6 px-2 text-blue-600 font-bold text-[10px]">
                     <Plus className="w-3 h-3 mr-1" /> ADICIONAR
                   </Button>
