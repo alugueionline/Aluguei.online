@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { 
   Table, 
@@ -12,7 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, ExternalLink } from 'lucide-react';
 import { TenantModal } from '@/components/modals/TenantModal';
 
 const mockTenants = [
@@ -22,6 +23,7 @@ const mockTenants = [
 ];
 
 const Tenants = () => {
+  const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<any>(null);
 
@@ -61,13 +63,19 @@ const Tenants = () => {
                 {mockTenants.map((tenant) => (
                   <TableRow key={tenant.id} className="hover:bg-gray-50/50 transition-colors">
                     <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-9 h-9 border-2 border-white shadow-sm">
+                      <div 
+                        className="flex items-center gap-3 cursor-pointer group"
+                        onClick={() => navigate(`/tenants/${tenant.id}`)}
+                      >
+                        <Avatar className="w-9 h-9 border-2 border-white shadow-sm group-hover:border-blue-200 transition-all">
                           <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${tenant.name}`} />
                           <AvatarFallback>{tenant.name.substring(0, 2)}</AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium text-gray-900">{tenant.name}</p>
+                          <p className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors flex items-center gap-1">
+                            {tenant.name}
+                            <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </p>
                           <p className="text-xs text-gray-500">{tenant.phone}</p>
                         </div>
                       </div>
