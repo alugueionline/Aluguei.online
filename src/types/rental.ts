@@ -17,6 +17,7 @@ export interface Property {
   condoId?: string;
   baseRent: number;
   status: PropertyStatus;
+  imageUrl?: string;
 }
 
 export interface Tenant {

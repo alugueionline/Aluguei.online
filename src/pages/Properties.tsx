@@ -11,16 +11,17 @@ import {
   Filter, 
   MapPin, 
   ArrowUpRight,
-  Edit2
+  Edit2,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Property } from '@/types/rental';
 import { PropertyModal } from '@/components/modals/PropertyModal';
 
 const mockProperties: Property[] = [
-  { id: '1', name: 'Apto 101', type: 'apartamento', address: 'Rua Central, 123', baseRent: 1200, status: 'alugado' },
-  { id: '2', name: 'Casa 02', type: 'casa', address: 'Av. das Flores, 45', baseRent: 2500, status: 'disponivel' },
-  { id: '3', name: 'Kitnet A', type: 'kitnet', address: 'Rua 10, 500', baseRent: 850, status: 'alugado' },
-  { id: '4', name: 'Apto 202', type: 'apartamento', address: 'Rua Central, 123', baseRent: 1300, status: 'manutencao' },
+  { id: '1', name: 'Apto 101', type: 'apartamento', address: 'Rua Central, 123', baseRent: 1200, status: 'alugado', imageUrl: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=500&q=80' },
+  { id: '2', name: 'Casa 02', type: 'casa', address: 'Av. das Flores, 45', baseRent: 2500, status: 'disponivel', imageUrl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=500&q=80' },
+  { id: '3', name: 'Kitnet A', type: 'kitnet', address: 'Rua 10, 500', baseRent: 850, status: 'alugado', imageUrl: 'https://images.unsplash.com/photo-1536376074432-c26412749023?w=500&q=80' },
+  { id: '4', name: 'Apto 202', type: 'apartamento', address: 'Rua Central, 123', baseRent: 1300, status: 'manutencao', imageUrl: 'https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=500&q=80' },
 ];
 
 const Properties = () => {
@@ -63,10 +64,24 @@ const Properties = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {mockProperties.map((property) => (
-          <Card key={property.id} className="border-none shadow-sm hover:shadow-md transition-all duration-300 group">
+          <Card key={property.id} className="border-none shadow-sm hover:shadow-md transition-all duration-300 group overflow-hidden">
             <CardContent className="p-0">
-              <div className="relative h-40 bg-gray-100 rounded-t-xl overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+              <div className="relative h-48 bg-gray-200">
+                {property.imageUrl ? (
+                  <img 
+                    src={property.imageUrl} 
+                    alt={property.name}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=500&q=80';
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400">
+                    <ImageIcon className="w-12 h-12" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                 <div className="absolute top-4 right-4">
                   <Badge className={
                     property.status === 'alugado' ? 'bg-green-500' : 
@@ -83,7 +98,7 @@ const Properties = () => {
               <div className="p-6">
                 <div className="flex items-start gap-2 mb-4 text-gray-500">
                   <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
-                  <p className="text-sm">{property.address}</p>
+                  <p className="text-sm line-clamp-1">{property.address}</p>
                 </div>
                 <div className="flex justify-between items-center pt-4 border-t border-gray-50">
                   <div>
