@@ -39,22 +39,22 @@ const Dashboard = () => {
         const { data: props } = await supabase.from('properties').select('*').limit(4);
         setProperties(props || []);
 
-        // Buscar Contas e gerar alertas reais
+        // Buscar Contas e gerar estatísticas
         const { data: bills } = await supabase.from('bills').select('*');
         if (bills) {
           let rec = 0, des = 0, pen = 0;
           const overdue: any[] = [];
 
           bills.forEach(b => {
-            const val = Number(b.total_value) || 0;
+            const val = Number(b.total_value || b.calculated_value) || 0;
             if (b.status === 'pago') {
               if (b.type === 'receita' || b.type === 'aluguel') rec += val;
               else des += val;
             } else {
               if (b.type === 'receita' || b.type === 'aluguel') pen += val;
-              // Se estiver atrasado (simplificado)
-              if (new Date(b.due_date) < new Date()) {
-                overdue.push({ id: b.id, title: `Atraso: ${b.description}`, type: 'error' });
+              // Alerta simples de atraso
+              if (b.due_date && new Date(b.due_date) < new Date()) {
+                overdue.push({ id: b.id, title: `Atraso: ${b.description || b.type}`, type: 'error' });
               }
             }
           });
@@ -76,7 +76,7 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout>
-      <div className="mb-10 flex justify-between items-end">
+      <div className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Olá, {userName}! 👋</h1>
           <p className="text-gray-500 mt-1.5 text-lg">Aqui está o resumo da sua gestão pessoal.</p>
@@ -89,10 +89,10 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
         <div className="xl:col-span-3 space-y-10">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <SummaryCard label="Receitas (Pago)" value={`R$ ${stats.receitas.toLocaleString('pt-BR')}`} icon={<DollarSign className="w-5 h-5" />} color="blue" />
-            <SummaryCard label="Despesas (Pago)" value={`R$ ${stats.despesas.toLocaleString('pt-BR')}`} icon={<TrendingDown className="w-5 h-5" />} color="red" />
-            <SummaryCard label="Lucro líquido" value={`R$ ${stats.lucro.toLocaleString('pt-BR')}`} icon={<Activity className="w-5 h-5" />} color="green" />
-            <SummaryCard label="A receber" value={`R$ ${stats.pendente.toLocaleString('pt-BR')}`} icon={<Clock className="w-5 h-5" />} color="purple" />
+            <SummaryCard label="Receitas (Pago)" value={`R$ ${stats.receitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<DollarSign className="w-5 h-5" />} color="blue" />
+            <SummaryCard label="Despesas (Pago)" value={`R$ ${stats.despesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<TrendingDown className="w-5 h-5" />} color="red" />
+            <SummaryCard label="Lucro líquido" value={`R$ ${stats.lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Activity className="w-5 h-5" />} color="green" />
+            <SummaryCard label="A receber" value={`R$ ${stats.pendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Clock className="w-5 h-5" />} color="purple" />
           </div>
 
           <div className="space-y-5">
@@ -102,7 +102,7 @@ const Dashboard = () => {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               {properties.length > 0 ? properties.map((prop) => (
-                <Card key={prop.id} className="premium-card rounded-3xl overflow-hidden border-none" onClick={() => navigate(`/properties/${prop.id}`)}>
+                <Card key={prop.id} className="premium-card rounded-3xl overflow-hidden border-none cursor-pointer" onClick={() => navigate(`/properties/${prop.id}`)}>
                   <div className="relative h-28 bg-slate-100">
                     {prop.image_url && <img src={prop.image_url} alt={prop.name} className="w-full h-full object-cover" />}
                     <div className="absolute top-2 right-2">

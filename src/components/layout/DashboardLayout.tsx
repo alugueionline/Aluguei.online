@@ -27,8 +27,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   return (
     <div className="flex min-h-screen bg-[#F7F9FC] text-[#0F172A]">
       <Sidebar />
-      <main className="flex-1 flex flex-col min-w-0">
-        <header className="px-6 md:px-10 py-5 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-10 border-b border-gray-100/50">
+      <main className="flex-1 flex flex-col min-w-0 relative">
+        <header className="px-6 md:px-10 py-5 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-gray-100/50">
           <div className="flex items-center gap-6 flex-1 max-w-2xl">
             <MobileNav />
             <div className="relative w-full hidden md:block group">

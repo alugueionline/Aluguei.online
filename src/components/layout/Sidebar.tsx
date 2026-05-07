@@ -22,7 +22,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Building2, label: "Imóveis", path: "/properties" },
   { icon: Users, label: "Inquilinos", path: "/tenants" },
   { icon: FileText, label: "Contratos", path: "/contracts" },
@@ -37,6 +37,7 @@ export const Sidebar = () => {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const logoUrl = "https://i.ibb.co/8nFsGk01/LOGO.png";
 
   useEffect(() => {
     const getUser = async () => {
@@ -56,16 +57,17 @@ export const Sidebar = () => {
 
   return (
     <aside className={cn(
-      "fixed left-0 top-0 h-screen bg-white border-r border-gray-100 transition-all duration-500 z-50 flex flex-col",
+      "hidden lg:flex flex-col h-screen bg-white border-r border-gray-100 transition-all duration-300 sticky top-0 z-50",
       collapsed ? "w-24" : "w-72"
     )}>
       <div className="p-8 flex items-center justify-between">
-        {!collapsed && (
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#2563FF] rounded-xl flex items-center justify-center shadow-lg shadow-blue-100">
-              <Building2 className="text-white w-6 h-6" />
-            </div>
-            <span className="font-black text-xl tracking-tighter text-slate-900">ALUGUEI<span className="text-[#2563FF]">.</span></span>
+        {!collapsed ? (
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/dashboard')}>
+            <img src={logoUrl} alt="Aluguei.Online" className="h-10 w-auto object-contain" />
+          </div>
+        ) : (
+          <div className="w-10 h-10 flex items-center justify-center">
+            <img src={logoUrl} alt="Logo" className="h-6 w-auto object-contain" />
           </div>
         )}
         <Button 
@@ -78,7 +80,7 @@ export const Sidebar = () => {
         </Button>
       </div>
 
-      <nav className="flex-1 px-4 space-y-2 mt-4">
+      <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
