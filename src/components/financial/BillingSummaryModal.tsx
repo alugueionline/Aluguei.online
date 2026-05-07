@@ -11,18 +11,39 @@ import { showSuccess } from '@/utils/toast';
 interface BillingSummaryModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialData?: any;
 }
 
-export const BillingSummaryModal = ({ isOpen, onClose }: BillingSummaryModalProps) => {
+export const BillingSummaryModal = ({ isOpen, onClose, initialData }: BillingSummaryModalProps) => {
   const [tenant, setTenant] = useState('');
   const [pixKey, setPixKey] = useState('seu-pix@email.com');
-  const [rentValue, setRentValue] = useState('1200');
+  const [rentValue, setRentValue] = useState('0');
   const [condoValue, setCondoValue] = useState('0');
   const [extraValues, setExtraValues] = useState([
     { label: 'Energia', value: '0' },
     { label: 'Água', value: '0' }
   ]);
   const [generatedMessage, setGeneratedMessage] = useState('');
+
+  // Atualiza os campos quando o modal abre com dados iniciais
+  useEffect(() => {
+    if (isOpen && initialData) {
+      setTenant(initialData.tenant || '');
+      if (initialData.category === 'Aluguel') {
+        setRentValue(initialData.value?.toString() || '0');
+      } else {
+        // Se for outra categoria, adiciona como extra
+        setExtraValues([{ label: initialData.category, value: initialData.value?.toString() || '0' }]);
+        setRentValue('0');
+      }
+    } else if (isOpen && !initialData) {
+      // Reset se abrir vazio
+      setTenant('');
+      setRentValue('0');
+      setCondoValue('0');
+      setExtraValues([{ label: 'Energia', value: '0' }, { label: 'Água', value: '0' }]);
+    }
+  }, [isOpen, initialData]);
 
   const calculateTotal = () => {
     const rent = parseFloat(rentValue) || 0;
@@ -38,7 +59,11 @@ export const BillingSummaryModal = ({ isOpen, onClose }: BillingSummaryModalProp
     const rent = parseFloat(rentValue) || 0;
     const condo = parseFloat(condoValue) || 0;
     
-    let details = `• Aluguel: R$ ${rent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+    let details = '';
+    
+    if (rent > 0) {
+      details += `• Aluguel: R$ ${rent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+    }
     
     if (condo > 0) {
       details += `• Condomínio: R$ ${condo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;

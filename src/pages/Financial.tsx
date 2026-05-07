@@ -39,6 +39,12 @@ const mockTransactions = [
 const Financial = () => {
   const [transactions] = useState(mockTransactions);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  const [selectedData, setSelectedData] = useState<any>(null);
+
+  const handleOpenSummary = (data?: any) => {
+    setSelectedData(data || null);
+    setIsSummaryModalOpen(true);
+  };
 
   const handleExport = () => showSuccess('Relatório financeiro exportado com sucesso!');
 
@@ -84,7 +90,6 @@ const Financial = () => {
 
           <TabsContent value="overview" className="space-y-8 animate-in fade-in duration-500">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Novo Card de Resumo de Cobrança */}
               <Card className="lg:col-span-1 premium-card rounded-[2.5rem] border-none p-8 h-fit bg-gradient-to-br from-blue-600 to-blue-700 text-white">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md">
@@ -96,14 +101,13 @@ const Financial = () => {
                   Gere um resumo detalhado com aluguel, luz, água e rateios para enviar diretamente ao WhatsApp do inquilino.
                 </p>
                 <Button 
-                  onClick={() => setIsSummaryModalOpen(true)}
+                  onClick={() => handleOpenSummary()}
                   className="w-full h-14 bg-white text-blue-600 hover:bg-blue-50 font-black rounded-2xl gap-2 shadow-xl shadow-blue-900/20 transition-all active:scale-95"
                 >
                   Gerar Resumo <ArrowRight className="w-5 h-5" />
                 </Button>
               </Card>
 
-              {/* Tabela de Transações */}
               <div className="lg:col-span-2 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
                 <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
                   <h3 className="text-lg font-black text-slate-900 tracking-tight">Últimas Movimentações</h3>
@@ -157,7 +161,7 @@ const Financial = () => {
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              onClick={() => setIsSummaryModalOpen(true)}
+                              onClick={() => handleOpenSummary(t)}
                               className="h-10 w-10 rounded-xl text-blue-600 hover:bg-blue-50"
                             >
                               <Send className="w-4 h-4" />
@@ -185,6 +189,7 @@ const Financial = () => {
       <BillingSummaryModal 
         isOpen={isSummaryModalOpen} 
         onClose={() => setIsSummaryModalOpen(false)} 
+        initialData={selectedData}
       />
     </DashboardLayout>
   );
