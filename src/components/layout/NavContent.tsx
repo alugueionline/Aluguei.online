@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -14,10 +14,12 @@ import {
   Calendar, 
   Bell, 
   LogOut,
-  ChevronDown
+  ChevronDown,
+  User as UserIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { supabase } from '@/integrations/supabase/client';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
@@ -39,17 +41,37 @@ interface NavContentProps {
 export const NavContent = ({ onItemClick }: NavContentProps) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [user, setUser] = useState<any>(null);
   const logoUrl = "https://i.ibb.co/8nFsGk01/LOGO.png";
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
+
+    // Escutar mudanças no perfil (como nome/foto alterados)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleUserClick = () => {
     navigate('/settings');
     if (onItemClick) onItemClick();
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     navigate('/');
     if (onItemClick) onItemClick();
   };
+
+  const userName = user?.user_metadata?.full_name || "Usuário";
+  const avatarUrl = user?.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`;
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -69,7 +91,7 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group",
                   isActive 
-                    ? "sidebar-item-active" 
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-100" 
                     : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
                 )}
               >
@@ -101,11 +123,13 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
         >
           <div className="flex items-center gap-3">
             <Avatar className="w-10 h-10 rounded-xl border-2 border-white shadow-sm">
-              <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=Jonas" />
-              <AvatarFallback className="bg-[#2563FF] text-white">JS</AvatarFallback>
+              <AvatarImage src={avatarUrl} />
+              <AvatarFallback className="bg-[#2563FF] text-white">
+                <UserIcon className="w-5 h-5" />
+              </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <p className="text-sm font-bold text-gray-900 truncate">Jonas Silva</p>
+              <p className="text-sm font-bold text-gray-900 truncate">{userName}</p>
               <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Assinante</p>
             </div>
           </div>

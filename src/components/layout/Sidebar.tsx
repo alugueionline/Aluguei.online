@@ -11,10 +11,9 @@ import {
   Wrench, 
   Calendar, 
   BarChart3, 
-  Settings,
   LogOut,
   ChevronLeft,
-  User
+  User as UserIcon
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -45,6 +44,13 @@ export const Sidebar = () => {
       setUser(user);
     };
     getUser();
+
+    // Escutar mudanças no estado de autenticação e metadados do usuário
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleLogout = async () => {
@@ -54,6 +60,7 @@ export const Sidebar = () => {
 
   const userName = user?.user_metadata?.full_name || "Usuário";
   const userEmail = user?.email || "";
+  const avatarUrl = user?.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`;
 
   return (
     <aside className={cn(
@@ -101,10 +108,15 @@ export const Sidebar = () => {
       </nav>
 
       <div className="p-6 mt-auto border-t border-gray-50">
-        <div className={cn("flex items-center gap-4 mb-6", collapsed && "justify-center")}>
+        <div 
+          className={cn("flex items-center gap-4 mb-6 cursor-pointer hover:opacity-80 transition-opacity", collapsed && "justify-center")}
+          onClick={() => navigate('/settings')}
+        >
           <Avatar className="w-10 h-10 rounded-xl border-2 border-white shadow-sm">
-            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${userName}`} />
-            <AvatarFallback><User /></AvatarFallback>
+            <AvatarImage src={avatarUrl} />
+            <AvatarFallback className="bg-blue-600 text-white">
+              <UserIcon className="w-5 h-5" />
+            </AvatarFallback>
           </Avatar>
           {!collapsed && (
             <div className="flex-1 min-w-0">
