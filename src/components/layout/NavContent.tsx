@@ -34,7 +34,7 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
       <div className="p-6">
         <div className="flex items-center mb-10 px-2">
           <img 
-            src="dyad-media://media/JonasPay/.dyad/media/b4a42b39a45a352013aed21d72cd31a42c05df23.png" 
+            src="https://i.ibb.co/8nFsGk01/LOGO.png" 
             alt="Aluguei Online" 
             className="h-10 w-auto object-contain"
           />
