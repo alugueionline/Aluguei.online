@@ -18,15 +18,17 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ptBR } from 'date-fns/locale';
-import { addMonths, subMonths, format, isSameDay } from 'date-fns';
+import { addMonths, subMonths, format, isSameDay, setDate as setDayOfMonth } from 'date-fns';
 import { EventModal } from '@/components/modals/EventModal';
 import { showSuccess } from '@/utils/toast';
 
+// Gerando datas no mês atual para os eventos mock
+const today = new Date();
 const initialEvents = [
-  { id: '1', date: new Date(2024, 5, 10), title: 'Vencimento Aluguel', type: 'payment', description: 'João Silva • Apto 101', time: '09:00' },
-  { id: '2', date: new Date(2024, 5, 12), title: 'Manutenção Elétrica', type: 'maintenance', description: 'Casa 02 • Reparo fiação', time: '14:30' },
-  { id: '3', date: new Date(2024, 5, 15), title: 'Contrato Vence', type: 'contract', description: 'Maria Oliveira • 30 dias', time: '10:00' },
-  { id: '4', date: new Date(2024, 5, 20), title: 'Vistoria de Saída', type: 'visit', description: 'Kitnet A • Entrega chaves', time: '16:00' },
+  { id: '1', date: setDayOfMonth(today, 10), title: 'Vencimento Aluguel', type: 'payment', description: 'João Silva • Apto 101', time: '09:00' },
+  { id: '2', date: setDayOfMonth(today, 12), title: 'Manutenção Elétrica', type: 'maintenance', description: 'Casa 02 • Reparo fiação', time: '14:30' },
+  { id: '3', date: setDayOfMonth(today, 15), title: 'Contrato Vence', type: 'contract', description: 'Maria Oliveira • 30 dias', time: '10:00' },
+  { id: '4', date: setDayOfMonth(today, 20), title: 'Vistoria de Saída', type: 'visit', description: 'Kitnet A • Entrega chaves', time: '16:00' },
 ];
 
 const Calendar = () => {
