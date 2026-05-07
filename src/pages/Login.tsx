@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, ArrowRight, ChevronLeft, Key, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, ArrowRight, ChevronLeft, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,18 +14,11 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [accessKey, setAccessKey] = useState('');
   const logoUrl = "https://i.ibb.co/8nFsGk01/LOGO.png";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const MASTER_KEY = "Aluguei.Online@2026";
-    if (accessKey !== MASTER_KEY) {
-      showError('Chave de acesso inválida');
-      return;
-    }
-
     setIsLoading(true);
     
     try {
@@ -64,7 +57,7 @@ const Login = () => {
               <img src={logoUrl} alt="Aluguei.Online" className="h-full w-auto object-contain" />
             </div>
             <h1 className="text-4xl font-black text-slate-900 tracking-tight">Acesso Assinante</h1>
-            <p className="text-slate-500 font-medium">Insira suas credenciais e sua chave de acesso exclusiva.</p>
+            <p className="text-slate-500 font-medium">Insira suas credenciais para acessar sua conta.</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6">
@@ -78,21 +71,6 @@ const Login = () => {
                   className="h-14 pl-12 rounded-2xl bg-slate-50 border-none font-bold focus-visible:ring-2 focus-visible:ring-blue-600/10"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Chave de Acesso (Obrigatório)</Label>
-              <div className="relative">
-                <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-400" />
-                <Input 
-                  type="password" 
-                  placeholder="Insira sua chave de assinante" 
-                  className="h-14 pl-12 rounded-2xl bg-blue-50/30 border-2 border-blue-100 font-bold focus-visible:ring-2 focus-visible:ring-blue-600/10"
-                  value={accessKey}
-                  onChange={(e) => setAccessKey(e.target.value)}
                   required
                 />
               </div>
@@ -118,16 +96,16 @@ const Login = () => {
               disabled={isLoading}
               className="w-full h-14 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95"
             >
-              {isLoading ? 'Validando Chave...' : 'Entrar no Sistema'}
+              {isLoading ? 'Autenticando...' : 'Entrar no Sistema'}
               {!isLoading && <ArrowRight className="ml-2 w-5 h-5" />}
             </Button>
           </form>
 
           <div className="flex flex-col gap-4">
-            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3">
-              <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-xs font-medium text-amber-800 leading-relaxed">
-                Este sistema é monitorado. O uso de chaves não autorizadas resultará no bloqueio permanente do IP.
+            <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-start gap-3">
+              <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+              <p className="text-xs font-medium text-blue-800 leading-relaxed">
+                Acesso restrito a usuários cadastrados. Seus dados estão protegidos por criptografia de ponta.
               </p>
             </div>
             
