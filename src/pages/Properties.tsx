@@ -12,14 +12,15 @@ import {
   MapPin, 
   ArrowUpRight,
   Edit2,
+  Trash2,
   Image as ImageIcon
 } from 'lucide-react';
 import { Property } from '@/types/rental';
 import { PropertyModal } from '@/components/modals/PropertyModal';
 import { cn } from '@/lib/utils';
-import { showSuccess } from '@/utils/toast';
+import { showSuccess, showError } from '@/utils/toast';
 
-const mockProperties: Property[] = [
+const initialProperties: Property[] = [
   { id: '1', name: 'Apto 101', type: 'apartamento', address: 'Rua Central, 123', baseRent: 1200, status: 'alugado', imageUrl: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=500&q=80' },
   { id: '2', name: 'Casa 02', type: 'casa', address: 'Av. das Flores, 45', baseRent: 2500, status: 'disponivel', imageUrl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=500&q=80' },
   { id: '3', name: 'Kitnet A', type: 'kitnet', address: 'Rua 10, 500', baseRent: 850, status: 'alugado', imageUrl: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=500&q=80' },
@@ -28,6 +29,7 @@ const mockProperties: Property[] = [
 
 const Properties = () => {
   const navigate = useNavigate();
+  const [properties, setProperties] = useState<Property[]>(initialProperties);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
@@ -42,7 +44,19 @@ const Properties = () => {
     setIsModalOpen(true);
   };
 
+  const handleDelete = (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir este imóvel?')) {
+      setProperties(properties.filter(p => p.id !== id));
+      showSuccess('Imóvel removido com sucesso!');
+    }
+  };
+
   const handleFilter = () => showSuccess('Filtros de imóveis aplicados!');
+
+  const filteredProperties = properties.filter(p => 
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    p.address.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <DashboardLayout title="Imóveis">
@@ -71,7 +85,7 @@ const Properties = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {mockProperties.map((property) => (
+        {filteredProperties.map((property) => (
           <Card key={property.id} className="premium-card rounded-[2rem] overflow-hidden group">
             <CardContent className="p-0">
               <div className="relative h-56 bg-gray-100">
@@ -87,7 +101,7 @@ const Properties = () => {
                   </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80" />
-                <div className="absolute top-5 right-5">
+                <div className="absolute top-5 right-5 flex gap-2">
                   <Badge className={cn(
                     "border-none px-3 py-1.5 rounded-xl font-bold text-[10px] uppercase tracking-wider shadow-lg",
                     property.status === 'alugado' ? 'bg-emerald-500 text-white' : 
@@ -112,6 +126,14 @@ const Properties = () => {
                     <p className="text-xl font-bold text-gray-900 tracking-tight">R$ {property.baseRent.toLocaleString('pt-BR')}</p>
                   </div>
                   <div className="flex gap-2">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-11 w-11 rounded-xl hover:bg-red-50 hover:text-red-600 transition-all"
+                      onClick={() => handleDelete(property.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                     <Button 
                       variant="ghost" 
                       size="icon" 
