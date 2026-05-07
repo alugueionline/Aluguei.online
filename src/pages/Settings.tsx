@@ -21,6 +21,8 @@ const Settings = () => {
   const [fullName, setFullName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
 
+  const DEFAULT_ICON = "https://i.ibb.co/cKz69Xd3/ICONE-CLARO.png";
+
   useEffect(() => {
     const fetchUser = async () => {
       setIsLoading(true);
@@ -28,7 +30,7 @@ const Settings = () => {
       if (user) {
         setUser(user);
         setFullName(user.user_metadata?.full_name || '');
-        setAvatarUrl(user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`);
+        setAvatarUrl(user.user_metadata?.avatar_url || DEFAULT_ICON);
       }
       setIsLoading(false);
     };
@@ -50,7 +52,6 @@ const Settings = () => {
       if (error) throw error;
       showSuccess('Perfil atualizado com sucesso!');
       
-      // Forçar atualização local
       const { data: { user: updatedUser } } = await supabase.auth.getUser();
       setUser(updatedUser);
     } catch (error: any) {
@@ -96,9 +97,9 @@ const Settings = () => {
                 <form onSubmit={handleSaveProfile} className="space-y-8">
                   <div className="flex flex-col md:flex-row items-center gap-8 pb-8 border-b border-slate-50">
                     <div className="relative group">
-                      <Avatar className="w-32 h-32 rounded-[2rem] border-4 border-white shadow-xl">
-                        <AvatarImage src={avatarUrl} />
-                        <AvatarFallback className="bg-blue-600 text-white text-2xl font-black">
+                      <Avatar className="w-32 h-32 rounded-[2rem] border-4 border-white shadow-xl bg-slate-50">
+                        <AvatarImage src={avatarUrl} className="object-cover" />
+                        <AvatarFallback className="bg-blue-50 text-blue-600 text-2xl font-black">
                           {fullName.substring(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
@@ -115,7 +116,7 @@ const Settings = () => {
                           placeholder="https://link-da-sua-foto.com/imagem.jpg"
                           className="h-12 rounded-xl bg-slate-50 border-none font-bold"
                         />
-                        <p className="text-[10px] text-slate-400 font-medium italic">Dica: Você pode usar links do Google Drive, Dropbox ou geradores como DiceBear.</p>
+                        <p className="text-[10px] text-slate-400 font-medium italic">Dica: Cole o link de uma imagem ou deixe em branco para usar o ícone padrão.</p>
                       </div>
                     </div>
                   </div>

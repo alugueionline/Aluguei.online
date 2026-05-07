@@ -43,6 +43,7 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
   const logoUrl = "https://i.ibb.co/8nFsGk01/LOGO.png";
+  const DEFAULT_ICON = "https://i.ibb.co/cKz69Xd3/ICONE-CLARO.png";
 
   useEffect(() => {
     const getUser = async () => {
@@ -51,7 +52,6 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
     };
     getUser();
 
-    // Escutar mudanças no perfil (como nome/foto alterados)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null);
     });
@@ -71,7 +71,7 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
   };
 
   const userName = user?.user_metadata?.full_name || "Usuário";
-  const avatarUrl = user?.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`;
+  const avatarUrl = user?.user_metadata?.avatar_url || DEFAULT_ICON;
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -122,8 +122,8 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
           className="p-4 bg-[#F7F9FC] rounded-2xl border border-gray-100 flex items-center justify-between group cursor-pointer hover:bg-gray-100 transition-colors"
         >
           <div className="flex items-center gap-3">
-            <Avatar className="w-10 h-10 rounded-xl border-2 border-white shadow-sm">
-              <AvatarImage src={avatarUrl} />
+            <Avatar className="w-10 h-10 rounded-xl border-2 border-white shadow-sm bg-white">
+              <AvatarImage src={avatarUrl} className="object-cover" />
               <AvatarFallback className="bg-[#2563FF] text-white">
                 <UserIcon className="w-5 h-5" />
               </AvatarFallback>

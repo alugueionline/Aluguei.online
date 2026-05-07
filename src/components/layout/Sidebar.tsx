@@ -37,6 +37,7 @@ export const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [user, setUser] = useState<any>(null);
   const logoUrl = "https://i.ibb.co/8nFsGk01/LOGO.png";
+  const DEFAULT_ICON = "https://i.ibb.co/cKz69Xd3/ICONE-CLARO.png";
 
   useEffect(() => {
     const getUser = async () => {
@@ -45,7 +46,6 @@ export const Sidebar = () => {
     };
     getUser();
 
-    // Escutar mudanças no estado de autenticação e metadados do usuário
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null);
     });
@@ -60,7 +60,7 @@ export const Sidebar = () => {
 
   const userName = user?.user_metadata?.full_name || "Usuário";
   const userEmail = user?.email || "";
-  const avatarUrl = user?.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`;
+  const avatarUrl = user?.user_metadata?.avatar_url || DEFAULT_ICON;
 
   return (
     <aside className={cn(
@@ -112,8 +112,8 @@ export const Sidebar = () => {
           className={cn("flex items-center gap-4 mb-6 cursor-pointer hover:opacity-80 transition-opacity", collapsed && "justify-center")}
           onClick={() => navigate('/settings')}
         >
-          <Avatar className="w-10 h-10 rounded-xl border-2 border-white shadow-sm">
-            <AvatarImage src={avatarUrl} />
+          <Avatar className="w-10 h-10 rounded-xl border-2 border-white shadow-sm bg-white">
+            <AvatarImage src={avatarUrl} className="object-cover" />
             <AvatarFallback className="bg-blue-600 text-white">
               <UserIcon className="w-5 h-5" />
             </AvatarFallback>
