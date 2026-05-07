@@ -3,8 +3,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
   TrendingUp, 
@@ -15,196 +14,7 @@ import {
   AlertCircle,
   FileWarning,
   Activity,
-  Wrench,
-  Plus
-} from 'lucide-react';
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  LineChart,
-  Line
-} from 'recharts';
-
-const cashFlowData = [
-  { day: '01', entradas: 4000, saidas: 1200 },
-  { day: '05', entradas: 5200, saidas: 1500 },
-  { day: '10', entradas: 8500, saidas: 2100 },
-  { day: '15', entradas: 9800, saidas: 2800 },
-  { day: '20', entradas: 12400, saidas: 3100 },
-  { day: '25', entradas: 14200, saidas: 3400 },
-  { day: '30', entradas: 15420, saidas: 3150 },
-];
-
-const sparklineData = [
-  { v: 10 }, { v: 15 }, { v: 8 }, { v: 12 }, { v: 20 }, { v: 18 }, { v: 25 }
-];
-
-const Index = () => {
-  const navigate = useNavigate();
-
-  return (
-    <DashboardLayout>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white flex items-center gap-2">
-          Olá, Jonas! 👋
-        </h1>
-        <p className="text-gray-500 mt-1">Aqui está o resumo geral da sua gestão.</p>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
-        {/* COLUNA PRINCIPAL (ESQUERDA) */}
-        <div className="xl:col-span-3 space-y-8">
-          {/* CARDS DE RESUMO */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <SummaryCard 
-              label="Receitas do mês" 
-              value="R$ 15.420,00" 
-              trend="+ 12,5%" 
-              trendType="up" 
-              icon={<DollarSign className="w-5 h-5" />}
-              color="blue"
-            />
-            <SummaryCard 
-              label="Despesas do mês" 
-              value="R$ 3.150,00" 
-              trend="- 2,4%" 
-              trendType="down" 
-              icon={<TrendingDown className="w-5 h-5" />}
-              color="red"
-            />
-            <SummaryCard 
-              label="Lucro líquido" 
-              value="R$ 12.270,00" 
-              trend="+ 18,7%" 
-              trendType="up" 
-              icon={<Activity className="w-5 h-5" />}
-              color="green"
-            />
-            <SummaryCard 
-              label="A receber" 
-              value="R$ 1.850,00" 
-              subtext="3 contratos em aberto" 
-              icon={<Clock className="w-5 h-5" />}
-              color="purple"
-              showArrow
-            />
-          </div>
-
-          {/* GRÁFICO DE FLUXO DE CAIXA */}
-          <Card className="bg-[#161B22] border-none p-8 rounded-3xl">
-            <div className="flex justify-between items-center mb-8">
-              <div>
-                <h3 className="text-xl font-bold text-white">Fluxo de Caixa</h3>
-                <p className="text-sm text-gray-500">Entradas vs Saídas acumuladas</p>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex bg-[#0B0E14] p-1 rounded-xl">
-                  <Button size="sm" className="bg-blue-600 text-white rounded-lg h-8 px-4 text-xs font-bold">Mensal</Button>
-                  <Button size="sm" variant="ghost" className="text-gray-500 h-8 px-4 text-xs font-bold">Trimestral</Button>
-                </div>
-                <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                    <span className="text-gray-400">Entradas</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                    <span className="text-gray-400">Saídas</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="h-[350px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={cashFlowData}>
-                  <defs>
-                    <linearGradient id="colorEntradas" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorSaidas" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
-                  <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: '#4b5563', fontSize: 12}} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#4b5563', fontSize: 12}} tickFormatter={(v) => `R$ ${v/1000}k`} />
-                  <Tooltip contentStyle={{ backgroundColor: '#161B22', border: 'none', borderRadius: '12px', color: '#fff' }} />
-                  <Area type="monotone" dataKey="entradas" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorEntradas)" />
-                  <Area type="monotone" dataKey="saidas" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorSaidas)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-
-          {/* DESEMPENHO GERAL */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <MiniStatCard label="Taxa de ocupação" value="94,8%" icon={<Activity className="w-4 h-4" />} color="blue" />
-            <MiniStatCard label="Inadimplência" value="2,6%" icon={<AlertCircle className="w-4 h-4" />} color="red" />
-            <MiniStatCard label="Ticket médio" value="R$ 1.450" icon={<DollarSign className="w-4 h-4" />} color="green" />
-            <MiniStatCard label="Rentabilidade" value="8,7%" icon={<TrendingUp className="w-4 h-4" />} color="purple" />
-          </div>
-        </div>
-
-        {/* COLUNA LATERAL (DIREITA) */}
-        <div className="space-y-6">
-          {/* AVISOS E PENDÊNCIAS */}
-          <Card className="bg-[#161B22] border-none p-6 rounded-3xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="font-bold text-white flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-blue-500" />
-                Avisos e Pendências
-              </h3>
-              <button className="text-xs font-bold text-blue-500 hover:underline">Ver todos</button>
-            </div>
-            <div className="space-y-4">
-              <AlertItem 
-                title="Contrato a vencer" 
-                desc="João Silva • Vence em 30 dias" 
-                tag="APTO 101" 
-                icon={<FileWarning className="w-4 h-4" />}
-                color="orange"
-              />
-              <AlertItem 
-                title="Pagamento em atraso" 
-                desc="Pedro Santos • 5 dias de atraso" 
-                tag="R$ 900,00" 
-                icon={<Clock className="w-4 h-4" />}
-                color="red"
-              />
-            </div>
-          </Card>
-
-          {/* PRÓXIMOS RECEBIMENTOS */}
-          <Card className="bg-[#161B22] border-none p-6 rounded-3xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="font-bold text-white">Próximos recebimentos</h3><dyad-write path="src/pages/Index.tsx" description="Continuing the reconstruction of the Dashboard with the right column and helper components.">
-"use client";
-
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
-  Clock,
-  ChevronRight,
-  AlertCircle,
-  FileWarning,
-  Activity,
-  Wrench,
-  Plus,
-  Calendar
+  Wrench
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -234,8 +44,6 @@ const sparklineData = [
 ];
 
 const Index = () => {
-  const navigate = useNavigate();
-
   return (
     <DashboardLayout>
       <div className="mb-8">
