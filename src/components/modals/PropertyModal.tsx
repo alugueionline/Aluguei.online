@@ -11,7 +11,7 @@ import { showSuccess, showError } from '@/utils/toast';
 import { 
   Building2, 
   MapPin, 
-  Info, 
+  Camera, 
   Bed, 
   Bath, 
   Car, 
@@ -19,7 +19,11 @@ import {
   ChevronRight, 
   ChevronLeft,
   CheckCircle2,
-  Loader2
+  Loader2,
+  DollarSign,
+  Home,
+  Info,
+  X
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -30,11 +34,11 @@ interface PropertyModalProps {
   property?: any;
 }
 
-type Step = 'basic' | 'details' | 'address';
+type Step = 'photo' | 'basic' | 'details' | 'address';
 
 export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps) => {
   const isEdit = !!property;
-  const [step, setStep] = useState<Step>('basic');
+  const [step, setStep] = useState<Step>('photo');
   const [loading, setLoading] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -47,11 +51,13 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
     size_sqm: '0',
     address: '',
     condo_name: '',
+    condo_fee: '0',
     block: '',
     tower: '',
     unit_number: '',
     floor: '',
     base_rent: '',
+    image_url: '',
     status: 'disponivel'
   });
 
@@ -67,14 +73,16 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
         size_sqm: (property.size_sqm || 0).toString(),
         address: property.address || '',
         condo_name: property.condo_name || '',
+        condo_fee: (property.condo_fee || 0).toString(),
         block: property.block || '',
         tower: property.tower || '',
         unit_number: property.unit_number || '',
         floor: property.floor || '',
         base_rent: (property.base_rent || 0).toString(),
+        image_url: property.image_url || '',
         status: property.status || 'disponivel'
       });
-      setStep('basic');
+      setStep('photo');
     } else if (isOpen) {
       setFormData({
         name: '',
@@ -86,14 +94,16 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
         size_sqm: '0',
         address: '',
         condo_name: '',
+        condo_fee: '0',
         block: '',
         tower: '',
         unit_number: '',
         floor: '',
         base_rent: '',
+        image_url: '',
         status: 'disponivel'
       });
-      setStep('basic');
+      setStep('photo');
     }
   }, [property, isOpen]);
 
@@ -106,11 +116,12 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
       const payload = {
         ...formData,
         user_id: user.id,
-        bedrooms: parseInt(formData.bedrooms),
-        bathrooms: parseInt(formData.bathrooms),
-        parking_spots: parseInt(formData.parking_spots),
-        size_sqm: parseFloat(formData.size_sqm),
-        base_rent: parseFloat(formData.base_rent)
+        bedrooms: parseInt(formData.bedrooms) || 0,
+        bathrooms: parseInt(formData.bathrooms) || 0,
+        parking_spots: parseInt(formData.parking_spots) || 0,
+        size_sqm: parseFloat(formData.size_sqm) || 0,
+        base_rent: parseFloat(formData.base_rent) || 0,
+        condo_fee: parseFloat(formData.condo_fee) || 0
       };
 
       if (isEdit) {
@@ -135,41 +146,52 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
     }
   };
 
+  const steps: Step[] = ['photo', 'basic', 'details', 'address'];
+  const currentStepIndex = steps.indexOf(step);
+
   const nextStep = () => {
-    if (step === 'basic') setStep('details');
-    else if (step === 'details') setStep('address');
+    if (currentStepIndex < steps.length - 1) {
+      setStep(steps[currentStepIndex + 1]);
+    }
   };
 
   const prevStep = () => {
-    if (step === 'details') setStep('basic');
-    else if (step === 'address') setStep('details');
+    if (currentStepIndex > 0) {
+      setStep(steps[currentStepIndex - 1]);
+    }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
-        <div className="bg-slate-900 p-8 text-white">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
-                <Building2 className="w-6 h-6" />
+      <DialogContent className="sm:max-w-[700px] rounded-[3rem] p-0 overflow-hidden border-none shadow-2xl bg-white">
+        {/* Header Premium */}
+        <div className="bg-slate-900 p-10 text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full -mr-32 -mt-32 blur-3xl" />
+          <div className="relative z-10 flex items-center justify-between">
+            <div className="flex items-center gap-5">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <Home className="w-7 h-7 text-white" />
               </div>
               <div>
-                <DialogTitle className="text-xl font-black tracking-tight">
-                  {isEdit ? 'Editar Imóvel' : 'Novo Imóvel'}
+                <DialogTitle className="text-2xl font-black tracking-tight">
+                  {isEdit ? 'Editar Propriedade' : 'Nova Propriedade'}
                 </DialogTitle>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Passo {step === 'basic' ? '1' : step === 'details' ? '2' : '3'} de 3</p>
+                <p className="text-sm text-slate-400 font-bold uppercase tracking-widest mt-1">
+                  Passo {currentStepIndex + 1} de {steps.length} • {
+                    step === 'photo' ? 'Identidade Visual' :
+                    step === 'basic' ? 'Informações Básicas' :
+                    step === 'details' ? 'Características' : 'Localização'
+                  }
+                </p>
               </div>
             </div>
-            <div className="flex gap-1">
-              {[1, 2, 3].map((i) => (
+            <div className="flex gap-1.5">
+              {steps.map((_, i) => (
                 <div 
                   key={i} 
                   className={cn(
-                    "h-1.5 w-8 rounded-full transition-all",
-                    (step === 'basic' && i === 1) || (step === 'details' && i <= 2) || (step === 'address' && i <= 3)
-                      ? "bg-blue-600" 
-                      : "bg-slate-800"
+                    "h-1.5 w-10 rounded-full transition-all duration-500",
+                    i <= currentStepIndex ? "bg-blue-500 w-12" : "bg-slate-800"
                   )} 
                 />
               ))}
@@ -177,142 +199,188 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
           </div>
         </div>
 
-        <div className="p-8 bg-white">
-          {step === 'basic' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Identificação do Imóvel</Label>
-                <Input 
-                  placeholder="Ex: Apto 101 - Edifício Central" 
-                  value={formData.name}
-                  onChange={e => setFormData({...formData, name: e.target.value})}
-                  className="h-12 rounded-xl bg-slate-50 border-none font-bold text-slate-900"
-                />
+        <div className="p-10">
+          {/* Step 1: Photo & Identity */}
+          {step === 'photo' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex flex-col items-center justify-center">
+                <div className="relative group">
+                  <div className={cn(
+                    "w-full aspect-video md:w-[500px] rounded-[2.5rem] overflow-hidden bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center transition-all group-hover:border-blue-400 group-hover:bg-blue-50/30",
+                    formData.image_url && "border-none"
+                  )}>
+                    {formData.image_url ? (
+                      <img src={formData.image_url} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <>
+                        <div className="w-16 h-16 rounded-full bg-white shadow-sm flex items-center justify-center mb-4 text-slate-400 group-hover:text-blue-500 transition-colors">
+                          <Camera className="w-8 h-8" />
+                        </div>
+                        <p className="text-sm font-black text-slate-400 group-hover:text-blue-600">Capa do Imóvel</p>
+                        <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-1">Recomendado: 1200x800px</p>
+                      </>
+                    )}
+                  </div>
+                  {formData.image_url && (
+                    <button 
+                      onClick={() => setFormData({...formData, image_url: ''})}
+                      className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center backdrop-blur-md hover:bg-red-500 transition-all"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+                <div className="w-full max-w-[500px] mt-6">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Link da Imagem (URL)</Label>
+                  <Input 
+                    placeholder="https://exemplo.com/foto-imovel.jpg" 
+                    value={formData.image_url}
+                    onChange={e => setFormData({...formData, image_url: e.target.value})}
+                    className="h-14 rounded-2xl bg-slate-50 border-none font-bold text-slate-900 focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+            </div>
+          )}
+
+          {/* Step 2: Basic Info */}
+          {step === 'basic' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-2 md:col-span-2">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nome de Exibição</Label>
+                  <Input 
+                    placeholder="Ex: Apartamento Luxo - Ed. Horizon" 
+                    value={formData.name}
+                    onChange={e => setFormData({...formData, name: e.target.value})}
+                    className="h-14 rounded-2xl bg-slate-50 border-none font-bold text-slate-900 text-lg"
+                  />
+                </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo</Label>
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo de Imóvel</Label>
                   <Select value={formData.type} onValueChange={v => setFormData({...formData, type: v})}>
-                    <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
+                    <SelectTrigger className="h-14 rounded-2xl bg-slate-50 border-none font-bold text-slate-900">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="rounded-2xl border-none shadow-2xl">
                       <SelectItem value="casa">Casa</SelectItem>
                       <SelectItem value="apartamento">Apartamento</SelectItem>
                       <SelectItem value="kitnet">Kitnet</SelectItem>
+                      <SelectItem value="comercial">Comercial</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluguel Base (R$)</Label>
-                  <Input 
-                    type="number" 
-                    placeholder="0,00"
-                    value={formData.base_rent}
-                    onChange={e => setFormData({...formData, base_rent: e.target.value})}
-                    className="h-12 rounded-xl bg-slate-50 border-none font-bold"
-                  />
+                  <div className="relative">
+                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <Input 
+                      type="number" 
+                      placeholder="0,00"
+                      value={formData.base_rent}
+                      onChange={e => setFormData({...formData, base_rent: e.target.value})}
+                      className="h-14 pl-12 rounded-2xl bg-slate-50 border-none font-black text-slate-900 text-lg"
+                    />
+                  </div>
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Descrição Curta</Label>
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Descrição Detalhada</Label>
                 <Textarea 
-                  placeholder="Detalhes que ajudam na identificação..." 
+                  placeholder="Descreva os diferenciais do imóvel..." 
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
-                  className="rounded-xl bg-slate-50 border-none font-medium min-h-[100px]"
+                  className="rounded-2xl bg-slate-50 border-none font-medium min-h-[120px] p-5 focus-visible:ring-2 focus-visible:ring-blue-500/20"
                 />
               </div>
             </div>
           )}
 
+          {/* Step 3: Details */}
           {step === 'details' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <Bed className="w-3 h-3" /> Quartos
-                  </Label>
-                  <Input 
-                    type="number" 
-                    value={formData.bedrooms}
-                    onChange={e => setFormData({...formData, bedrooms: e.target.value})}
-                    className="h-12 rounded-xl bg-slate-50 border-none font-bold"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <Bath className="w-3 h-3" /> Banheiros
-                  </Label>
-                  <Input 
-                    type="number" 
-                    value={formData.bathrooms}
-                    onChange={e => setFormData({...formData, bathrooms: e.target.value})}
-                    className="h-12 rounded-xl bg-slate-50 border-none font-bold"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <Car className="w-3 h-3" /> Vagas Garagem
-                  </Label>
-                  <Input 
-                    type="number" 
-                    value={formData.parking_spots}
-                    onChange={e => setFormData({...formData, parking_spots: e.target.value})}
-                    className="h-12 rounded-xl bg-slate-50 border-none font-bold"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <Maximize className="w-3 h-3" /> Área (m²)
-                  </Label>
-                  <Input 
-                    type="number" 
-                    value={formData.size_sqm}
-                    onChange={e => setFormData({...formData, size_sqm: e.target.value})}
-                    className="h-12 rounded-xl bg-slate-50 border-none font-bold"
-                  />
-                </div>
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <DetailInput 
+                  icon={<Bed className="w-4 h-4" />} 
+                  label="Quartos" 
+                  value={formData.bedrooms} 
+                  onChange={v => setFormData({...formData, bedrooms: v})} 
+                />
+                <DetailInput 
+                  icon={<Bath className="w-4 h-4" />} 
+                  label="Banheiros" 
+                  value={formData.bathrooms} 
+                  onChange={v => setFormData({...formData, bathrooms: v})} 
+                />
+                <DetailInput 
+                  icon={<Car className="w-4 h-4" />} 
+                  label="Vagas" 
+                  value={formData.parking_spots} 
+                  onChange={v => setFormData({...formData, parking_spots: v})} 
+                />
+                <DetailInput 
+                  icon={<Maximize className="w-4 h-4" />} 
+                  label="Área (m²)" 
+                  value={formData.size_sqm} 
+                  onChange={v => setFormData({...formData, size_sqm: v})} 
+                />
               </div>
-              <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-start gap-3">
-                <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                <p className="text-xs font-medium text-blue-800 leading-relaxed">
-                  Essas informações ajudam a valorizar o imóvel e facilitam a geração de anúncios e contratos automáticos.
-                </p>
+
+              <div className="p-8 bg-blue-50/50 rounded-[2rem] border border-blue-100/50">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <Building2 className="w-5 h-5 text-white" />
+                  </div>
+                  <h3 className="font-black text-blue-900 tracking-tight">Custos de Condomínio</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Nome do Condomínio</Label>
+                    <Input 
+                      placeholder="Ex: Residencial das Palmeiras" 
+                      value={formData.condo_name}
+                      onChange={e => setFormData({...formData, condo_name: e.target.value})}
+                      className="h-12 rounded-xl bg-white border-none font-bold text-slate-900 shadow-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Valor Mensal (R$)</Label>
+                    <Input 
+                      type="number" 
+                      placeholder="0,00"
+                      value={formData.condo_fee}
+                      onChange={e => setFormData({...formData, condo_fee: e.target.value})}
+                      className="h-12 rounded-xl bg-white border-none font-black text-slate-900 shadow-sm"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
+          {/* Step 4: Address */}
           {step === 'address' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="space-y-2">
                 <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                  <MapPin className="w-3 h-3" /> Endereço Completo
+                  <MapPin className="w-3 h-3 text-blue-600" /> Endereço Completo
                 </Label>
                 <Input 
-                  placeholder="Rua, Número, Bairro, Cidade" 
+                  placeholder="Rua, Número, Bairro, Cidade - UF" 
                   value={formData.address}
                   onChange={e => setFormData({...formData, address: e.target.value})}
-                  className="h-12 rounded-xl bg-slate-50 border-none font-bold"
+                  className="h-14 rounded-2xl bg-slate-50 border-none font-bold text-slate-900"
                 />
               </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nome do Condomínio (Opcional)</Label>
-                <Input 
-                  placeholder="Ex: Residencial das Palmeiras" 
-                  value={formData.condo_name}
-                  onChange={e => setFormData({...formData, condo_name: e.target.value})}
-                  className="h-12 rounded-xl bg-slate-50 border-none font-bold"
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
+              
+              <div className="grid grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bloco/Torre</Label>
                   <Input 
                     placeholder="Ex: B" 
                     value={formData.block}
                     onChange={e => setFormData({...formData, block: e.target.value})}
-                    className="h-12 rounded-xl bg-slate-50 border-none font-bold"
+                    className="h-14 rounded-2xl bg-slate-50 border-none font-bold text-slate-900"
                   />
                 </div>
                 <div className="space-y-2">
@@ -321,7 +389,7 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
                     placeholder="Ex: 101" 
                     value={formData.unit_number}
                     onChange={e => setFormData({...formData, unit_number: e.target.value})}
-                    className="h-12 rounded-xl bg-slate-50 border-none font-bold"
+                    className="h-14 rounded-2xl bg-slate-50 border-none font-bold text-slate-900"
                   />
                 </div>
                 <div className="space-y-2">
@@ -330,29 +398,39 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
                     placeholder="Ex: 10º" 
                     value={formData.floor}
                     onChange={e => setFormData({...formData, floor: e.target.value})}
-                    className="h-12 rounded-xl bg-slate-50 border-none font-bold"
+                    className="h-14 rounded-2xl bg-slate-50 border-none font-bold text-slate-900"
                   />
+                </div>
+              </div>
+
+              <div className="p-6 bg-slate-900 rounded-[2rem] flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-blue-600/20 flex items-center justify-center text-blue-400">
+                  <Info className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-white">Quase lá!</p>
+                  <p className="text-[10px] text-slate-400 font-medium">Revise os dados antes de finalizar o cadastro premium.</p>
                 </div>
               </div>
             </div>
           )}
 
-          <DialogFooter className="pt-8 flex justify-between items-center">
-            {step !== 'basic' ? (
+          <DialogFooter className="pt-10 flex justify-between items-center sm:justify-between">
+            {currentStepIndex > 0 ? (
               <Button 
                 type="button" 
                 variant="ghost" 
                 onClick={prevStep} 
-                className="rounded-xl font-bold text-slate-400 hover:text-slate-900"
+                className="rounded-2xl font-black text-slate-400 hover:text-slate-900 h-14 px-8"
               >
-                <ChevronLeft className="w-4 h-4 mr-2" /> Voltar
+                <ChevronLeft className="w-5 h-5 mr-2" /> Voltar
               </Button>
             ) : (
               <Button 
                 type="button" 
                 variant="ghost" 
                 onClick={onClose} 
-                className="rounded-xl font-bold text-slate-400 hover:text-slate-900"
+                className="rounded-2xl font-black text-slate-400 hover:text-slate-900 h-14 px-8"
               >
                 Cancelar
               </Button>
@@ -362,18 +440,18 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
               <Button 
                 type="button" 
                 onClick={nextStep} 
-                className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl px-8 font-bold h-12 gap-2"
+                className="bg-slate-900 hover:bg-slate-800 text-white rounded-2xl px-10 font-black h-14 gap-2 shadow-xl shadow-slate-200 transition-all hover:scale-105 active:scale-95"
               >
-                Próximo <ChevronRight className="w-4 h-4" />
+                Próximo Passo <ChevronRight className="w-5 h-5" />
               </Button>
             ) : (
               <Button 
                 type="button" 
                 onClick={handleSave} 
                 disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-10 font-black h-12 shadow-lg shadow-blue-100 gap-2"
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl px-12 font-black h-14 shadow-xl shadow-blue-200 gap-2 transition-all hover:scale-105 active:scale-95"
               >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <CheckCircle2 className="w-6 h-6" />}
                 {isEdit ? 'Salvar Alterações' : 'Finalizar Cadastro'}
               </Button>
             )}
@@ -383,3 +461,17 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
     </Dialog>
   );
 };
+
+const DetailInput = ({ icon, label, value, onChange }: { icon: React.ReactNode, label: string, value: string, onChange: (v: string) => void }) => (
+  <div className="space-y-2">
+    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+      {icon} {label}
+    </Label>
+    <Input 
+      type="number" 
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      className="h-14 rounded-2xl bg-slate-50 border-none font-black text-slate-900 text-center text-lg focus-visible:ring-2 focus-visible:ring-blue-500/20"
+    />
+  </div>
+);
