@@ -14,6 +14,9 @@ import Financial from "./pages/Financial";
 import Reports from "./pages/Reports";
 import Maintenance from "./pages/Maintenance";
 import Settings from "./pages/Settings";
+import Contracts from "./pages/Contracts";
+import Calendar from "./pages/Calendar";
+import Alerts from "./pages/Alerts";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +38,9 @@ const App = () => (
           <Route path="/maintenance" element={<Maintenance />} />
           <Route path="/financial" element={<Financial />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/contracts" element={<Contracts />} />
+          <Route path="/calendar" element={<Calendar />} />
+          <Route path="/alerts" element={<Alerts />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
