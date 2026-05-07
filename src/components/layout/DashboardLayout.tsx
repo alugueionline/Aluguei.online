@@ -5,6 +5,8 @@ import { Sidebar } from './Sidebar';
 import { MobileNav } from './MobileNav';
 import { Search, Bell, ChevronDown, Calendar as CalendarIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -12,6 +14,9 @@ interface DashboardLayoutProps {
 }
 
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
+  const currentDate = new Date();
+  const formattedDate = format(currentDate, "MMMM 'de' yyyy", { locale: ptBR });
+
   return (
     <div className="flex min-h-screen bg-[#F7F9FC] text-[#0F172A]">
       <Sidebar />
@@ -36,7 +41,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             
             <div className="flex items-center gap-2 bg-gray-50/80 px-4 py-2 rounded-2xl border border-gray-100 cursor-pointer hover:bg-gray-100 transition-all group">
               <CalendarIcon className="w-4 h-4 text-[#2563FF]" />
-              <span className="text-xs font-bold text-gray-700">Maio de 2024</span>
+              <span className="text-xs font-bold text-gray-700 capitalize">{formattedDate}</span>
               <ChevronDown className="w-3 h-3 text-gray-400 group-hover:text-gray-600" />
             </div>
           </div>
