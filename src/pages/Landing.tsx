@@ -8,24 +8,10 @@ import { WhatsAppFeature } from '@/components/landing/WhatsAppFeature';
 import { PricingSection } from '@/components/landing/PricingSection';
 import { FinalCTA } from '@/components/landing/FinalCTA';
 import { LandingFooter } from '@/components/landing/LandingFooter';
-import { motion, useScroll, useSpring } from 'framer-motion';
 
 const Landing = () => {
-  const { scrollYProgress } = useScroll();
-  const scaleX = useSpring(scrollYProgress, {
-    stiffness: 100,
-    damping: 30,
-    restDelta: 0.001
-  });
-
   return (
     <div className="min-h-screen bg-[#F7F9FC] selection:bg-blue-100 selection:text-blue-900">
-      {/* Progress Bar */}
-      <motion.div 
-        className="fixed top-0 left-0 right-0 h-1 bg-blue-600 origin-left z-[60]" 
-        style={{ scaleX }} 
-      />
-
       <LandingHeader />
       
       <main>
@@ -50,7 +36,7 @@ const Landing = () => {
         <section id="reports" className="py-32 bg-white">
           <div className="max-w-7xl mx-auto px-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-              <div className="order-2 lg:order-1 relative">
+              <div className="order-2 lg:order-1 relative animate-in fade-in slide-in-from-left-8 duration-1000">
                 <div className="absolute -inset-10 bg-blue-600/5 rounded-[4rem] blur-3xl -z-10" />
                 <img 
                   src="https://i.ibb.co/yF9YXMC9/1.jpg" 
@@ -58,7 +44,7 @@ const Landing = () => {
                   className="rounded-[2.5rem] shadow-2xl border border-slate-100"
                 />
               </div>
-              <div className="order-1 lg:order-2 space-y-8">
+              <div className="order-1 lg:order-2 space-y-8 animate-in fade-in slide-in-from-right-8 duration-1000">
                 <h2 className="text-sm font-black text-blue-600 uppercase tracking-[0.2em]">Inteligência</h2>
                 <h3 className="text-4xl lg:text-5xl font-black text-slate-900 tracking-tight leading-tight">
                   Relatórios que mostram a <span className="text-blue-600">verdade.</span>

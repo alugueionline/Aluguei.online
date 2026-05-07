@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
 
@@ -11,12 +10,7 @@ export const FinalCTA = () => {
 
   return (
     <section className="py-32 px-6">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        whileInView={{ opacity: 1, scale: 1 }}
-        viewport={{ once: true }}
-        className="max-w-7xl mx-auto bg-slate-900 rounded-[4rem] p-12 lg:p-24 text-center relative overflow-hidden"
-      >
+      <div className="max-w-7xl mx-auto bg-slate-900 rounded-[4rem] p-12 lg:p-24 text-center relative overflow-hidden animate-in fade-in scale-in-95 duration-1000">
         <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
         <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl" />
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl" />
@@ -40,7 +34,7 @@ export const FinalCTA = () => {
             Sem fidelidade. Cancele quando quiser.
           </p>
         </div>
-      </motion.div>
+      </div>
     </section>
   );
 };

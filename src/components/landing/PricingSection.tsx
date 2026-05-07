@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, Sparkles } from 'lucide-react';
 
@@ -30,12 +29,7 @@ export const PricingSection = () => {
           </h3>
         </div>
 
-        <motion.div 
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="max-w-lg mx-auto relative"
-        >
+        <div className="max-w-lg mx-auto relative animate-in fade-in slide-in-from-bottom-8 duration-1000">
           <div className="absolute -inset-4 bg-blue-600/10 rounded-[3rem] blur-2xl -z-10" />
           <div className="bg-white rounded-[3rem] border border-slate-100 shadow-2xl p-10 lg:p-16 relative overflow-hidden">
             <div className="absolute top-0 right-0 p-8">
@@ -74,7 +68,7 @@ export const PricingSection = () => {
               </p>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </section>
   );

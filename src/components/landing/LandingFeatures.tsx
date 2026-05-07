@@ -1,7 +1,6 @@
 "use client";
 
 import React from 'react';
-import { motion } from 'framer-motion';
 import { 
   Building2, 
   FileText, 
@@ -67,20 +66,17 @@ export const LandingFeatures = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {features.map((f, i) => (
-            <motion.div
+            <div
               key={f.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="p-8 rounded-[2.5rem] bg-slate-50/50 border border-slate-100 hover:bg-white hover:shadow-2xl hover:shadow-blue-100/50 transition-all group cursor-default"
+              className="p-8 rounded-[2.5rem] bg-slate-50/50 border border-slate-100 hover:bg-white hover:shadow-2xl hover:shadow-blue-100/50 transition-all group cursor-default animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
+              style={{ animationDelay: `${i * 100}ms` }}
             >
               <div className={`w-14 h-14 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
                 <f.icon className="w-7 h-7 text-blue-600" />
               </div>
               <h4 className="text-xl font-black text-slate-900 mb-3 tracking-tight">{f.title}</h4>
               <p className="text-slate-500 font-medium leading-relaxed">{f.desc}</p>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>

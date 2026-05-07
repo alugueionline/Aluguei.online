@@ -3,7 +3,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { motion } from 'framer-motion';
 
 export const LandingHeader = () => {
   const navigate = useNavigate();
@@ -18,11 +17,7 @@ export const LandingHeader = () => {
   ];
 
   return (
-    <motion.header 
-      initial={{ y: -20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      className="fixed top-0 w-full z-50 bg-white/60 backdrop-blur-xl border-b border-slate-200/50"
-    >
+    <header className="fixed top-0 w-full z-50 bg-white/60 backdrop-blur-xl border-b border-slate-200/50 animate-in fade-in slide-in-from-top-4 duration-500">
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         <div className="flex items-center gap-12">
           <div 
@@ -61,6 +56,6 @@ export const LandingHeader = () => {
           </Button>
         </div>
       </div>
-    </motion.header>
+    </header>
   );
 };
