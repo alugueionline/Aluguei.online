@@ -1,128 +1,92 @@
 "use client";
 
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  CheckCircle2, 
-  MessageSquare, 
-  BarChart3, 
-  ArrowRight,
-  Key,
-  Lock,
-  ShieldCheck,
-  UserPlus
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { LandingHeader } from '@/components/landing/LandingHeader';
+import { LandingHero } from '@/components/landing/LandingHero';
+import { LandingFeatures } from '@/components/landing/LandingFeatures';
+import { WhatsAppFeature } from '@/components/landing/WhatsAppFeature';
+import { PricingSection } from '@/components/landing/PricingSection';
+import { FinalCTA } from '@/components/landing/FinalCTA';
+import { LandingFooter } from '@/components/landing/LandingFooter';
+import { motion, useScroll, useSpring } from 'framer-motion';
 
 const Landing = () => {
-  const navigate = useNavigate();
-  const logoUrl = "https://i.ibb.co/8nFsGk01/LOGO.png";
-  const appImg1 = "https://i.ibb.co/yF9YXMC9/1.jpg"; 
+  const { scrollYProgress } = useScroll();
+  const scaleX = useSpring(scrollYProgress, {
+    stiffness: 100,
+    damping: 30,
+    restDelta: 0.001
+  });
 
   return (
-    <div className="min-h-screen bg-white font-sans selection:bg-blue-100 selection:text-blue-900">
-      {/* Header */}
-      <header className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-10">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-              <img src={logoUrl} alt="Aluguei.Online" className="h-12 w-auto object-contain" />
-            </div>
-          </div>
+    <div className="min-h-screen bg-[#F7F9FC] selection:bg-blue-100 selection:text-blue-900">
+      {/* Progress Bar */}
+      <motion.div 
+        className="fixed top-0 left-0 right-0 h-1 bg-blue-600 origin-left z-[60]" 
+        style={{ scaleX }} 
+      />
 
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => navigate('/login')} className="text-sm font-bold text-slate-600 hover:text-blue-600">
-              Entrar
-            </Button>
-            <Button onClick={() => navigate('/register')} className="bg-blue-600 hover:bg-blue-700 text-white rounded-full px-6 font-bold shadow-lg transition-all active:scale-95 gap-2">
-              <Key className="w-4 h-4" /> Ativar Acesso
-            </Button>
+      <LandingHeader />
+      
+      <main>
+        <LandingHero />
+        
+        {/* Social Proof / Logos Section */}
+        <section className="py-12 border-y border-slate-100 bg-white/50">
+          <div className="max-w-7xl mx-auto px-6 flex flex-wrap justify-center items-center gap-12 lg:gap-24 opacity-40 grayscale">
+            <span className="text-xl font-black tracking-tighter">STRIPE</span>
+            <span className="text-xl font-black tracking-tighter">LINEAR</span>
+            <span className="text-xl font-black tracking-tighter">VERCEL</span>
+            <span className="text-xl font-black tracking-tighter">NOTION</span>
+            <span className="text-xl font-black tracking-tighter">FRAMER</span>
           </div>
-        </div>
-      </header>
+        </section>
 
-      {/* Hero Section */}
-      <section className="pt-40 pb-20 px-6">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
-            <Badge className="bg-slate-100 text-slate-600 border-none px-4 py-1.5 rounded-full font-bold text-xs uppercase tracking-widest">
-              🔒 Sistema de Gestão Exclusivo
-            </Badge>
-            <h1 className="text-6xl lg:text-7xl font-black text-slate-900 leading-[1.1] tracking-tight">
-              Gestão de elite para <br />
-              <span className="text-blue-600">quem valoriza o tempo.</span>
-            </h1>
-            <p className="text-xl text-slate-500 font-medium leading-relaxed max-w-lg">
-              O sistema definitivo para proprietários que exigem precisão absoluta e automação total.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button onClick={() => navigate('/login')} className="h-14 px-10 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 gap-2">
-                Acessar Painel <ArrowRight className="w-5 h-5" />
-              </Button>
-              <Button onClick={() => navigate('/register')} variant="outline" className="h-14 px-10 rounded-2xl border-blue-200 text-blue-600 font-black text-lg hover:bg-blue-50 transition-all gap-2">
-                <UserPlus className="w-5 h-5" /> Ativar com Chave
-              </Button>
-            </div>
-          </div>
-
-          <div className="relative animate-in fade-in zoom-in-95 duration-1000 delay-200">
-            <div className="absolute -inset-4 bg-blue-600/5 rounded-[3rem] blur-3xl" />
-            <div className="relative bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden">
-              <img src={appImg1} alt="Dashboard" className="w-full h-auto object-cover" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Feature Section */}
-      <section className="py-32 bg-slate-50/50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-            <div className="space-y-6">
-              <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
-                <MessageSquare className="w-7 h-7" />
+        <LandingFeatures />
+        
+        <WhatsAppFeature />
+        
+        {/* Dashboard Showcase Section */}
+        <section id="reports" className="py-32 bg-white">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+              <div className="order-2 lg:order-1 relative">
+                <div className="absolute -inset-10 bg-blue-600/5 rounded-[4rem] blur-3xl -z-10" />
+                <img 
+                  src="https://i.ibb.co/yF9YXMC9/1.jpg" 
+                  alt="Relatórios" 
+                  className="rounded-[2.5rem] shadow-2xl border border-slate-100"
+                />
               </div>
-              <h3 className="text-3xl font-black text-slate-900 tracking-tight">Cobrança via WhatsApp</h3>
-              <p className="text-lg text-slate-500 font-medium leading-relaxed">
-                Gere resumos de aluguel e utilidades formatados para envio imediato. Reduza a inadimplência com comunicação direta.
-              </p>
-              <ul className="space-y-3">
-                {['Resumo consolidado', 'Chave PIX automática', 'Cálculo de juros e multas'].map(item => (
-                  <li key={item} className="flex items-center gap-3 text-slate-700 font-bold text-sm">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" /> {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="relative bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl border border-slate-800">
-              <div className="bg-slate-800/50 rounded-2xl p-6 text-slate-300 text-sm font-medium leading-relaxed border border-slate-700/50">
-                Olá! 👋 <br /><br />
-                Segue o resumo do aluguel deste mês: <br /><br />
-                • Aluguel: R$ 1.200,00 <br />
-                • Energia: R$ 145,20 <br /><br />
-                💰 *Total: R$ 1.345,20* <br /><br />
-                🔑 *PIX:* sua-chave-aqui
+              <div className="order-1 lg:order-2 space-y-8">
+                <h2 className="text-sm font-black text-blue-600 uppercase tracking-[0.2em]">Inteligência</h2>
+                <h3 className="text-4xl lg:text-5xl font-black text-slate-900 tracking-tight leading-tight">
+                  Relatórios que mostram a <span className="text-blue-600">verdade.</span>
+                </h3>
+                <p className="text-xl text-slate-500 font-medium leading-relaxed">
+                  Saiba exatamente quanto está lucrando, qual sua taxa de ocupação e preveja recebimentos futuros com gráficos de alta precisão.
+                </p>
+                <div className="grid grid-cols-2 gap-6 pt-4">
+                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                    <p className="text-2xl font-black text-slate-900">100%</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Precisão</p>
+                  </div>
+                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                    <p className="text-2xl font-black text-slate-900">Real-time</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Sincronização</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-100 py-20 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="flex items-center gap-2">
-            <img src={logoUrl} alt="Aluguei.Online" className="h-10 w-auto object-contain" />
-          </div>
-          <p className="text-xs font-bold text-slate-400">© 2024 Aluguei.Online. Acesso restrito a assinantes autorizados.</p>
-          <div className="flex gap-6">
-            <Lock className="w-5 h-5 text-slate-300 hover:text-blue-600 cursor-pointer" />
-            <ShieldCheck className="w-5 h-5 text-slate-300 hover:text-blue-600 cursor-pointer" />
-          </div>
-        </div>
-      </footer>
+        <PricingSection />
+        
+        <FinalCTA />
+      </main>
+
+      <LandingFooter />
     </div>
   );
 };

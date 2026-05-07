@@ -43,18 +43,26 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   }
 }
 
 .premium-shadow {
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.05);
 }
 
-.premium-card {
-  @apply bg-white border border-gray-100/50 premium-shadow transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)];
+.glass-card {
+  @apply bg-white/70 backdrop-blur-xl border border-white/20 shadow-xl;
 }
 
-.sidebar-item-active {
-  @apply bg-[#2563FF] text-white shadow-[0_4px_12px_rgba(37,99,255,0.25)];
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-br from-slate-900 via-slate-800 to-blue-600;
+}
+
+.hero-glow {
+  background: radial-gradient(circle at 50% 50%, rgba(37, 99, 255, 0.08) 0%, rgba(255, 255, 255, 0) 70%);
+}
+
+html {
+  scroll-behavior: smooth;
 }
