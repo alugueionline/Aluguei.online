@@ -25,9 +25,13 @@ export interface Tenant {
   name: string;
   cpf: string;
   phone: string;
+  email?: string;
   propertyId: string;
   entryDate: string;
   rentValue: number;
+  securityDeposit?: number;
+  securityDepositDate?: string;
+  status: 'ativo' | 'pendente' | 'encerrado';
 }
 
 export interface Maintenance {

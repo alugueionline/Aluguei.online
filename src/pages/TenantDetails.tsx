@@ -13,14 +13,15 @@ import {
   FileText, 
   Home,
   CreditCard,
-  History
+  History,
+  ShieldCheck
 } from 'lucide-react';
 
 const TenantDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Mock de dados do inquilino
+  // Mock de dados do inquilino com caução
   const tenant = {
     id: '1',
     name: 'João Silva',
@@ -30,6 +31,8 @@ const TenantDetails = () => {
     property: 'Apto 101 - Edifício Central',
     entryDate: '10/01/2024',
     rentValue: 1200.00,
+    securityDeposit: 3600.00, // Ex: 3 meses de aluguel
+    securityDepositDate: '10/01/2024',
     status: 'ativo',
     documents: [
       { name: 'Contrato de Locação.pdf', date: '10/01/2024' },
@@ -78,6 +81,25 @@ const TenantDetails = () => {
                   <CreditCard className="w-4 h-4" />
                   <span className="text-sm">CPF: {tenant.cpf}</span>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-sm bg-emerald-50 border-emerald-100">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-bold text-emerald-800 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4" />
+                Garantia (Caução)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1">
+                <p className="text-2xl font-bold text-emerald-900">
+                  R$ {tenant.securityDeposit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-emerald-600">
+                  Recebido em: {tenant.securityDepositDate}
+                </p>
               </div>
             </CardContent>
           </Card>

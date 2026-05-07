@@ -59,6 +59,16 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
               <Input type="number" defaultValue={tenant?.rent} />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Valor da Caução (R$)</Label>
+              <Input type="number" placeholder="0,00" defaultValue={tenant?.securityDeposit} />
+            </div>
+            <div className="space-y-2">
+              <Label>Data do Depósito</Label>
+              <Input type="date" defaultValue={tenant?.securityDepositDate} />
+            </div>
+          </div>
           <DialogFooter className="pt-4">
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" className="bg-blue-600 hover:bg-blue-700">Salvar</Button>
