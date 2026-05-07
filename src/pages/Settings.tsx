@@ -50,6 +50,7 @@ const Settings = () => {
       const filePath = `${user.id}/${Math.random()}.${fileExt}`;
 
       // Upload para o bucket 'avatars'
+      // Nota: Certifique-se de que o bucket 'avatars' existe no seu console do Supabase e é público
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, file);
