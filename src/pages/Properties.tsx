@@ -16,11 +16,12 @@ import {
 } from 'lucide-react';
 import { Property } from '@/types/rental';
 import { PropertyModal } from '@/components/modals/PropertyModal';
+import { cn } from '@/lib/utils';
 
 const mockProperties: Property[] = [
   { id: '1', name: 'Apto 101', type: 'apartamento', address: 'Rua Central, 123', baseRent: 1200, status: 'alugado', imageUrl: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=500&q=80' },
   { id: '2', name: 'Casa 02', type: 'casa', address: 'Av. das Flores, 45', baseRent: 2500, status: 'disponivel', imageUrl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=500&q=80' },
-  { id: '3', name: 'Kitnet A', type: 'kitnet', address: 'Rua 10, 500', baseRent: 850, status: 'alugado', imageUrl: 'https://images.unsplash.com/photo-1536376074432-c26412749023?w=500&q=80' },
+  { id: '3', name: 'Kitnet A', type: 'kitnet', address: 'Rua 10, 500', baseRent: 850, status: 'alugado', imageUrl: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=500&q=80' },
   { id: '4', name: 'Apto 202', type: 'apartamento', address: 'Rua Central, 123', baseRent: 1300, status: 'manutencao', imageUrl: 'https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=500&q=80' },
 ];
 

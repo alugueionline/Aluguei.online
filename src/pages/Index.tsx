@@ -43,7 +43,7 @@ const cashFlowData = [
 const featuredProperties = [
   { id: '1', name: 'Apto 101', address: 'Rua Central, 123', rent: 'R$ 1.200', status: 'alugado', image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=400&q=80' },
   { id: '2', name: 'Casa 02', address: 'Av. das Flores, 45', rent: 'R$ 2.500', status: 'disponivel', image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&q=80' },
-  { id: '3', name: 'Kitnet A', address: 'Rua 10, 500', rent: 'R$ 850', status: 'alugado', image: 'https://images.unsplash.com/photo-1536376074432-c26412749023?w=400&q=80' },
+  { id: '3', name: 'Kitnet A', address: 'Rua 10, 500', rent: 'R$ 850', status: 'alugado', image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400&q=80' },
   { id: '4', name: 'Loja 05', address: 'Centro Comercial', rent: 'R$ 3.800', status: 'disponivel', image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&q=80' },
 ];
 
@@ -176,7 +176,7 @@ const Index = () => {
             </div>
           </Card>
 
-          {/* Featured Properties Section - Now Smaller and Below Chart */}
+          {/* Featured Properties Section */}
           <div className="space-y-5">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-bold text-gray-900 tracking-tight">Meus Imóveis</h3>
