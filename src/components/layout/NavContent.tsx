@@ -66,10 +66,19 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
       </div>
 
       <div className="mt-auto p-6 border-t border-gray-50">
-        <button className="flex items-center gap-3 px-4 py-3 w-full text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
-          <Settings className="w-5 h-5" />
+        <Link
+          to="/settings"
+          onClick={onItemClick}
+          className={cn(
+            "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+            location.pathname === '/settings'
+              ? "bg-blue-50 text-blue-600"
+              : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+          )}
+        >
+          <Settings className={cn("w-5 h-5", location.pathname === '/settings' ? "text-blue-600" : "text-gray-400")} />
           Configurações
-        </button>
+        </Link>
       </div>
     </div>
   );
