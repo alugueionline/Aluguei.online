@@ -28,6 +28,7 @@ export interface Property {
   parking_spots: number;
   size_sqm: number;
   condo_name?: string;
+  condo_fee?: number;
   block?: string;
   tower?: string;
   unit_number?: string;
