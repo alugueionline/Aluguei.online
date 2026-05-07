@@ -7,32 +7,49 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { showSuccess, showError } from '@/utils/toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Login = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [accessKey, setAccessKey] = useState('');
   const logoUrl = "https://i.ibb.co/8nFsGk01/LOGO.png";
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!accessKey) {
-      showError('A chave de acesso é obrigatória.');
+    const MASTER_KEY = "Aluguei.Online@2026";
+    if (accessKey !== MASTER_KEY) {
+      showError('Chave de acesso inválida');
       return;
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      showSuccess('Acesso autorizado!');
-      navigate('/dashboard');
-    }, 1200);
+    
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        showSuccess('Acesso autorizado!');
+        navigate('/dashboard');
+      }
+    } catch (error: any) {
+      showError(error.message || 'Erro ao entrar.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-[#F7F9FC] flex items-center justify-center p-6 font-sans">
       <div className="w-full max-w-[1100px] bg-white rounded-[3rem] shadow-2xl shadow-slate-200/50 overflow-hidden grid grid-cols-1 lg:grid-cols-2 animate-in fade-in slide-in-from-bottom-8 duration-700">
-        {/* Lado Esquerdo - Formulário */}
         <div className="p-12 lg:p-20 space-y-10">
           <div 
             className="flex items-center gap-2 cursor-pointer group" 
@@ -59,6 +76,8 @@ const Login = () => {
                   type="email" 
                   placeholder="seu@email.com" 
                   className="h-14 pl-12 rounded-2xl bg-slate-50 border-none font-bold focus-visible:ring-2 focus-visible:ring-blue-600/10"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                 />
               </div>
@@ -87,6 +106,8 @@ const Login = () => {
                   type="password" 
                   placeholder="••••••••" 
                   className="h-14 pl-12 rounded-2xl bg-slate-50 border-none font-bold focus-visible:ring-2 focus-visible:ring-blue-600/10"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   required
                 />
               </div>
@@ -122,7 +143,6 @@ const Login = () => {
           </div>
         </div>
 
-        {/* Lado Direito - Visual */}
         <div className="hidden lg:block bg-slate-900 p-20 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
           <div className="absolute -bottom-20 -right-20 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl" />

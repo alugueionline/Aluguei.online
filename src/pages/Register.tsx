@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { showSuccess, showError } from '@/utils/toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -30,19 +31,16 @@ const Register = () => {
 
   const logoUrl = "https://i.ibb.co/8nFsGk01/LOGO.png";
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validações básicas
     if (formData.password !== formData.confirmPassword) {
       showError('As senhas não coincidem.');
       return;
     }
 
-    // Validação da Chave de Acesso (Regra Principal)
-    // Nota: Após a integração do banco, esta validação será movida para o servidor/env
+    // Validação da Chave de Acesso
     const MASTER_KEY = "Aluguei.Online@2026";
-    
     if (formData.accessKey !== MASTER_KEY) {
       showError('Chave de acesso inválida');
       return;
@@ -50,19 +48,34 @@ const Register = () => {
 
     setIsLoading(true);
     
-    // Simulando criação de conta (será substituído pela lógica do banco de dados)
-    setTimeout(() => {
-      showSuccess('Conta criada com sucesso');
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.fullName,
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        showSuccess('Conta criada com sucesso! Bem-vindo.');
+        navigate('/dashboard');
+      }
+    } catch (error: any) {
+      showError(error.message || 'Erro ao criar conta.');
+    } finally {
       setIsLoading(false);
-      navigate('/dashboard');
-    }, 1500);
+    }
   };
 
   return (
     <div className="min-h-screen bg-[#F7F9FC] flex items-center justify-center p-6 font-sans">
       <div className="w-full max-w-[1100px] bg-white rounded-[3rem] shadow-2xl shadow-slate-200/50 overflow-hidden grid grid-cols-1 lg:grid-cols-2 animate-in fade-in slide-in-from-bottom-8 duration-700">
         
-        {/* Lado Esquerdo - Formulário */}
         <div className="p-10 lg:p-16 space-y-8 overflow-y-auto max-h-[90vh]">
           <div 
             className="flex items-center gap-2 cursor-pointer group" 
@@ -174,7 +187,6 @@ const Register = () => {
           </div>
         </div>
 
-        {/* Lado Direito - Visual */}
         <div className="hidden lg:block bg-slate-900 p-16 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
           <div className="absolute -bottom-20 -right-20 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl" />
