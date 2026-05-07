@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { Home, Mail, Lock, ArrowRight, ChevronLeft, Github, Chrome } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,17 +17,13 @@ const Login = () => {
     setIsLoading(true);
     setTimeout(() => {
       showSuccess('Bem-vindo de volta!');
-      navigate('/');
+      navigate('/dashboard');
     }, 1000);
   };
 
   return (
     <div className="min-h-screen bg-[#F7F9FC] flex items-center justify-center p-6 font-sans">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-[1100px] bg-white rounded-[3rem] shadow-2xl shadow-slate-200/50 overflow-hidden grid grid-cols-1 lg:grid-cols-2"
-      >
+      <div className="w-full max-w-[1100px] bg-white rounded-[3rem] shadow-2xl shadow-slate-200/50 overflow-hidden grid grid-cols-1 lg:grid-cols-2 animate-in fade-in slide-in-from-bottom-8 duration-700">
         {/* Lado Esquerdo - Formulário */}
         <div className="p-12 lg:p-20 space-y-10">
           <div 
@@ -143,7 +138,7 @@ const Login = () => {
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

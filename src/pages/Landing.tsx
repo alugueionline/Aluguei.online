@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { 
   ChevronRight, 
   CheckCircle2, 
@@ -62,12 +61,7 @@ const Landing = () => {
       {/* Hero Section */}
       <section className="pt-40 pb-20 px-6">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="space-y-8"
-          >
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
             <Badge className="bg-blue-50 text-blue-600 border-none px-4 py-1.5 rounded-full font-bold text-xs uppercase tracking-widest">
               🚀 Gestão Imobiliária 2.0
             </Badge>
@@ -114,14 +108,9 @@ const Landing = () => {
                 <span className="text-sm font-bold text-slate-600">Gestão de Contratos</span>
               </div>
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="relative"
-          >
+          <div className="relative animate-in fade-in zoom-in-95 duration-1000 delay-200">
             <div className="absolute -inset-4 bg-blue-600/5 rounded-[3rem] blur-3xl" />
             <div className="relative bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden">
               <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center gap-2">
@@ -140,7 +129,7 @@ const Landing = () => {
                 className="w-full h-auto opacity-90 grayscale-[20%]"
               />
               {/* Floating Card Overlay */}
-              <div className="absolute bottom-8 -left-8 bg-white p-6 rounded-3xl shadow-2xl border border-slate-100 animate-bounce-slow">
+              <div className="absolute bottom-8 -left-8 bg-white p-6 rounded-3xl shadow-2xl border border-slate-100 animate-bounce">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white">
                     <DollarSign className="w-6 h-6" />
@@ -152,7 +141,7 @@ const Landing = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
