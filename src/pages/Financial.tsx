@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InterestFineSettings } from '@/components/financial/InterestFineSettings';
 import { ApportionmentModule } from '@/components/financial/ApportionmentModule';
 import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
+import { TransactionModal } from '@/components/modals/TransactionModal';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -37,13 +38,22 @@ const mockTransactions = [
 ];
 
 const Financial = () => {
-  const [transactions] = useState(mockTransactions);
+  const [transactions, setTransactions] = useState(mockTransactions);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [selectedData, setSelectedData] = useState<any>(null);
 
   const handleOpenSummary = (data?: any) => {
     setSelectedData(data || null);
     setIsSummaryModalOpen(true);
+  };
+
+  const handleSaveTransaction = (data: any) => {
+    const newTransaction = {
+      ...data,
+      id: Math.random().toString(36).substr(2, 9)
+    };
+    setTransactions([newTransaction, ...transactions]);
   };
 
   const handleExport = () => showSuccess('Relatório financeiro exportado com sucesso!');
@@ -60,7 +70,10 @@ const Financial = () => {
             <Button variant="outline" onClick={handleExport} className="rounded-2xl border-slate-200 font-bold gap-2 h-12 px-6 bg-white hover:bg-slate-50 text-slate-600 transition-all">
               <Download className="w-4 h-4" /> Exportar
             </Button>
-            <Button className="bg-[#2563FF] hover:bg-blue-700 text-white rounded-2xl font-bold gap-2 h-12 px-8 shadow-lg shadow-blue-100 transition-all active:scale-95">
+            <Button 
+              onClick={() => setIsTransactionModalOpen(true)}
+              className="bg-[#2563FF] hover:bg-blue-700 text-white rounded-2xl font-bold gap-2 h-12 px-8 shadow-lg shadow-blue-100 transition-all active:scale-95"
+            >
               <Plus className="w-5 h-5" /> Nova Transação
             </Button>
           </div>
@@ -190,6 +203,12 @@ const Financial = () => {
         isOpen={isSummaryModalOpen} 
         onClose={() => setIsSummaryModalOpen(false)} 
         initialData={selectedData}
+      />
+
+      <TransactionModal 
+        isOpen={isTransactionModalOpen} 
+        onClose={() => setIsTransactionModalOpen(false)} 
+        onSave={handleSaveTransaction}
       />
     </DashboardLayout>
   );
