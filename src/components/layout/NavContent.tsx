@@ -55,8 +55,7 @@ export const NavContent = ({ onItemClick }: NavContentProps) => {
     <div className="flex flex-col h-full bg-white">
       <div className="p-8">
         <div className="flex items-center mb-10 px-2 cursor-pointer" onClick={() => navigate('/')}>
-          <img src={logoUrl} alt="Logo" className="w-8 h-8 object-contain mr-2" />
-          <span className="text-lg font-black text-slate-900 tracking-tight">Aluguei<span className="text-blue-600">Online</span></span>
+          <img src={logoUrl} alt="Aluguei.Online" className="h-12 w-auto object-contain" />
         </div>
 
         <nav className="space-y-1.5">

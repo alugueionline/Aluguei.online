@@ -43,8 +43,8 @@ const Login = () => {
           </div>
 
           <div className="space-y-2">
-            <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-lg border border-slate-100 mb-6">
-              <img src={logoUrl} alt="Logo" className="w-8 h-8 object-contain" />
+            <div className="w-auto h-16 bg-white rounded-2xl flex items-center justify-center mb-6">
+              <img src={logoUrl} alt="Aluguei.Online" className="h-full w-auto object-contain" />
             </div>
             <h1 className="text-4xl font-black text-slate-900 tracking-tight">Acesso Assinante</h1>
             <p className="text-slate-500 font-medium">Insira suas credenciais e sua chave de acesso exclusiva.</p>

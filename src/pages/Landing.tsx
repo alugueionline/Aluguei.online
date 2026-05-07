@@ -29,8 +29,7 @@ const Landing = () => {
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-10">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-              <img src={logoUrl} alt="Logo" className="w-10 h-10 object-contain" />
-              <span className="text-xl font-black text-slate-900 tracking-tight">Aluguei<span className="text-blue-600">Online</span></span>
+              <img src={logoUrl} alt="Aluguei.Online" className="h-12 w-auto object-contain" />
             </div>
             
             <nav className="hidden lg:flex items-center gap-8">
@@ -62,7 +61,7 @@ const Landing = () => {
             </Badge>
             <h1 className="text-6xl lg:text-7xl font-black text-slate-900 leading-[1.1] tracking-tight">
               Gestão de elite para <br />
-              <span className="text-blue-600">grandes carteiras.</span>
+              <span className="text-blue-600">quem valoriza o tempo.</span>
             </h1>
             <p className="text-xl text-slate-500 font-medium leading-relaxed max-w-lg">
               O sistema definitivo para proprietários e gestores que exigem precisão absoluta, automação de cobrança e relatórios de inteligência.
@@ -171,7 +170,7 @@ const Landing = () => {
             <span className="text-blue-600">Assinantes.</span>
           </h2>
           <p className="text-xl text-slate-500 font-medium max-w-2xl mx-auto">
-            O Aluguei Online não é aberto ao público geral. O acesso é garantido apenas para assinantes com chaves ativas.
+            O Aluguei.Online não é aberto ao público geral. O acesso é garantido apenas para assinantes com chaves ativas.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button onClick={() => navigate('/login')} className="h-16 px-12 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-xl shadow-2xl transition-all active:scale-95 gap-3">
@@ -185,10 +184,9 @@ const Landing = () => {
       <footer className="bg-white border-t border-slate-100 py-20 px-6">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="flex items-center gap-2">
-            <img src={logoUrl} alt="Logo" className="w-8 h-8 object-contain" />
-            <span className="text-lg font-black text-slate-900 tracking-tight">Aluguei<span className="text-blue-600">Online</span></span>
+            <img src={logoUrl} alt="Aluguei.Online" className="h-10 w-auto object-contain" />
           </div>
-          <p className="text-xs font-bold text-slate-400">© 2024 Aluguei Online. Acesso restrito a assinantes autorizados.</p>
+          <p className="text-xs font-bold text-slate-400">© 2024 Aluguei.Online. Acesso restrito a assinantes autorizados.</p>
           <div className="flex gap-6">
             <Lock className="w-5 h-5 text-slate-300 hover:text-blue-600 cursor-pointer" />
             <ShieldCheck className="w-5 h-5 text-slate-300 hover:text-blue-600 cursor-pointer" />
