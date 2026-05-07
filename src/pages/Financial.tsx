@@ -8,17 +8,13 @@ import { Input } from '@/components/ui/input';
 import { 
   Search, 
   Plus, 
-  Filter, 
   ArrowUpCircle, 
   ArrowDownCircle, 
   DollarSign,
-  Calendar as CalendarIcon,
-  MoreHorizontal,
-  FileText,
   Wallet
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { BillModal } from '@/components/modals/BillModal';
+import { TransactionModal } from '@/components/modals/TransactionModal';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 
@@ -61,6 +57,12 @@ const Financial = () => {
   useEffect(() => {
     fetchBills();
   }, []);
+
+  const handleSaveTransaction = async (data: any) => {
+    // Aqui você pode adicionar a lógica para salvar no Supabase se desejar
+    // Por enquanto, apenas recarregamos a lista
+    fetchBills();
+  };
 
   return (
     <DashboardLayout title="Gestão Financeira">
@@ -106,14 +108,14 @@ const Financial = () => {
                           )}>
                             {bill.type === 'despesa' ? <ArrowDownCircle className="w-5 h-5" /> : <ArrowUpCircle className="w-5 h-5" />}
                           </div>
-                          <span className="font-bold text-gray-900">{bill.description}</span>
+                          <span className="font-bold text-gray-900">{bill.description || bill.type}</span>
                         </div>
                       </td>
                       <td className="p-6 text-sm text-gray-500 font-medium">
-                        {new Date(bill.due_date).toLocaleDateString('pt-BR')}
+                        {bill.due_date ? new Date(bill.due_date).toLocaleDateString('pt-BR') : `${bill.month}/${bill.year}`}
                       </td>
                       <td className="p-6 font-black text-gray-900">
-                        R$ {Number(bill.total_value).toLocaleString('pt-BR')}
+                        R$ {Number(bill.total_value || bill.calculated_value).toLocaleString('pt-BR')}
                       </td>
                       <td className="p-6">
                         <Badge className={cn(
@@ -140,7 +142,11 @@ const Financial = () => {
         </CardContent>
       </Card>
 
-      <BillModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); fetchBills(); }} />
+      <TransactionModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSave={handleSaveTransaction}
+      />
     </DashboardLayout>
   );
 };
