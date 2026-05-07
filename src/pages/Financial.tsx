@@ -11,20 +11,18 @@ import {
   Search,
   Calculator,
   Settings2,
-  ArrowUpRight,
-  ArrowDownRight,
-  Send,
   Building2,
-  User,
-  MessageSquare
+  MessageSquare,
+  Send,
+  ArrowRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InterestFineSettings } from '@/components/financial/InterestFineSettings';
 import { ApportionmentModule } from '@/components/financial/ApportionmentModule';
+import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -40,12 +38,9 @@ const mockTransactions = [
 
 const Financial = () => {
   const [transactions] = useState(mockTransactions);
-  const [chargeData, setChargeData] = useState({ property: '', value: '' });
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
 
   const handleExport = () => showSuccess('Relatório financeiro exportado com sucesso!');
-  const handleSendCharge = (tenant: string, value: string) => {
-    showSuccess(`Cobrança de R$ ${value} enviada para ${tenant} via WhatsApp!`);
-  };
 
   return (
     <DashboardLayout title="Gestão Financeira">
@@ -89,44 +84,23 @@ const Financial = () => {
 
           <TabsContent value="overview" className="space-y-8 animate-in fade-in duration-500">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Cobrança Rápida */}
-              <Card className="lg:col-span-1 premium-card rounded-[2.5rem] border-none p-8 h-fit">
-                <h3 className="text-xl font-black text-slate-900 tracking-tight mb-6 flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5 text-blue-600" />
-                  Cobrança Rápida
-                </h3>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Selecionar Imóvel</label>
-                    <Select onValueChange={(v) => setChargeData({...chargeData, property: v})}>
-                      <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
-                        <SelectValue placeholder="Escolha o imóvel..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Apto 101">Apto 101 (João Silva)</SelectItem>
-                        <SelectItem value="Casa 02">Casa 02 (Maria Oliveira)</SelectItem>
-                        <SelectItem value="Kitnet A">Kitnet A (Pedro Santos)</SelectItem>
-                      </SelectContent>
-                    </Select>
+              {/* Novo Card de Resumo de Cobrança */}
+              <Card className="lg:col-span-1 premium-card rounded-[2.5rem] border-none p-8 h-fit bg-gradient-to-br from-blue-600 to-blue-700 text-white">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md">
+                    <MessageSquare className="w-6 h-6 text-white" />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor da Cobrança (R$)</label>
-                    <Input 
-                      type="number" 
-                      placeholder="0,00" 
-                      className="h-12 rounded-xl bg-slate-50 border-none font-bold"
-                      value={chargeData.value}
-                      onChange={(e) => setChargeData({...chargeData, value: e.target.value})}
-                    />
-                  </div>
-                  <Button 
-                    onClick={() => handleSendCharge(chargeData.property, chargeData.value)}
-                    disabled={!chargeData.property || !chargeData.value}
-                    className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl gap-2 mt-2"
-                  >
-                    <Send className="w-4 h-4" /> Enviar via WhatsApp
-                  </Button>
+                  <h3 className="text-xl font-black tracking-tight">Resumo de Cobrança</h3>
                 </div>
+                <p className="text-blue-100 text-sm font-medium leading-relaxed mb-8">
+                  Gere um resumo detalhado com aluguel, luz, água e rateios para enviar diretamente ao WhatsApp do inquilino.
+                </p>
+                <Button 
+                  onClick={() => setIsSummaryModalOpen(true)}
+                  className="w-full h-14 bg-white text-blue-600 hover:bg-blue-50 font-black rounded-2xl gap-2 shadow-xl shadow-blue-900/20 transition-all active:scale-95"
+                >
+                  Gerar Resumo <ArrowRight className="w-5 h-5" />
+                </Button>
               </Card>
 
               {/* Tabela de Transações */}
@@ -183,7 +157,7 @@ const Financial = () => {
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              onClick={() => handleSendCharge(t.tenant, t.value.toString())}
+                              onClick={() => setIsSummaryModalOpen(true)}
                               className="h-10 w-10 rounded-xl text-blue-600 hover:bg-blue-50"
                             >
                               <Send className="w-4 h-4" />
@@ -207,6 +181,11 @@ const Financial = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      <BillingSummaryModal 
+        isOpen={isSummaryModalOpen} 
+        onClose={() => setIsSummaryModalOpen(false)} 
+      />
     </DashboardLayout>
   );
 };
