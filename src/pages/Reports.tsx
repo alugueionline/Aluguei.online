@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,26 +34,66 @@ import {
   Area
 } from 'recharts';
 import { cn } from '@/lib/utils';
-
-const profitData = [
-  { name: 'Apto 101', receita: 1200, custos: 150 },
-  { name: 'Casa 02', receita: 2500, custos: 400 },
-  { name: 'Kitnet A', receita: 850, custos: 100 },
-  { name: 'Apto 202', receita: 1300, custos: 180 },
-];
-
-const revenueHistory = [
-  { month: 'Jan', value: 12000 },
-  { month: 'Fev', value: 13500 },
-  { month: 'Mar', value: 12800 },
-  { month: 'Abr', value: 15400 },
-  { month: 'Mai', value: 14800 },
-  { month: 'Jun', value: 16200 },
-];
+import { supabase } from '@/integrations/supabase/client';
 
 const COLORS = ['#2563FF', '#10b981', '#f59e0b', '#8b5cf6'];
 
 const Reports = () => {
+  const [revenueHistory, setRevenueHistory] = useState<any[]>([]);
+  const [profitData, setProfitData] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    receita: 0,
+    ocupacao: 0,
+    inadimplencia: 0,
+    crescimento: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  const fetchReportData = async () => {
+    try {
+      setLoading(true);
+      // Buscamos dados das contas para os gráficos
+      const { data: bills, error: billsError } = await supabase.from('bills').select('*');
+      const { data: properties, error: propsError } = await supabase.from('properties').select('*');
+
+      if (!billsError && bills) {
+        // Lógica simplificada para preencher os estados
+        let totalRec = 0;
+        bills.forEach(b => {
+          if (b.status === 'pago' && (b.type === 'receita' || b.type === 'aluguel')) {
+            totalRec += Number(b.total_value);
+          }
+        });
+        setStats(prev => ({ ...prev, receita: totalRec }));
+      }
+
+      if (!propsError && properties) {
+        const occupied = properties.filter(p => p.status === 'alugado').length;
+        const rate = properties.length > 0 ? (occupied / properties.length) * 100 : 0;
+        setStats(prev => ({ ...prev, ocupacao: rate }));
+      }
+
+      // Dados mockados para o gráfico se não houver histórico real suficiente
+      setRevenueHistory([
+        { month: 'Jan', value: 0 },
+        { month: 'Fev', value: 0 },
+        { month: 'Mar', value: 0 },
+        { month: 'Abr', value: 0 },
+        { month: 'Mai', value: 0 },
+        { month: 'Jun', value: 0 },
+      ]);
+
+    } catch (err) {
+      console.error('Erro ao carregar relatórios');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReportData();
+  }, []);
+
   return (
     <DashboardLayout title="Relatórios e Inteligência">
       <div className="max-w-7xl mx-auto space-y-10 pb-20">
@@ -66,9 +106,6 @@ const Reports = () => {
             <Button variant="outline" className="h-12 px-6 rounded-2xl border-slate-200 bg-white font-bold text-slate-600 shadow-sm gap-2 flex-1 lg:flex-none">
               <Calendar className="w-4 h-4" /> Últimos 6 meses
             </Button>
-            <Button variant="outline" className="h-12 px-4 rounded-2xl border-slate-200 bg-white font-bold text-slate-600 shadow-sm flex-1 lg:flex-none">
-              <Filter className="w-4 h-4" />
-            </Button>
             <Button className="h-12 px-8 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold gap-2 shadow-lg shadow-slate-200">
               <FileDown className="w-4 h-4" /> Exportar
             </Button>
@@ -76,22 +113,16 @@ const Reports = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <MetricCard label="Receita Bruta" value="R$ 15.420" trend="+12.5%" type="up" icon={<TrendingUp className="w-5 h-5 text-emerald-500" />} />
-          <MetricCard label="Taxa Ocupação" value="94.2%" trend="+2.1%" type="up" icon={<CheckCircle2 className="w-5 h-5 text-blue-500" />} />
-          <MetricCard label="Inadimplência" value="R$ 1.850" trend="-4.3%" type="down" icon={<AlertCircle className="w-5 h-5 text-rose-500" />} />
-          <MetricCard label="Crescimento" value="R$ 2.400" trend="+8.4%" type="up" icon={<Activity className="w-5 h-5 text-amber-500" />} />
+          <MetricCard label="Receita Bruta" value={`R$ ${stats.receita.toLocaleString('pt-BR')}`} trend="+0%" type="up" icon={<TrendingUp className="w-5 h-5 text-emerald-500" />} />
+          <MetricCard label="Taxa Ocupação" value={`${stats.ocupacao.toFixed(1)}%`} trend="+0%" type="up" icon={<CheckCircle2 className="w-5 h-5 text-blue-500" />} />
+          <MetricCard label="Inadimplência" value={`R$ ${stats.inadimplencia}`} trend="0%" type="down" icon={<AlertCircle className="w-5 h-5 text-rose-500" />} />
+          <MetricCard label="Crescimento" value={`R$ ${stats.crescimento}`} trend="0%" type="up" icon={<Activity className="w-5 h-5 text-amber-500" />} />
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
           <Card className="xl:col-span-8 premium-card border-none rounded-[2.5rem] p-8">
             <div className="flex justify-between items-center mb-10">
               <h3 className="text-xl font-black text-slate-900 tracking-tight">Evolução Financeira</h3>
-              <div className="flex gap-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[#2563FF]" />
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receitas</span>
-                </div>
-              </div>
             </div>
             <div className="h-[350px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -103,30 +134,10 @@ const Reports = () => {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis 
-                    dataKey="month" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{fill: '#94a3b8', fontSize: 12, fontWeight: 500}} 
-                    dy={15}
-                  />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{fill: '#94a3b8', fontSize: 12, fontWeight: 500}}
-                    tickFormatter={(v) => `R$ ${v/1000}k`}
-                  />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.08)' }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="value" 
-                    stroke="#2563FF" 
-                    strokeWidth={4} 
-                    fillOpacity={1} 
-                    fill="url(#colorValue)" 
-                  />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12, fontWeight: 500}} dy={15} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12, fontWeight: 500}} tickFormatter={(v) => `R$ ${v/1000}k`} />
+                  <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.08)' }} />
+                  <Area type="monotone" dataKey="value" stroke="#2563FF" strokeWidth={4} fillOpacity={1} fill="url(#colorValue)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -134,57 +145,23 @@ const Reports = () => {
 
           <Card className="xl:col-span-4 premium-card border-none rounded-[2.5rem] p-8">
             <h3 className="text-xl font-black text-slate-900 tracking-tight mb-8">Performance Mix</h3>
-            <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={profitData}
-                    innerRadius={80}
-                    outerRadius={100}
-                    paddingAngle={8}
-                    dataKey="receita"
-                  >
-                    {profitData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="space-y-4 mt-8">
-              {profitData.map((item, i) => (
-                <div key={i} className="flex justify-between items-center p-3 rounded-2xl bg-slate-50/50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i] }} />
-                    <span className="text-xs font-bold text-slate-600">{item.name}</span>
-                  </div>
-                  <span className="text-xs font-black text-slate-900">R$ {item.receita}</span>
-                </div>
-              ))}
+            <div className="h-[250px] flex items-center justify-center">
+              {profitData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={profitData} innerRadius={80} outerRadius={100} paddingAngle={8} dataKey="receita">
+                      {profitData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-sm text-gray-400 font-bold">Sem dados para exibir</p>
+              )}
             </div>
           </Card>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <InsightCard 
-            title="Lucratividade em alta" 
-            desc="Seu lucro líquido aumentou 12% em comparação ao mês anterior." 
-            icon={<TrendingUp className="w-6 h-6 text-emerald-600" />}
-            color="emerald"
-          />
-          <InsightCard 
-            title="Alerta de Inadimplência" 
-            desc="2 imóveis estão com pagamentos pendentes há mais de 5 dias." 
-            icon={<AlertCircle className="w-6 h-6 text-rose-600" />}
-            color="rose"
-          />
-          <InsightCard 
-            title="Oportunidade de Taxa" 
-            desc="Sua taxa de ocupação atingiu 94%, considere reajustes em novas vagas." 
-            icon={<Zap className="w-6 h-6 text-blue-600" />}
-            color="blue"
-          />
         </div>
       </div>
     </DashboardLayout>
@@ -207,24 +184,6 @@ const MetricCard = ({ label, value, trend, type, icon }: any) => (
     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
     <h4 className="text-2xl font-black text-slate-900 mt-1">{value}</h4>
   </Card>
-);
-
-const InsightCard = ({ title, desc, icon, color }: any) => (
-  <div className={cn(
-    "p-8 rounded-[2.5rem] border-none shadow-sm flex flex-col gap-6 group cursor-default transition-all",
-    color === 'emerald' ? "bg-emerald-50/50" : color === 'rose' ? "bg-rose-50/50" : "bg-blue-50/50"
-  )}>
-    <div className={cn(
-      "w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-sm transition-transform group-hover:scale-110",
-      color === 'emerald' ? "text-emerald-600" : color === 'rose' ? "text-rose-600" : "text-blue-600"
-    )}>
-      {icon}
-    </div>
-    <div>
-      <h5 className="text-lg font-black text-slate-900 tracking-tight mb-2">{title}</h5>
-      <p className="text-sm text-slate-500 font-medium leading-relaxed">{desc}</p>
-    </div>
-  </div>
 );
 
 export default Reports;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar as CalendarUI } from '@/components/ui/calendar';
@@ -20,22 +20,43 @@ import { Button } from '@/components/ui/button';
 import { ptBR } from 'date-fns/locale';
 import { addMonths, subMonths, format, isSameDay, setDate as setDayOfMonth } from 'date-fns';
 import { EventModal } from '@/components/modals/EventModal';
-import { showSuccess } from '@/utils/toast';
-
-// Gerando datas no mês atual para os eventos mock
-const today = new Date();
-const initialEvents = [
-  { id: '1', date: setDayOfMonth(today, 10), title: 'Vencimento Aluguel', type: 'payment', description: 'João Silva • Apto 101', time: '09:00' },
-  { id: '2', date: setDayOfMonth(today, 12), title: 'Manutenção Elétrica', type: 'maintenance', description: 'Casa 02 • Reparo fiação', time: '14:30' },
-  { id: '3', date: setDayOfMonth(today, 15), title: 'Contrato Vence', type: 'contract', description: 'Maria Oliveira • 30 dias', time: '10:00' },
-  { id: '4', date: setDayOfMonth(today, 20), title: 'Vistoria de Saída', type: 'visit', description: 'Kitnet A • Entrega chaves', time: '16:00' },
-];
+import { supabase } from '@/integrations/supabase/client';
 
 const Calendar = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [events, setEvents] = useState(initialEvents);
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchEvents = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('events')
+        .select('*');
+      
+      if (error) {
+        // Se a tabela não existir, apenas ignoramos o erro e mostramos vazio
+        setEvents([]);
+      } else {
+        // Convertemos as strings de data para objetos Date
+        const formattedEvents = (data || []).map(e => ({
+          ...e,
+          date: new Date(e.date)
+        }));
+        setEvents(formattedEvents);
+      }
+    } catch (err) {
+      setEvents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
 
   const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
@@ -161,7 +182,7 @@ const Calendar = () => {
                 Próximos Eventos
               </h3>
               <div className="space-y-6">
-                {upcomingEvents.map((event, i) => (
+                {upcomingEvents.length > 0 ? upcomingEvents.map((event, i) => (
                   <div key={event.id} className="flex gap-4 items-center group cursor-pointer">
                     <div className={cn(
                       "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110",
@@ -176,7 +197,9 @@ const Calendar = () => {
                       <p className="text-[10px] text-slate-400 font-bold uppercase">{format(event.date, 'dd MMM', { locale: ptBR })} • {event.time}</p>
                     </div>
                   </div>
-                ))}
+                )) : (
+                  <p className="text-xs text-slate-400 font-medium">Nenhum evento futuro.</p>
+                )}
               </div>
               <Button variant="ghost" className="w-full mt-8 text-blue-600 font-black text-xs uppercase tracking-widest hover:bg-blue-50 rounded-2xl h-12">
                 Ver Agenda Completa
@@ -195,7 +218,7 @@ const Calendar = () => {
           </div>
         </div>
       </div>
-      <EventModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} selectedDate={date} />
+      <EventModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); fetchEvents(); }} selectedDate={date} />
     </DashboardLayout>
   );
 };
