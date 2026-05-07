@@ -21,8 +21,12 @@ import { InterestFineSettings } from '@/components/financial/InterestFineSetting
 import { ApportionmentModule } from '@/components/financial/ApportionmentModule';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { cn } from '@/lib/utils';
+import { showSuccess } from '@/utils/toast';
 
 const Financial = () => {
+  const handleExport = () => showSuccess('Relatório financeiro exportado com sucesso!');
+  const handleFilter = () => showSuccess('Filtros financeiros aplicados!');
+
   return (
     <DashboardLayout title="Gestão Financeira">
       <div className="space-y-10 max-w-7xl mx-auto pb-20">
@@ -32,7 +36,11 @@ const Financial = () => {
             <p className="text-slate-500 mt-2 text-lg font-medium">Controle de receitas, penalidades por atraso e rateio de despesas</p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" className="rounded-2xl border-slate-200 font-bold gap-2 h-12 px-6 bg-white hover:bg-slate-50 text-slate-600 transition-all">
+            <Button 
+              variant="outline" 
+              onClick={handleExport}
+              className="rounded-2xl border-slate-200 font-bold gap-2 h-12 px-6 bg-white hover:bg-slate-50 text-slate-600 transition-all"
+            >
               <Download className="w-4 h-4" />
               Exportar Dados
             </Button>
@@ -96,7 +104,11 @@ const Financial = () => {
                   />
                 </div>
                 <div className="flex items-center gap-3">
-                  <Button variant="ghost" className="rounded-xl gap-2 font-bold text-slate-500 h-14 px-6 hover:bg-slate-100">
+                  <Button 
+                    variant="ghost" 
+                    onClick={handleFilter}
+                    className="rounded-xl gap-2 font-bold text-slate-500 h-14 px-6 hover:bg-slate-100"
+                  >
                     <Filter className="w-4 h-4" />
                     Filtrar Por
                   </Button>

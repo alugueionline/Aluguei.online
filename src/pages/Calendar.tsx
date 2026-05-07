@@ -1,10 +1,9 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar as CalendarUI } from '@/components/ui/calendar';
-import { Badge } from '@/components/ui/badge';
 import { 
   Clock, 
   DollarSign, 
@@ -18,6 +17,9 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ptBR } from 'date-fns/locale';
+import { addMonths, subMonths, format } from 'date-fns';
+import { EventModal } from '@/components/modals/EventModal';
+import { showSuccess } from '@/utils/toast';
 
 const events = [
   { date: new Date(2024, 5, 10), title: 'Vencimento Aluguel', type: 'payment', description: 'João Silva • Apto 101', time: '09:00' },
@@ -27,9 +29,22 @@ const events = [
 ];
 
 const Calendar = () => {
-  const [date, setDate] = React.useState<Date | undefined>(new Date(2024, 5, 15));
+  const [date, setDate] = useState<Date | undefined>(new Date(2024, 5, 15));
+  const [currentMonth, setCurrentMonth] = useState(new Date(2024, 5, 1));
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Modificadores para destacar os dias no calendário
+  const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
+  const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
+  const handleToday = () => {
+    const today = new Date();
+    setCurrentMonth(today);
+    setDate(today);
+  };
+
+  const handleActivateAlerts = () => {
+    showSuccess('Alertas de WhatsApp ativados para sua agenda!');
+  };
+
   const eventDays = {
     payment: events.filter(e => e.type === 'payment').map(e => e.date),
     maintenance: events.filter(e => e.type === 'maintenance').map(e => e.date),
@@ -46,17 +61,38 @@ const Calendar = () => {
             <p className="text-slate-500 font-medium">Controle de datas, visitas e manutenções</p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" className="h-12 px-6 rounded-2xl border-slate-200 bg-white font-bold text-slate-600 shadow-sm">Hoje</Button>
+            <Button 
+              variant="outline" 
+              onClick={handleToday}
+              className="h-12 px-6 rounded-2xl border-slate-200 bg-white font-bold text-slate-600 shadow-sm"
+            >
+              Hoje
+            </Button>
             <div className="flex items-center bg-white p-1 rounded-2xl border border-slate-100 shadow-sm">
-              <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl text-slate-400 hover:text-blue-600">
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={handlePrevMonth}
+                className="h-10 w-10 rounded-xl text-slate-400 hover:text-blue-600"
+              >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <span className="px-4 text-sm font-black text-slate-900">Junho 2024</span>
-              <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl text-slate-400 hover:text-blue-600">
+              <span className="px-4 text-sm font-black text-slate-900 min-w-[120px] text-center capitalize">
+                {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
+              </span>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={handleNextMonth}
+                className="h-10 w-10 rounded-xl text-slate-400 hover:text-blue-600"
+              >
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
-            <Button className="h-12 px-6 rounded-2xl bg-[#2563FF] hover:bg-blue-700 text-white font-bold gap-2 shadow-lg shadow-blue-100">
+            <Button 
+              onClick={() => setIsModalOpen(true)}
+              className="h-12 px-6 rounded-2xl bg-[#2563FF] hover:bg-blue-700 text-white font-bold gap-2 shadow-lg shadow-blue-100"
+            >
               Novo Evento
             </Button>
           </div>
@@ -69,6 +105,8 @@ const Calendar = () => {
                 mode="single"
                 selected={date}
                 onSelect={setDate}
+                month={currentMonth}
+                onMonthChange={setCurrentMonth}
                 locale={ptBR}
                 className="w-full"
                 modifiers={eventDays}
@@ -171,7 +209,7 @@ const Calendar = () => {
                     )}
                     <div className={cn(
                       "w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border-2 border-white shadow-sm transition-transform group-hover:scale-110",
-                      event.type === 'payment' ? "bg-emerald-50 text-emerald-600" :
+                      event.type === 'payment' ? "bg-emerald-50 text-emerald-700" :
                       event.type === 'maintenance' ? "bg-amber-50 text-amber-700" : 
                       event.type === 'contract' ? "bg-rose-50 text-rose-700" : "bg-blue-50 text-blue-600"
                     )}>
@@ -202,13 +240,22 @@ const Calendar = () => {
               <Clock className="w-8 h-8 mb-6 text-blue-500" />
               <h4 className="text-lg font-black tracking-tight mb-2">Prazos de Hoje</h4>
               <p className="text-sm text-slate-400 font-medium leading-relaxed">Você tem <span className="text-white font-black underline decoration-blue-500 decoration-2">3 tarefas pendentes</span> para o período da tarde. Deseja ser notificado no WhatsApp?</p>
-              <Button className="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 rounded-2xl shadow-lg shadow-blue-900/50">
+              <Button 
+                onClick={handleActivateAlerts}
+                className="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 rounded-2xl shadow-lg shadow-blue-900/50"
+              >
                 Ativar Alertas
               </Button>
             </div>
           </div>
         </div>
       </div>
+
+      <EventModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        selectedDate={date} 
+      />
     </DashboardLayout>
   );
 };

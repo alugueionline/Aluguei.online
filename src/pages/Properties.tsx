@@ -17,6 +17,7 @@ import {
 import { Property } from '@/types/rental';
 import { PropertyModal } from '@/components/modals/PropertyModal';
 import { cn } from '@/lib/utils';
+import { showSuccess } from '@/utils/toast';
 
 const mockProperties: Property[] = [
   { id: '1', name: 'Apto 101', type: 'apartamento', address: 'Rua Central, 123', baseRent: 1200, status: 'alugado', imageUrl: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=500&q=80' },
@@ -41,6 +42,8 @@ const Properties = () => {
     setIsModalOpen(true);
   };
 
+  const handleFilter = () => showSuccess('Filtros de imóveis aplicados!');
+
   return (
     <DashboardLayout title="Imóveis">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
@@ -54,7 +57,11 @@ const Properties = () => {
           />
         </div>
         <div className="flex gap-3 w-full md:w-auto">
-          <Button variant="outline" className="bg-white border-none premium-shadow h-14 px-6 rounded-2xl gap-2 font-bold text-gray-600 hover:text-gray-900">
+          <Button 
+            variant="outline" 
+            onClick={handleFilter}
+            className="bg-white border-none premium-shadow h-14 px-6 rounded-2xl gap-2 font-bold text-gray-600 hover:text-gray-900"
+          >
             <Filter className="w-4 h-4" /> Filtros
           </Button>
           <Button className="bg-[#2563FF] hover:bg-[#1d4ed8] h-14 px-8 rounded-2xl gap-2 font-bold shadow-lg shadow-blue-200 flex-1 md:flex-none" onClick={handleNew}>

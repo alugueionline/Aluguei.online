@@ -1,17 +1,15 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { 
-  FileText, 
   Search, 
   Filter, 
   Plus, 
-  Calendar, 
   MoreHorizontal, 
   Download, 
   Eye,
@@ -24,6 +22,9 @@ import {
 } from 'lucide-react';
 import { Progress } from "@/components/ui/progress";
 import { cn } from '@/lib/utils';
+import { ContractModal } from '@/components/modals/ContractModal';
+import { showSuccess } from '@/utils/toast';
+import { useNavigate } from 'react-router-dom';
 
 const contracts = [
   { 
@@ -73,6 +74,17 @@ const contracts = [
 ];
 
 const Contracts = () => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleDownload = (name: string) => {
+    showSuccess(`Iniciando download do contrato de ${name}...`);
+  };
+
+  const handleFilter = () => {
+    showSuccess('Filtros aplicados com sucesso!');
+  };
+
   return (
     <DashboardLayout title="Gestão de Contratos">
       <div className="max-w-7xl mx-auto space-y-8 pb-20">
@@ -85,10 +97,17 @@ const Contracts = () => {
             />
           </div>
           <div className="flex items-center gap-3 w-full lg:w-auto">
-            <Button variant="outline" className="h-14 px-6 rounded-2xl border-slate-100 bg-white font-bold text-slate-600 gap-2 flex-1 lg:flex-none">
+            <Button 
+              variant="outline" 
+              onClick={handleFilter}
+              className="h-14 px-6 rounded-2xl border-slate-100 bg-white font-bold text-slate-600 gap-2 flex-1 lg:flex-none"
+            >
               <Filter className="w-4 h-4" /> Filtrar
             </Button>
-            <Button className="h-14 px-8 rounded-2xl bg-[#2563FF] hover:bg-blue-700 text-white font-bold gap-2 flex-1 lg:flex-none shadow-lg shadow-blue-100">
+            <Button 
+              onClick={() => setIsModalOpen(true)}
+              className="h-14 px-8 rounded-2xl bg-[#2563FF] hover:bg-blue-700 text-white font-bold gap-2 flex-1 lg:flex-none shadow-lg shadow-blue-100"
+            >
               <Plus className="w-5 h-5" /> Novo Contrato
             </Button>
           </div>
@@ -160,10 +179,18 @@ const Contracts = () => {
                 </div>
 
                 <div className="p-4 grid grid-cols-2 gap-2">
-                  <Button variant="ghost" className="rounded-xl h-12 font-bold text-slate-500 hover:bg-white hover:text-blue-600 gap-2 text-xs">
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => handleDownload(c.tenant)}
+                    className="rounded-xl h-12 font-bold text-slate-500 hover:bg-white hover:text-blue-600 gap-2 text-xs"
+                  >
                     <Download className="w-4 h-4" /> Download PDF
                   </Button>
-                  <Button variant="ghost" className="rounded-xl h-12 font-bold text-slate-500 hover:bg-white hover:text-blue-600 gap-2 text-xs">
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => navigate(`/tenants/${c.id}`)}
+                    className="rounded-xl h-12 font-bold text-slate-500 hover:bg-white hover:text-blue-600 gap-2 text-xs"
+                  >
                     <Eye className="w-4 h-4" /> Detalhes
                   </Button>
                 </div>
@@ -172,6 +199,8 @@ const Contracts = () => {
           ))}
         </div>
       </div>
+
+      <ContractModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </DashboardLayout>
   );
 };
