@@ -86,8 +86,8 @@ const Billing = () => {
   );
 
   return (
-    <DashboardLayout title="Gestão de Contas e Utilidades">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <DashboardLayout title="Contas e Utilidades">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8">
         <Card className="border-none shadow-sm bg-white">
           <CardContent className="p-6 flex items-center gap-4">
             <div className="p-3 bg-orange-50 rounded-xl text-orange-600">
@@ -95,7 +95,7 @@ const Billing = () => {
             </div>
             <div>
               <p className="text-sm text-gray-500 font-medium">Total Pendente</p>
-              <h3 className="text-2xl font-bold text-gray-900">
+              <h3 className="text-xl md:text-2xl font-bold text-gray-900">
                 R$ {bills.filter(b => b.status !== 'pago').reduce((acc, b) => acc + b.calculatedValue, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </h3>
             </div>
@@ -108,14 +108,14 @@ const Billing = () => {
             </div>
             <div>
               <p className="text-sm text-gray-500 font-medium">Pago este Mês</p>
-              <h3 className="text-2xl font-bold text-gray-900">
+              <h3 className="text-xl md:text-2xl font-bold text-gray-900">
                 R$ {bills.filter(b => b.status === 'pago').reduce((acc, b) => acc + b.calculatedValue, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </h3>
             </div>
           </CardContent>
         </Card>
-        <div className="flex items-center justify-end">
-          <Button className="bg-blue-600 hover:bg-blue-700 gap-2 h-12 px-6 shadow-lg" onClick={handleNew}>
+        <div className="flex items-center justify-end sm:col-span-2 lg:col-span-1">
+          <Button className="bg-blue-600 hover:bg-blue-700 gap-2 h-12 px-6 shadow-lg w-full sm:w-auto" onClick={handleNew}>
             <Plus className="w-5 h-5" /> Novo Lançamento
           </Button>
         </div>
@@ -134,73 +134,68 @@ const Billing = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Button variant="outline" size="icon" className="bg-gray-50 border-none">
+            <Button variant="outline" size="icon" className="bg-gray-50 border-none shrink-0">
               <Filter className="w-4 h-4" />
             </Button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader className="bg-gray-50/50">
-              <TableRow>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Imóvel</TableHead>
-                <TableHead>Referência</TableHead>
-                <TableHead>Valor</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredBills.map((bill) => (
-                <TableRow key={bill.id} className="hover:bg-gray-50/50 transition-colors">
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${
-                        bill.type === 'energia' ? 'bg-orange-50 text-orange-600' : 
-                        bill.type === 'agua' ? 'bg-blue-50 text-blue-600' : 
-                        'bg-purple-50 text-purple-600'
-                      }`}>
-                        {getIcon(bill.type)}
-                      </div>
-                      <span className="font-medium capitalize">{bill.type}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium text-gray-900">{bill.property}</TableCell>
-                  <TableCell className="text-gray-500">{bill.month}/{bill.year}</TableCell>
-                  <TableCell className="font-bold">R$ {bill.calculatedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
-                  <TableCell>{getStatusBadge(bill.status)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 rounded-full hover:bg-blue-50 hover:text-blue-600"
-                        onClick={() => handleEdit(bill)}
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 rounded-full hover:bg-red-50 hover:text-red-600"
-                        onClick={() => setBills(bills.filter(b => b.id !== bill.id))}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filteredBills.length === 0 && (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-gray-50/50">
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                    Nenhum lançamento encontrado.
-                  </TableCell>
+                  <TableHead className="min-w-[150px]">Tipo</TableHead>
+                  <TableHead className="min-w-[120px]">Imóvel</TableHead>
+                  <TableHead>Referência</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredBills.map((bill) => (
+                  <TableRow key={bill.id} className="hover:bg-gray-50/50 transition-colors">
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${
+                          bill.type === 'energia' ? 'bg-orange-50 text-orange-600' : 
+                          bill.type === 'agua' ? 'bg-blue-50 text-blue-600' : 
+                          'bg-purple-50 text-purple-600'
+                        }`}>
+                          {getIcon(bill.type)}
+                        </div>
+                        <span className="font-medium capitalize text-sm">{bill.type}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium text-gray-900 text-sm">{bill.property}</TableCell>
+                    <TableCell className="text-gray-500 text-sm">{bill.month}/{bill.year}</TableCell>
+                    <TableCell className="font-bold text-sm">R$ {bill.calculatedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                    <TableCell>{getStatusBadge(bill.status)}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 rounded-full hover:bg-blue-50 hover:text-blue-600"
+                          onClick={() => handleEdit(bill)}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 rounded-full hover:bg-red-50 hover:text-red-600"
+                          onClick={() => setBills(bills.filter(b => b.id !== bill.id))}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 

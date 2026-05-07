@@ -49,7 +49,7 @@ const Index = () => {
   return (
     <DashboardLayout title="Painel de Controle Financeiro">
       {/* SEÇÃO 1 — RESUMO PRINCIPAL */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
         <Card className="border-none shadow-sm bg-white overflow-hidden group hover:shadow-md transition-all">
           <CardContent className="p-6">
             <div className="flex justify-between items-start mb-4">
@@ -61,7 +61,7 @@ const Index = () => {
               </Badge>
             </div>
             <p className="text-sm font-medium text-gray-500">Receita do Mês</p>
-            <h3 className="text-3xl font-bold text-gray-900 mt-1">R$ 15.420,00</h3>
+            <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mt-1">R$ 15.420,00</h3>
           </CardContent>
         </Card>
 
@@ -76,7 +76,7 @@ const Index = () => {
               </Badge>
             </div>
             <p className="text-sm font-medium text-gray-500">Despesas do Mês</p>
-            <h3 className="text-3xl font-bold text-gray-900 mt-1">R$ 3.150,00</h3>
+            <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mt-1">R$ 3.150,00</h3>
           </CardContent>
         </Card>
 
@@ -91,7 +91,7 @@ const Index = () => {
               </Badge>
             </div>
             <p className="text-sm font-medium text-blue-100">Lucro Líquido</p>
-            <h3 className="text-3xl font-bold mt-1">R$ 12.270,00</h3>
+            <h3 className="text-2xl md:text-3xl font-bold mt-1">R$ 12.270,00</h3>
           </CardContent>
         </Card>
 
@@ -104,25 +104,25 @@ const Index = () => {
               <span className="text-xs font-bold text-rose-600 uppercase tracking-wider">Crítico</span>
             </div>
             <p className="text-sm font-medium text-gray-500">Valor em Atraso</p>
-            <h3 className="text-3xl font-bold text-rose-600 mt-1">R$ 1.850,00</h3>
+            <h3 className="text-2xl md:text-3xl font-bold text-rose-600 mt-1">R$ 1.850,00</h3>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 mb-8">
         {/* SEÇÃO 2 — GRÁFICO PRINCIPAL */}
         <Card className="lg:col-span-2 border-none shadow-sm bg-white">
           <CardHeader className="flex flex-row items-center justify-between pb-8">
             <div>
-              <CardTitle className="text-xl font-bold text-gray-900">Fluxo de Caixa</CardTitle>
-              <p className="text-sm text-gray-500">Entradas vs Saídas acumuladas no mês</p>
+              <CardTitle className="text-lg md:text-xl font-bold text-gray-900">Fluxo de Caixa</CardTitle>
+              <p className="text-xs md:text-sm text-gray-500">Entradas vs Saídas acumuladas</p>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="text-xs font-semibold">Mensal</Button>
-              <Button variant="ghost" size="sm" className="text-xs font-semibold text-gray-500">Trimestral</Button>
+            <div className="flex gap-1 md:gap-2">
+              <Button variant="outline" size="sm" className="text-[10px] md:text-xs font-semibold h-8">Mensal</Button>
+              <Button variant="ghost" size="sm" className="text-[10px] md:text-xs font-semibold text-gray-500 h-8">Trimestral</Button>
             </div>
           </CardHeader>
-          <CardContent className="h-[350px] px-2">
+          <CardContent className="h-[250px] md:h-[350px] px-2">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={cashFlowData}>
                 <defs>
@@ -140,14 +140,15 @@ const Index = () => {
                   dataKey="day" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{fontSize: 12, fill: '#94a3b8'}} 
+                  tick={{fontSize: 10, fill: '#94a3b8'}} 
                   dy={10}
                 />
                 <YAxis 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{fontSize: 12, fill: '#94a3b8'}}
+                  tick={{fontSize: 10, fill: '#94a3b8'}}
                   tickFormatter={(value) => `R$ ${value}`}
+                  width={45}
                 />
                 <Tooltip 
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
@@ -220,22 +221,22 @@ const Index = () => {
           {/* SEÇÃO 5 — MÉTRICAS INTELIGENTES */}
           <div className="grid grid-cols-2 gap-4">
             <div className="p-4 bg-white rounded-2xl shadow-sm">
-              <p className="text-xs font-semibold text-gray-400 uppercase">Inadimplência</p>
-              <h4 className="text-xl font-bold text-gray-900 mt-1">5.2%</h4>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase">Inadimplência</p>
+              <h4 className="text-lg font-bold text-gray-900 mt-1">5.2%</h4>
               <div className="w-full bg-gray-100 h-1.5 rounded-full mt-2">
                 <div className="bg-rose-500 h-full rounded-full" style={{ width: '5.2%' }}></div>
               </div>
             </div>
             <div className="p-4 bg-white rounded-2xl shadow-sm">
-              <p className="text-xs font-semibold text-gray-400 uppercase">Ticket Médio</p>
-              <h4 className="text-xl font-bold text-gray-900 mt-1">R$ 1.450</h4>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase">Ticket Médio</p>
+              <h4 className="text-lg font-bold text-gray-900 mt-1">R$ 1.450</h4>
               <p className="text-[10px] text-emerald-600 font-bold mt-1">+3% vs mês ant.</p>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
         {/* SEÇÃO 4 — PERFORMANCE POR IMÓVEL */}
         <Card className="lg:col-span-2 border-none shadow-sm bg-white">
           <CardHeader>
@@ -245,26 +246,26 @@ const Index = () => {
             <div className="divide-y divide-gray-50">
               {propertyPerformance.map((prop, i) => (
                 <div key={i} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 font-bold">
+                  <div className="flex items-center gap-3 md:gap-4">
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 font-bold text-xs md:text-sm">
                       #{i + 1}
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-gray-900">{prop.name}</p>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs text-gray-500 flex items-center gap-1">
+                      <p className="text-xs md:text-sm font-bold text-gray-900">{prop.name}</p>
+                      <div className="flex items-center gap-2 md:gap-3 mt-1">
+                        <span className="text-[10px] md:text-xs text-gray-500 flex items-center gap-1">
                           <ArrowUpRight className="w-3 h-3 text-emerald-500" /> R$ {prop.revenue}
                         </span>
-                        <span className="text-xs text-gray-500 flex items-center gap-1">
+                        <span className="text-[10px] md:text-xs text-gray-500 flex items-center gap-1">
                           <ArrowDownRight className="w-3 h-3 text-rose-500" /> R$ {prop.expenses}
                         </span>
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold text-emerald-600">Lucro: R$ {prop.profit}</p>
-                    <Badge className="bg-emerald-50 text-emerald-700 border-none text-[10px] h-4">
-                      {((prop.profit / prop.revenue) * 100).toFixed(0)}% Margem
+                    <p className="text-xs md:text-sm font-bold text-emerald-600">R$ {prop.profit}</p>
+                    <Badge className="bg-emerald-50 text-emerald-700 border-none text-[9px] md:text-[10px] h-4 px-1">
+                      {((prop.profit / prop.revenue) * 100).toFixed(0)}%
                     </Badge>
                   </div>
                 </div>
@@ -294,7 +295,7 @@ const Index = () => {
                 <div className="flex-1">
                   <div className="flex justify-between items-start">
                     <p className="text-sm font-bold text-gray-900">{activity.user}</p>
-                    <span className="text-xs text-gray-400">{activity.time}</span>
+                    <span className="text-[10px] text-gray-400">{activity.time}</span>
                   </div>
                   <p className="text-xs text-gray-500">{activity.action}</p>
                   <p className="text-sm font-bold text-gray-900 mt-1">{activity.amount}</p>
