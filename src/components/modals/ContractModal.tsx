@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, Loader2, User, Home, DollarSign } from 'lucide-react';
+import { Calendar, Loader2, User, Home, DollarSign, Info } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { differenceInMonths, parseISO } from 'date-fns';
 
 interface ContractModalProps {
   isOpen: boolean;
@@ -33,24 +34,24 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
     status: 'ativo'
   });
 
+  // Carregar Inquilinos e Imóveis
   useEffect(() => {
     const fetchData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Buscar todos os inquilinos
       const { data: t } = await supabase
         .from('tenants')
-        .select('id, name')
+        .select('id, name, contract_start_date, contract_end_date, property_id')
         .eq('user_id', user.id);
 
-      const query = supabase
+      // Buscar TODOS os imóveis (sem filtrar por disponível para evitar que sumam)
+      const { data: p } = await supabase
         .from('properties')
-        .select('id, name, base_rent')
+        .select('id, name, base_rent, status')
         .eq('user_id', user.id);
         
-      if (!isEdit) query.eq('status', 'disponivel');
-      
-      const { data: p } = await query;
       setTenants(t || []);
       setProperties(p || []);
     };
@@ -77,7 +78,35 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
         });
       }
     }
-  }, [isOpen, contract, isEdit]);
+  }, [isOpen, contract]);
+
+  // Puxar dados do inquilino quando selecionado
+  const handleTenantChange = (tenantId: string) => {
+    const selectedTenant = tenants.find(t => t.id === tenantId);
+    if (selectedTenant) {
+      let duration = '12';
+      if (selectedTenant.contract_start_date && selectedTenant.contract_end_date) {
+        const start = parseISO(selectedTenant.contract_start_date);
+        const end = parseISO(selectedTenant.contract_end_date);
+        duration = Math.abs(differenceInMonths(end, start)).toString();
+      }
+
+      const linkedProperty = properties.find(p => p.id === selectedTenant.property_id);
+
+      setFormData(prev => ({
+        ...prev,
+        tenant_id: tenantId,
+        property_id: selectedTenant.property_id || prev.property_id,
+        start_date: selectedTenant.contract_start_date || prev.start_date,
+        duration_months: duration,
+        rent_value: linkedProperty?.base_rent?.toString() || prev.rent_value
+      }));
+      
+      if (selectedTenant.property_id) {
+        showSuccess(`Dados de ${selectedTenant.name} carregados!`);
+      }
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,13 +119,14 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
       const payload = {
         ...formData,
         user_id: user.id,
-        rent_value: parseFloat(formData.rent_value),
-        duration_months: parseInt(formData.duration_months)
+        rent_value: parseFloat(formData.rent_value) || 0,
+        duration_months: parseInt(formData.duration_months) || 12
       };
 
       if (isEdit) {
+        // Se mudou o imóvel, liberar o antigo e ocupar o novo
         if (contract.property_id !== formData.property_id) {
-          await supabase.from('properties').update({ status: 'disponivel' }).eq('id', contract.property_id);
+          if (contract.property_id) await supabase.from('properties').update({ status: 'disponivel' }).eq('id', contract.property_id);
           await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
         }
 
@@ -106,11 +136,12 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
           .eq('id', contract.id);
         
         if (error) throw error;
-        showSuccess('Contrato atualizado com sucesso!');
+        showSuccess('Contrato atualizado!');
       } else {
         const { error: contractError } = await supabase.from('contracts').insert([payload]);
         if (contractError) throw contractError;
 
+        // Garantir que o imóvel e o inquilino estejam sincronizados
         await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
         await supabase.from('tenants').update({ property_id: formData.property_id }).eq('id', formData.tenant_id);
 
@@ -119,6 +150,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
 
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
       queryClient.invalidateQueries({ queryKey: ['properties'] });
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       
       onClose();
@@ -138,10 +170,17 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSave} className="space-y-6 py-4">
+          <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-start gap-3">
+            <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+            <p className="text-xs font-medium text-blue-800 leading-relaxed">
+              Selecione o inquilino primeiro para carregar automaticamente as datas e o imóvel que você já cadastrou.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Inquilino</Label>
-              <Select value={formData.tenant_id} onValueChange={v => setFormData({...formData, tenant_id: v})} required>
+              <Select value={formData.tenant_id} onValueChange={handleTenantChange} required>
                 <SelectTrigger className="rounded-xl h-12 bg-slate-50 border-none font-bold">
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-slate-300" />
@@ -166,7 +205,11 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  {properties.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  {properties.map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} {p.status === 'alugado' ? '(Locado)' : ''}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
