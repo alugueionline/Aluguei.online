@@ -1,46 +1,41 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, User, FileText, Edit2, Trash2, Home } from 'lucide-react';
+import { Plus, User, FileText, Edit2, Trash2, Home, Loader2 } from 'lucide-react';
 import { ContractModal } from '@/components/modals/ContractModal';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { cn } from '@/lib/utils';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 const Contracts = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedContract, setSelectedContract] = useState<any>(null);
-  const [contracts, setContracts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const fetchContracts = async () => {
-    try {
-      setLoading(true);
+  const { data: contracts = [], isLoading } = useQuery({
+    queryKey: ['contracts'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
       const { data, error } = await supabase
         .from('contracts')
         .select('*, properties(id, name), tenants(id, name)')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       
       if (error) {
-        if (error.code !== '42P01') console.error('Erro ao carregar contratos:', error);
-        setContracts([]);
-      } else {
-        setContracts(data || []);
+        console.error('Erro ao carregar contratos:', error);
+        throw error;
       }
-    } catch (err) {
-      setContracts([]);
-    } finally {
-      setLoading(false);
+      return data || [];
     }
-  };
-
-  useEffect(() => {
-    fetchContracts();
-  }, []);
+  });
 
   const handleEdit = (contract: any) => {
     setSelectedContract(contract);
@@ -65,7 +60,8 @@ const Contracts = () => {
         }
 
         showSuccess('Contrato removido e imóvel liberado.');
-        fetchContracts();
+        queryClient.invalidateQueries({ queryKey: ['contracts'] });
+        queryClient.invalidateQueries({ queryKey: ['properties'] });
       } catch (error: any) {
         showError('Erro ao excluir contrato: ' + error.message);
       }
@@ -83,12 +79,15 @@ const Contracts = () => {
         </Button>
       </div>
 
-      {loading ? (
-        <div className="text-center py-20 text-gray-400 font-medium">Carregando contratos...</div>
+      {isLoading ? (
+        <div className="h-[40vh] flex flex-col items-center justify-center gap-4">
+          <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+          <p className="text-gray-400 font-medium">Carregando contratos...</p>
+        </div>
       ) : contracts.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
           {contracts.map((c) => (
-            <Card key={c.id} className="premium-card rounded-[2.5rem] p-8 group hover:shadow-xl transition-all">
+            <Card key={c.id} className="premium-card rounded-[2.5rem] p-8 group hover:shadow-xl transition-all border-none bg-white">
               <div className="flex justify-between items-start mb-6">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
@@ -161,7 +160,7 @@ const Contracts = () => {
       )}
       <ContractModal 
         isOpen={isModalOpen} 
-        onClose={() => { setIsModalOpen(false); fetchContracts(); }} 
+        onClose={() => { setIsModalOpen(false); queryClient.invalidateQueries({ queryKey: ['contracts'] }); }} 
         contract={selectedContract}
       />
     </DashboardLayout>

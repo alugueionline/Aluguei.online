@@ -35,9 +35,19 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: t } = await supabase.from('tenants').select('id, name');
-      // Se for edição, mostramos todos os imóveis. Se for novo, apenas os disponíveis.
-      const query = supabase.from('properties').select('id, name, base_rent');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: t } = await supabase
+        .from('tenants')
+        .select('id, name')
+        .eq('user_id', user.id);
+
+      const query = supabase
+        .from('properties')
+        .select('id, name, base_rent')
+        .eq('user_id', user.id);
+        
       if (!isEdit) query.eq('status', 'disponivel');
       
       const { data: p } = await query;
@@ -85,7 +95,6 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
       };
 
       if (isEdit) {
-        // Se o imóvel mudou, precisamos liberar o antigo e ocupar o novo
         if (contract.property_id !== formData.property_id) {
           await supabase.from('properties').update({ status: 'disponivel' }).eq('id', contract.property_id);
           await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
@@ -102,20 +111,15 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
         const { error: contractError } = await supabase.from('contracts').insert([payload]);
         if (contractError) throw contractError;
 
-        // Atualiza o status do imóvel para alugado
-        const { error: propError } = await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
-        if (propError) throw propError;
-
-        // Atualiza o vínculo do inquilino (opcional, mas mantido para compatibilidade)
+        await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
         await supabase.from('tenants').update({ property_id: formData.property_id }).eq('id', formData.tenant_id);
 
         showSuccess('Contrato gerado com sucesso!');
       }
 
-      // Invalida os caches para atualizar a UI imediatamente
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
       queryClient.invalidateQueries({ queryKey: ['properties'] });
-      queryClient.invalidateQueries({ queryKey: ['properties-preview'] });
-      queryClient.invalidateQueries({ queryKey: ['tenant'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       
       onClose();
     } catch (error: any) {
@@ -127,7 +131,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] p-8">
+      <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] p-8 border-none shadow-2xl bg-white">
         <DialogHeader>
           <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">
             {isEdit ? 'Editar Contrato' : 'Novo Contrato de Locação'}
