@@ -43,47 +43,58 @@ const Dashboard = () => {
   const { data: financialData, isLoading: loadingBills } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
-      const { data: bills } = await supabase.from('bills').select('*');
-      const { data: contracts } = await supabase.from('contracts').select('*').eq('status', 'ativo');
+      // Buscar faturas e contratos simultaneamente
+      const [billsRes, contractsRes] = await Promise.all([
+        supabase.from('bills').select('*'),
+        supabase.from('contracts').select('*').eq('status', 'ativo')
+      ]);
+
+      const bills = billsRes.data || [];
+      const contracts = contractsRes.data || [];
       
       let rec = 0, des = 0, pen = 0;
-      const overdue: any[] = [];
+      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+      const currentYear = new Date().getFullYear();
 
-      // Somar contas já lançadas
-      if (bills) {
-        bills.forEach(b => {
-          const val = Number(b.total_value || b.calculated_value) || 0;
-          if (b.status === 'pago') {
-            if (b.type === 'receita' || b.type === 'aluguel') rec += val;
-            else des += val;
-          } else {
-            if (b.type === 'receita' || b.type === 'aluguel') pen += val;
-          }
-        });
-      }
+      // 1. Somar faturas já existentes (Lançamentos manuais ou rateios)
+      bills.forEach(b => {
+        const val = Number(b.total_value || b.calculated_value) || 0;
+        if (b.status === 'pago') {
+          if (b.type === 'receita' || b.type === 'aluguel') rec += val;
+          else des += val;
+        } else {
+          // Soma tudo que está pendente ou atrasado
+          if (b.type === 'receita' || b.type === 'aluguel') pen += val;
+        }
+      });
 
-      // Somar aluguéis de contratos ativos que ainda não foram pagos este mês
-      if (contracts) {
-        const currentMonth = new Date().getMonth() + 1;
-        const currentYear = new Date().getFullYear();
+      // 2. Somar aluguéis de contratos ativos que ainda NÃO geraram fatura este mês
+      contracts.forEach(c => {
+        const rentVal = Number(c.rent_value) || 0;
         
-        contracts.forEach(c => {
-          // Verifica se já existe uma conta de aluguel paga para este imóvel este mês
-          const alreadyPaid = bills?.some(b => 
-            b.property_id === c.property_id && 
-            b.type === 'aluguel' && 
-            b.status === 'pago' &&
-            b.month === currentMonth.toString().padStart(2, '0') &&
-            b.year === currentYear
-          );
+        // Verifica se já existe QUALQUER fatura de aluguel (paga ou pendente) para este imóvel este mês
+        const hasBillThisMonth = bills.some(b => 
+          b.property_id === c.property_id && 
+          b.type === 'aluguel' && 
+          b.month === currentMonth &&
+          b.year === currentYear
+        );
 
-          if (!alreadyPaid) {
-            pen += Number(c.rent_value);
-          }
-        });
-      }
+        // Se não tem fatura nenhuma, o valor do contrato é considerado "A receber" esperado
+        if (!hasBillThisMonth) {
+          pen += rentVal;
+        }
+      });
 
-      return { stats: { receitas: rec, despesas: des, lucro: rec - des, pendente: pen }, alerts: overdue };
+      return { 
+        stats: { 
+          receitas: rec, 
+          despesas: des, 
+          lucro: rec - des, 
+          pendente: pen 
+        }, 
+        alerts: [] 
+      };
     }
   });
 
