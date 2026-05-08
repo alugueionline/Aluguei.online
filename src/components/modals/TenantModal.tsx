@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, Loader2 } from 'lucide-react';
+import { Calendar, Loader2, User } from 'lucide-react';
 
 interface TenantModalProps {
   isOpen: boolean;
@@ -42,12 +42,12 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
       fetchProperties();
       if (tenant) {
         setFormData({
-          name: tenant.name,
+          name: tenant.name || '',
           cpf: tenant.cpf || '',
           phone: tenant.phone || '',
           email: tenant.email || '',
           property_id: tenant.property_id || '',
-          status: tenant.status,
+          status: tenant.status || 'ativo',
           contract_start_date: tenant.contract_start_date || '',
           contract_end_date: tenant.contract_end_date || ''
         });
@@ -75,16 +75,21 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
       if (!user) throw new Error('Não autenticado');
 
       const payload = {
-        ...formData,
-        user_id: user.id,
-        property_id: formData.property_id || null
+        name: formData.name,
+        cpf: formData.cpf,
+        phone: formData.phone,
+        email: formData.email,
+        property_id: formData.property_id || null,
+        status: formData.status,
+        contract_start_date: formData.contract_start_date || null,
+        contract_end_date: formData.contract_end_date || null,
+        user_id: user.id
       };
 
       if (isEdit) {
         const { error } = await supabase.from('tenants').update(payload).eq('id', tenant.id);
         if (error) throw error;
         
-        // Se mudou o imóvel ou é um novo vínculo, atualiza o status do imóvel
         if (formData.property_id) {
           await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
         }
@@ -94,16 +99,16 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         const { error } = await supabase.from('tenants').insert([payload]);
         if (error) throw error;
 
-        // Atualiza o status do imóvel para alugado
         if (formData.property_id) {
           await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
         }
 
-        showSuccess('Inquilino cadastrado e imóvel atualizado para locado!');
+        showSuccess('Inquilino cadastrado com sucesso!');
       }
       onClose();
     } catch (error: any) {
-      showError(error.message);
+      console.error("Erro ao salvar:", error);
+      showError('Erro ao salvar: ' + (error.message || 'Verifique os campos e tente novamente.'));
     } finally {
       setLoading(false);
     }
@@ -113,7 +118,9 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] p-8">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-black tracking-tight">{isEdit ? 'Editar Inquilino' : 'Novo Inquilino'}</DialogTitle>
+          <DialogTitle className="text-2xl font-black tracking-tight">
+            {isEdit ? 'Editar Inquilino' : 'Novo Inquilino'}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSave} className="space-y-5 py-4">
           <div className="space-y-2">
@@ -148,15 +155,16 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Imóvel Vinculado</Label>
+            <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Imóvel Principal (Opcional)</Label>
             <Select 
               value={formData.property_id} 
               onValueChange={v => setFormData({...formData, property_id: v})}
             >
               <SelectTrigger className="rounded-xl h-12 bg-blue-50/50 border-none font-bold text-blue-900">
-                <SelectValue placeholder="Selecione um imóvel disponível" />
+                <SelectValue placeholder="Selecione um imóvel (ou deixe vazio)" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="none">Nenhum imóvel vinculado</SelectItem>
                 {properties.map(p => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name} {p.status === 'alugado' ? '(Já Locado)' : ''}
@@ -164,6 +172,9 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-[10px] text-slate-400 font-medium italic mt-1">
+              Dica: Para inquilinos com múltiplos imóveis, você pode criar contratos separados na aba de Contratos.
+            </p>
           </div>
 
           <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-4">
