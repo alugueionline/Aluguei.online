@@ -1,12 +1,12 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   ArrowLeft, 
   User, 
@@ -20,7 +20,8 @@ import {
   Clock,
   Loader2,
   TrendingUp,
-  CheckCircle2
+  CheckCircle2,
+  Edit2
 } from 'lucide-react';
 import { 
   Table, 
@@ -32,10 +33,13 @@ import {
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { TenantModal } from '@/components/modals/TenantModal';
 
 const TenantDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const { data: tenant, isLoading } = useQuery({
     queryKey: ['tenant', id],
@@ -100,17 +104,25 @@ const TenantDetails = () => {
     return new Date(dateStr).toLocaleDateString('pt-BR');
   };
 
-  const dueDay = tenant.contract_start_date ? new Date(tenant.contract_start_date).getDate() : 'N/A';
+  const dueDay = tenant.due_day || 5;
 
   return (
     <DashboardLayout title="Perfil do Inquilino">
-      <Button 
-        variant="ghost" 
-        className="mb-6 gap-2 text-gray-500 hover:text-gray-900"
-        onClick={() => navigate(-1)}
-      >
-        <ArrowLeft className="w-4 h-4" /> Voltar
-      </Button>
+      <div className="flex justify-between items-center mb-6">
+        <Button 
+          variant="ghost" 
+          className="gap-2 text-gray-500 hover:text-gray-900"
+          onClick={() => navigate(-1)}
+        >
+          <ArrowLeft className="w-4 h-4" /> Voltar
+        </Button>
+        <Button 
+          onClick={() => setIsModalOpen(true)}
+          className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold gap-2"
+        >
+          <Edit2 className="w-4 h-4" /> Editar Perfil
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 space-y-6">
@@ -266,6 +278,11 @@ const TenantDetails = () => {
           </Card>
         </div>
       </div>
+      <TenantModal 
+        isOpen={isModalOpen} 
+        onClose={() => { setIsModalOpen(false); queryClient.invalidateQueries({ queryKey: ['tenant', id] }); }} 
+        tenant={tenant} 
+      />
     </DashboardLayout>
   );
 };

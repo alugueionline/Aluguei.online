@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, Loader2, User } from 'lucide-react';
+import { Calendar, Loader2, User, DollarSign } from 'lucide-react';
 
 interface TenantModalProps {
   isOpen: boolean;
@@ -29,7 +29,8 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
     property_id: '',
     status: 'ativo',
     contract_start_date: '',
-    contract_end_date: ''
+    contract_end_date: '',
+    due_day: '5'
   });
 
   useEffect(() => {
@@ -49,7 +50,8 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
           property_id: tenant.property_id || '',
           status: tenant.status || 'ativo',
           contract_start_date: tenant.contract_start_date || '',
-          contract_end_date: tenant.contract_end_date || ''
+          contract_end_date: tenant.contract_end_date || '',
+          due_day: (tenant.due_day || 5).toString()
         });
       } else {
         setFormData({
@@ -60,7 +62,8 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
           property_id: '',
           status: 'ativo',
           contract_start_date: '',
-          contract_end_date: ''
+          contract_end_date: '',
+          due_day: '5'
         });
       }
     }
@@ -79,10 +82,11 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         cpf: formData.cpf,
         phone: formData.phone,
         email: formData.email,
-        property_id: formData.property_id || null,
+        property_id: formData.property_id === 'none' ? null : (formData.property_id || null),
         status: formData.status,
         contract_start_date: formData.contract_start_date || null,
         contract_end_date: formData.contract_end_date || null,
+        due_day: parseInt(formData.due_day) || 5,
         user_id: user.id
       };
 
@@ -90,8 +94,9 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         const { error } = await supabase.from('tenants').update(payload).eq('id', tenant.id);
         if (error) throw error;
         
-        if (formData.property_id) {
-          await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
+        // Se vinculou a um imóvel, atualiza o status dele
+        if (payload.property_id) {
+          await supabase.from('properties').update({ status: 'alugado' }).eq('id', payload.property_id);
         }
         
         showSuccess('Inquilino atualizado!');
@@ -99,8 +104,8 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         const { error } = await supabase.from('tenants').insert([payload]);
         if (error) throw error;
 
-        if (formData.property_id) {
-          await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
+        if (payload.property_id) {
+          await supabase.from('properties').update({ status: 'alugado' }).eq('id', payload.property_id);
         }
 
         showSuccess('Inquilino cadastrado com sucesso!');
@@ -154,27 +159,40 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Imóvel Principal (Opcional)</Label>
-            <Select 
-              value={formData.property_id} 
-              onValueChange={v => setFormData({...formData, property_id: v})}
-            >
-              <SelectTrigger className="rounded-xl h-12 bg-blue-50/50 border-none font-bold text-blue-900">
-                <SelectValue placeholder="Selecione um imóvel (ou deixe vazio)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhum imóvel vinculado</SelectItem>
-                {properties.map(p => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name} {p.status === 'alugado' ? '(Já Locado)' : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-[10px] text-slate-400 font-medium italic mt-1">
-              Dica: Para inquilinos com múltiplos imóveis, você pode criar contratos separados na aba de Contratos.
-            </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Imóvel Vinculado</Label>
+              <Select 
+                value={formData.property_id || 'none'} 
+                onValueChange={v => setFormData({...formData, property_id: v})}
+              >
+                <SelectTrigger className="rounded-xl h-12 bg-blue-50/50 border-none font-bold text-blue-900">
+                  <SelectValue placeholder="Selecione um imóvel" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum imóvel</SelectItem>
+                  {properties.map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} {p.status === 'alugado' && p.id !== tenant?.property_id ? '(Locado)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-1">Dia de Vencimento</Label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
+                <Input 
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={formData.due_day}
+                  onChange={e => setFormData({...formData, due_day: e.target.value})}
+                  className="rounded-xl h-12 bg-emerald-50/30 border-none font-bold pl-10"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-4">
