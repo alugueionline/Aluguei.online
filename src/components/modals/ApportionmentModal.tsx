@@ -24,40 +24,59 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
   const [properties, setProperties] = useState<any[]>([]);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
 
   useEffect(() => {
     const fetchProperties = async () => {
-      // Buscamos propriedades e seus inquilinos ativos para saber o número de moradores
-      const { data } = await supabase
-        .from('properties')
-        .select(`
-          id, 
-          name,
-          tenants (
-            id,
-            name,
-            residents_count,
-            status
-          )
-        `);
-      
-      // Filtramos apenas propriedades que têm inquilinos ativos (ou tratamos como 0 moradores)
-      const formatted = (data || []).map(p => {
-        const activeTenant = p.tenants?.find((t: any) => t.status === 'ativo');
-        return {
-          id: p.id,
-          name: p.name,
-          residents: activeTenant?.residents_count || 0
-        };
-      });
+      try {
+        setFetching(true);
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) return;
 
-      setProperties(formatted);
-      if (formatted.length > 0) setSelectedParticipants(formatted.map(p => p.id));
+        // Buscamos propriedades e seus inquilinos ativos do usuário logado
+        const { data, error } = await supabase
+          .from('properties')
+          .select(`
+            id, 
+            name,
+            user_id,
+            tenants (
+              id,
+              name,
+              residents_count,
+              status
+            )
+          `)
+          .eq('user_id', user.id);
+        
+        if (error) throw error;
+
+        const formatted = (data || []).map(p => {
+          const activeTenant = p.tenants?.find((t: any) => t.status === 'ativo');
+          return {
+            id: p.id,
+            name: p.name,
+            residents: activeTenant?.residents_count || 0,
+            hasActiveTenant: !!activeTenant
+          };
+        });
+
+        setProperties(formatted);
+        // Seleciona automaticamente apenas as unidades que possuem inquilinos ativos
+        setSelectedParticipants(formatted.filter(p => p.hasActiveTenant).map(p => p.id));
+      } catch (err: any) {
+        console.error('Erro ao carregar unidades para rateio:', err.message);
+      } finally {
+        setFetching(false);
+      }
     };
-    if (isOpen) fetchProperties();
+
+    if (isOpen) {
+      fetchProperties();
+    }
   }, [isOpen]);
 
-  // Cálculo do total de moradores selecionados
   const totalResidents = properties
     .filter(p => selectedParticipants.includes(p.id))
     .reduce((acc, p) => acc + p.residents, 0);
@@ -80,7 +99,6 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
-      // Criar lançamentos individuais baseados no número de moradores de cada imóvel
       const billsToInsert = properties
         .filter(p => selectedParticipants.includes(p.id) && p.residents > 0)
         .map(p => ({
@@ -89,8 +107,8 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
           type: type,
           month: currentMonth,
           year: currentYear,
-          total_value: parseFloat(totalValue), // Valor total da fatura original
-          calculated_value: p.residents * valuePerPerson, // Valor que esta unidade deve pagar
+          total_value: parseFloat(totalValue),
+          calculated_value: p.residents * valuePerPerson,
           status: 'pendente'
         }));
 
@@ -107,7 +125,7 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
         date: new Date().toISOString()
       });
 
-      showSuccess(`Rateio de ${type} processado por pessoa!`);
+      showSuccess(`Rateio de ${type} processado com sucesso!`);
       onClose();
     } catch (error: any) {
       showError(error.message);
@@ -132,7 +150,7 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
           <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-start gap-3">
             <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
             <p className="text-xs font-medium text-blue-800 leading-relaxed">
-              O sistema somará todos os moradores das unidades selecionadas e dividirá o valor total. Cada casa pagará proporcionalmente ao seu número de moradores.
+              O sistema dividirá o valor total pelo número de moradores das unidades selecionadas.
             </p>
           </div>
 
@@ -174,29 +192,39 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
               <span className="text-blue-600">{totalResidents} moradores no total</span>
             </Label>
             <div className="grid grid-cols-2 gap-3 max-h-[200px] overflow-y-auto p-4 border rounded-2xl bg-slate-50/50">
-              {properties.map((p) => (
-                <div 
-                  key={p.id}
-                  onClick={() => toggleParticipant(p.id)}
-                  className={cn(
-                    "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all",
-                    selectedParticipants.includes(p.id) 
-                      ? "bg-white border-blue-200 shadow-sm" 
-                      : "bg-transparent border-transparent text-slate-400"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <Checkbox checked={selectedParticipants.includes(p.id)} />
-                    <div className="flex items-center gap-2">
-                      <Building2 className={cn("w-4 h-4", selectedParticipants.includes(p.id) ? "text-blue-600" : "text-slate-300")} />
-                      <span className="text-sm font-bold truncate max-w-[120px]">{p.name}</span>
-                    </div>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] font-black border-slate-100">
-                    {p.residents} {p.residents === 1 ? 'PESSOA' : 'PESSOAS'}
-                  </Badge>
+              {fetching ? (
+                <div className="col-span-2 py-10 flex justify-center">
+                  <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
                 </div>
-              ))}
+              ) : properties.length > 0 ? (
+                properties.map((p) => (
+                  <div 
+                    key={p.id}
+                    onClick={() => toggleParticipant(p.id)}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all",
+                      selectedParticipants.includes(p.id) 
+                        ? "bg-white border-blue-200 shadow-sm" 
+                        : "bg-transparent border-transparent text-slate-400"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Checkbox checked={selectedParticipants.includes(p.id)} />
+                      <div className="flex items-center gap-2">
+                        <Building2 className={cn("w-4 h-4", selectedParticipants.includes(p.id) ? "text-blue-600" : "text-slate-300")} />
+                        <span className="text-sm font-bold truncate max-w-[120px]">{p.name}</span>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] font-black border-slate-100">
+                      {p.residents} {p.residents === 1 ? 'PESSOA' : 'PESSOAS'}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-2 py-10 text-center text-slate-400 text-sm font-medium">
+                  Nenhuma unidade encontrada.
+                </div>
+              )}
             </div>
           </div>
 
@@ -223,7 +251,7 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
 
           <DialogFooter className="pt-4">
             <Button type="button" variant="ghost" onClick={onClose} className="rounded-xl font-bold text-slate-400">Cancelar</Button>
-            <Button type="submit" disabled={loading} className="bg-[#2563FF] hover:bg-blue-700 text-white rounded-xl px-10 font-black h-12 shadow-lg shadow-blue-100">
+            <Button type="submit" disabled={loading || fetching} className="bg-[#2563FF] hover:bg-blue-700 text-white rounded-xl px-10 font-black h-12 shadow-lg shadow-blue-100">
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Processar Rateio'}
             </Button>
           </DialogFooter>
