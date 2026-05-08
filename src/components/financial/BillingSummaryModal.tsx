@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Copy, Send, Calculator, Landmark, User, Trash2, Plus, Search, Loader2 } from 'lucide-react';
+import { MessageSquare, Copy, Send, Calculator, Landmark, Trash2, Plus, Search, Loader2 } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -16,7 +16,7 @@ interface BillingSummaryModalProps {
   initialData?: any;
 }
 
-export const BillingSummaryModal = ({ isOpen, onClose, initialData }: BillingSummaryModalProps) => {
+export const BillingSummaryModal = ({ isOpen, onClose }: BillingSummaryModalProps) => {
   const [loading, setLoading] = useState(false);
   const [tenants, setTenants] = useState<any[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState('');
@@ -24,15 +24,13 @@ export const BillingSummaryModal = ({ isOpen, onClose, initialData }: BillingSum
   const [rentValue, setRentValue] = useState('0');
   const [condoValue, setCondoValue] = useState('0');
   const [extraValues, setExtraValues] = useState<any[]>([]);
-  const [generatedMessage, setGeneratedMessage] = useState('');
 
-  // Carregar inquilinos reais
   useEffect(() => {
     const fetchTenants = async () => {
       setLoading(true);
       const { data } = await supabase
         .from('tenants')
-        .select('id, name, property_id, properties(name, condo_fee)')
+        .select('id, name, phone, property_id, properties(name, condo_fee)')
         .eq('status', 'ativo');
       setTenants(data || []);
       setLoading(false);
@@ -40,14 +38,12 @@ export const BillingSummaryModal = ({ isOpen, onClose, initialData }: BillingSum
     if (isOpen) fetchTenants();
   }, [isOpen]);
 
-  // Função para carregar dados financeiros do inquilino selecionado
   const handleSelectTenant = async (id: string) => {
     setSelectedTenantId(id);
     const tenant = tenants.find(t => t.id === id);
     if (!tenant) return;
 
     try {
-      // 1. Buscar Aluguel do Contrato Ativo
       const { data: contract } = await supabase
         .from('contracts')
         .select('rent_value')
@@ -58,7 +54,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, initialData }: BillingSum
       setRentValue(contract?.rent_value?.toString() || '0');
       setCondoValue(tenant.properties?.condo_fee?.toString() || '0');
 
-      // 2. Buscar Rateios/Contas Pendentes do Mês Atual para este imóvel
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
@@ -69,7 +64,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, initialData }: BillingSum
         .eq('month', currentMonth)
         .eq('year', currentYear)
         .eq('status', 'pendente')
-        .neq('type', 'aluguel'); // Não duplicar o aluguel que já vem do contrato
+        .neq('type', 'aluguel');
 
       if (bills && bills.length > 0) {
         const extras = bills.map(b => ({
@@ -87,16 +82,14 @@ export const BillingSummaryModal = ({ isOpen, onClose, initialData }: BillingSum
     }
   };
 
-  const calculateTotal = () => {
+  const total = useMemo(() => {
     const rent = parseFloat(rentValue) || 0;
     const condo = parseFloat(condoValue) || 0;
     const extras = extraValues.reduce((acc, curr) => acc + (parseFloat(curr.value) || 0), 0);
     return rent + condo + extras;
-  };
+  }, [rentValue, condoValue, extraValues]);
 
-  const total = calculateTotal();
-
-  useEffect(() => {
+  const generatedMessage = useMemo(() => {
     const tenantObj = tenants.find(t => t.id === selectedTenantId);
     const tenantName = tenantObj?.name || 'Inquilino';
     const rent = parseFloat(rentValue) || 0;
@@ -113,9 +106,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, initialData }: BillingSum
       }
     });
 
-    const message = `Olá ${tenantName}! 👋\n\nEstou enviando o resumo do aluguel e demais valores deste mês:\n\n${details}\n💰 *Total a pagar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n\n🔑 *Chave PIX:* ${pixKey}\n\nQualquer dúvida, estou à disposição!`;
-    
-    setGeneratedMessage(message);
+    return `Olá ${tenantName}! 👋\n\nEstou enviando o resumo do aluguel e demais valores deste mês:\n\n${details}\n💰 *Total a pagar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n\n🔑 *Chave PIX:* ${pixKey}\n\nQualquer dúvida, estou à disposição!`;
   }, [selectedTenantId, rentValue, condoValue, extraValues, pixKey, total, tenants]);
 
   const handleSendWhatsApp = () => {
@@ -138,7 +129,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, initialData }: BillingSum
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[800px] rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
         <div className="grid grid-cols-1 md:grid-cols-2 h-[700px]">
-          {/* Configurações */}
           <div className="p-8 space-y-6 bg-white overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">Resumo de Cobrança</DialogTitle>
@@ -253,7 +243,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, initialData }: BillingSum
             </div>
           </div>
 
-          {/* Preview da Mensagem */}
           <div className="bg-slate-900 p-8 flex flex-col">
             <div className="flex items-center gap-2 mb-6 text-blue-400">
               <MessageSquare className="w-5 h-5" />

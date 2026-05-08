@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calculator, Users, Receipt, Building2, Loader2, Info, User } from 'lucide-react';
+import { Calculator, Users, Receipt, Building2, Loader2, User } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -30,9 +30,6 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
     const fetchActiveTenants = async () => {
       try {
         setFetching(true);
-        
-        // Buscamos todos os inquilinos vinculados ao usuário (RLS cuidará do filtro de user_id)
-        // Removemos residents_count pois a coluna pode não existir no banco ainda
         const { data, error } = await supabase
           .from('tenants')
           .select(`
@@ -40,14 +37,11 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
             name,
             status,
             property_id,
-            properties (
-              name
-            )
+            properties (name)
           `);
         
         if (error) throw error;
 
-        // Filtramos apenas os ativos no lado do cliente para evitar problemas de case-sensitivity
         const activeTenants = (data || []).filter(t => 
           t.status?.toLowerCase() === 'ativo'
         );
@@ -57,7 +51,7 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
           tenantName: t.name,
           propertyName: t.properties?.name || 'Imóvel não vinculado',
           propertyId: t.property_id,
-          residents: 1, // Valor padrão enquanto a coluna residents_count não é criada no DB
+          residents: 1,
         }));
 
         setParticipants(formatted);
@@ -75,6 +69,12 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
     }
   }, [isOpen]);
 
+  const toggleParticipant = (id: string) => {
+    setSelectedParticipants(prev => 
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+    );
+  };
+
   const totalResidents = participants
     .filter(p => selectedParticipants.includes(p.id))
     .reduce((acc, p) => acc + p.residents, 0);
@@ -83,13 +83,12 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (totalResidents === 0) {
+    if (selectedParticipants.length === 0) {
       showError('Nenhum inquilino selecionado.');
       return;
     }
 
     setLoading(true);
-    
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
@@ -107,7 +106,7 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
           month: currentMonth,
           year: currentYear,
           total_value: parseFloat(totalValue),
-          calculated_value: p.residents * valuePerPerson,
+          calculated_value: valuePerPerson,
           status: 'pendente'
         }));
 
@@ -124,12 +123,6 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
     } finally {
       setLoading(false);
     }
-  };
-
-  const toggleParticipant = (id: string) => {
-    setSelectedParticipants(prev => 
-      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
-    );
   };
 
   return (
@@ -184,7 +177,11 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
                     )}
                   >
                     <div className="flex items-center gap-4">
-                      <Checkbox checked={selectedParticipants.includes(p.id)} />
+                      <Checkbox 
+                        checked={selectedParticipants.includes(p.id)} 
+                        onCheckedChange={() => toggleParticipant(p.id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
                       <div className="flex flex-col">
                         <div className="flex items-center gap-2">
                           <User className={cn("w-4 h-4", selectedParticipants.includes(p.id) ? "text-blue-600" : "text-slate-300")} />
