@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { 
@@ -15,26 +15,22 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit2, Trash2, ExternalLink, UserX, Building2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, ExternalLink, UserX, Loader2 } from 'lucide-react';
 import { TenantModal } from '@/components/modals/TenantModal';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { cn } from '@/lib/utils';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 const Tenants = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<any>(null);
-  const [tenants, setTenants] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const fetchTenants = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      setLoading(true);
-      // Buscamos inquilinos e seus contratos para saber se cuidam de múltiplos imóveis
+  const { data: tenants = [], isLoading } = useQuery({
+    queryKey: ['tenants'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('tenants')
         .select(`
@@ -44,22 +40,10 @@ const Tenants = () => {
         `)
         .order('created_at', { ascending: false });
       
-      if (error) {
-        if (error.code !== '42P01') console.error('Erro Supabase:', error);
-        setTenants([]);
-      } else {
-        setTenants(data || []);
-      }
-    } catch (error: any) {
-      setTenants([]);
-    } finally {
-      setLoading(false);
+      if (error && error.code !== '42P01') throw error;
+      return data || [];
     }
-  };
-
-  useEffect(() => {
-    fetchTenants();
-  }, []);
+  });
 
   const handleEdit = (tenant: any) => {
     setSelectedTenant(tenant);
@@ -77,7 +61,7 @@ const Tenants = () => {
       if (error) showError('Erro ao excluir');
       else {
         showSuccess('Inquilino removido.');
-        fetchTenants();
+        queryClient.invalidateQueries({ queryKey: ['tenants'] });
       }
     }
   };
@@ -92,8 +76,11 @@ const Tenants = () => {
 
       <Card className="border-none shadow-sm overflow-hidden rounded-[2rem]">
         <CardContent className="p-0">
-          {loading ? (
-            <div className="p-20 text-center text-gray-400">Carregando inquilinos...</div>
+          {isLoading ? (
+            <div className="p-20 text-center flex flex-col items-center gap-4">
+              <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+              <p className="text-gray-400 font-medium">Carregando inquilinos...</p>
+            </div>
           ) : tenants.length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
@@ -193,7 +180,10 @@ const Tenants = () => {
 
       <TenantModal 
         isOpen={isModalOpen} 
-        onClose={() => { setIsModalOpen(false); fetchTenants(); }} 
+        onClose={() => { 
+          setIsModalOpen(false); 
+          queryClient.invalidateQueries({ queryKey: ['tenants'] }); 
+        }} 
         tenant={selectedTenant} 
       />
     </DashboardLayout>

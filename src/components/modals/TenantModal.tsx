@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Calendar, Loader2, User, DollarSign } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface TenantModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
   const isEdit = !!tenant;
   const [loading, setLoading] = useState(false);
   const [properties, setProperties] = useState<any[]>([]);
+  const queryClient = useQueryClient();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -94,7 +96,6 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         const { error } = await supabase.from('tenants').update(payload).eq('id', tenant.id);
         if (error) throw error;
         
-        // Se vinculou a um imóvel, atualiza o status dele
         if (payload.property_id) {
           await supabase.from('properties').update({ status: 'alugado' }).eq('id', payload.property_id);
         }
@@ -110,6 +111,13 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
 
         showSuccess('Inquilino cadastrado com sucesso!');
       }
+
+      // Invalida os caches para atualizar a UI imediatamente
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      queryClient.invalidateQueries({ queryKey: ['properties-preview'] });
+      queryClient.invalidateQueries({ queryKey: ['tenant'] });
+      
       onClose();
     } catch (error: any) {
       console.error("Erro ao salvar:", error);
