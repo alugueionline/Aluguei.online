@@ -2,10 +2,10 @@
 
 import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, User, FileText, Edit2, Trash2, Home, Loader2 } from 'lucide-react';
+import { Plus, User, FileText, Edit2, Trash2, Home, Loader2, AlertCircle } from 'lucide-react';
 import { ContractModal } from '@/components/modals/ContractModal';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
@@ -17,25 +17,36 @@ const Contracts = () => {
   const [selectedContract, setSelectedContract] = useState<any>(null);
   const queryClient = useQueryClient();
 
-  const { data: contracts = [], isLoading } = useQuery({
+  // Busca Contratos
+  const { data: contracts = [], isLoading: loadingContracts } = useQuery({
     queryKey: ['contracts'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
-
       const { data, error } = await supabase
         .from('contracts')
         .select('*, properties(id, name), tenants(id, name)')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Erro ao carregar contratos:', error);
-        throw error;
-      }
+      if (error) throw error;
       return data || [];
     }
   });
+
+  // Busca Inquilinos para comparar quem está sem contrato
+  const { data: tenants = [] } = useQuery({
+    queryKey: ['tenants'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data } = await supabase.from('tenants').select('id, name').eq('user_id', user?.id);
+      return data || [];
+    }
+  });
+
+  // Filtra inquilinos que não aparecem em nenhum contrato
+  const tenantsWithoutContract = tenants.filter(t => 
+    !contracts.some(c => c.tenant_id === t.id)
+  );
 
   const handleEdit = (contract: any) => {
     setSelectedContract(contract);
@@ -43,46 +54,63 @@ const Contracts = () => {
   };
 
   const handleDelete = async (contract: any) => {
-    if (window.confirm(`Deseja excluir o contrato de ${contract.tenants?.name}? O imóvel ${contract.properties?.name} voltará a ficar disponível.`)) {
+    if (window.confirm(`Excluir contrato de ${contract.tenants?.name}?`)) {
       try {
-        // 1. Excluir o contrato
-        const { error: deleteError } = await supabase.from('contracts').delete().eq('id', contract.id);
-        if (deleteError) throw deleteError;
-
-        // 2. Liberar o imóvel
+        await supabase.from('contracts').delete().eq('id', contract.id);
         if (contract.property_id) {
           await supabase.from('properties').update({ status: 'disponivel' }).eq('id', contract.property_id);
         }
-
-        // 3. Remover vínculo do inquilino
-        if (contract.tenant_id) {
-          await supabase.from('tenants').update({ property_id: null }).eq('id', contract.tenant_id);
-        }
-
-        showSuccess('Contrato removido e imóvel liberado.');
+        showSuccess('Contrato removido.');
         queryClient.invalidateQueries({ queryKey: ['contracts'] });
         queryClient.invalidateQueries({ queryKey: ['properties'] });
       } catch (error: any) {
-        showError('Erro ao excluir contrato: ' + error.message);
+        showError('Erro: ' + error.message);
       }
     }
   };
 
   return (
     <DashboardLayout title="Gestão de Contratos">
-      <div className="flex justify-end mb-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div>
+          <p className="text-slate-500 font-medium">
+            Total de {contracts.length} contratos ativos para {tenants.length} inquilinos.
+          </p>
+        </div>
         <Button 
           onClick={() => { setSelectedContract(null); setIsModalOpen(true); }} 
-          className="h-14 px-8 rounded-2xl bg-[#2563FF] hover:bg-blue-700 text-white font-bold gap-2 shadow-lg"
+          className="h-14 px-8 rounded-2xl bg-[#2563FF] hover:bg-blue-700 text-white font-bold gap-2 shadow-lg w-full md:w-auto"
         >
           <Plus className="w-5 h-5" /> Novo Contrato
         </Button>
       </div>
 
-      {isLoading ? (
+      {/* Alerta de Inquilinos sem Contrato */}
+      {tenantsWithoutContract.length > 0 && (
+        <div className="mb-8 p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-center gap-4">
+          <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600 shrink-0">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <div className="flex-1">
+            <h4 className="text-sm font-bold text-amber-900">Inquilinos aguardando contrato</h4>
+            <p className="text-xs text-amber-700">
+              {tenantsWithoutContract.map(t => t.name).join(', ')} ainda não possuem imóveis vinculados.
+            </p>
+          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setIsModalOpen(true)}
+            className="text-amber-700 font-bold hover:bg-amber-100"
+          >
+            Vincular Agora
+          </Button>
+        </div>
+      )}
+
+      {loadingContracts ? (
         <div className="h-[40vh] flex flex-col items-center justify-center gap-4">
           <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-          <p className="text-gray-400 font-medium">Carregando contratos...</p>
         </div>
       ) : contracts.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
@@ -94,70 +122,55 @@ const Contracts = () => {
                     <User className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-black text-slate-900">{c.tenants?.name || 'Inquilino'}</h3>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400 font-bold">
+                    <h3 className="font-black text-slate-900 leading-tight">{c.tenants?.name}</h3>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400 font-bold mt-1">
                       <Home className="w-3 h-3" />
-                      {c.properties?.name || 'Imóvel'}
+                      {c.properties?.name}
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 rounded-lg hover:bg-blue-50 text-blue-600"
-                    onClick={() => handleEdit(c)}
-                  >
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" onClick={() => handleEdit(c)}>
                     <Edit2 className="w-4 h-4" />
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 rounded-lg hover:bg-red-50 text-red-500"
-                    onClick={() => handleDelete(c)}
-                  >
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => handleDelete(c)}>
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
 
-              <div className="space-y-3 mb-6">
+              <div className="space-y-3 mb-6 bg-slate-50 p-4 rounded-2xl">
                 <div className="flex justify-between text-xs font-bold">
-                  <span className="text-slate-400 uppercase tracking-widest">Início</span>
+                  <span className="text-slate-400 uppercase">Início</span>
                   <span className="text-slate-900">{new Date(c.start_date).toLocaleDateString('pt-BR')}</span>
                 </div>
                 <div className="flex justify-between text-xs font-bold">
-                  <span className="text-slate-400 uppercase tracking-widest">Duração</span>
-                  <span className="text-slate-900">{c.duration_months} meses</span>
+                  <span className="text-slate-400 uppercase">Aluguel</span>
+                  <span className="text-blue-600">R$ {Number(c.rent_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
 
-              <div className="flex justify-between items-center pt-4 border-t border-slate-50">
+              <div className="flex justify-between items-center">
                 <Badge className={cn(
                   "border-none uppercase text-[10px] font-black px-3 py-1 rounded-lg",
                   c.status === 'ativo' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
                 )}>
                   {c.status}
                 </Badge>
-                <p className="font-black text-blue-600 text-lg">
-                  R$ {Number(c.rent_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </p>
+                <span className="text-[10px] font-bold text-slate-300">ID: #{c.id.slice(0,5)}</span>
               </div>
             </Card>
           ))}
         </div>
       ) : (
-        <div className="py-20 text-center bg-white rounded-[2.5rem] border border-dashed border-gray-200 flex flex-col items-center justify-center">
-          <div className="w-20 h-20 bg-gray-50 rounded-3xl flex items-center justify-center text-gray-300 mb-6">
-            <FileText className="w-10 h-10" />
-          </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhum contrato ativo</h3>
-          <p className="text-gray-500 max-w-xs mx-auto mb-8">Vincule inquilinos aos seus imóveis através de contratos formais.</p>
-          <Button onClick={() => setIsModalOpen(true)} variant="outline" className="rounded-2xl h-12 px-8 font-bold border-blue-200 text-blue-600 hover:bg-blue-50">
-            Gerar Primeiro Contrato
-          </Button>
+        <div className="py-20 text-center bg-white rounded-[2.5rem] border border-dashed border-gray-200">
+          <FileText className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+          <h3 className="text-lg font-bold text-gray-900">Nenhum contrato encontrado</h3>
+          <p className="text-gray-500 mb-6">Crie um contrato para vincular seus inquilinos aos imóveis.</p>
+          <Button onClick={() => setIsModalOpen(true)} className="bg-blue-600">Criar Contrato</Button>
         </div>
       )}
+
       <ContractModal 
         isOpen={isModalOpen} 
         onClose={() => { setIsModalOpen(false); queryClient.invalidateQueries({ queryKey: ['contracts'] }); }} 
