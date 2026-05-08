@@ -21,19 +21,35 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
   const [loading, setLoading] = useState(false);
   const [properties, setProperties] = useState<any[]>([]);
   const [tenants, setTenants] = useState<any[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>('');
+  const [selectedTenantId, setSelectedTenantId] = useState<string>('none');
   const queryClient = useQueryClient();
 
   useEffect(() => {
     const fetchData = async () => {
       const [propsRes, tenantsRes] = await Promise.all([
         supabase.from('properties').select('id, name'),
-        supabase.from('tenants').select('id, name')
+        supabase.from('tenants').select('id, name, property_id')
       ]);
       setProperties(propsRes.data || []);
       setTenants(tenantsRes.data || []);
     };
-    if (isOpen) fetchData();
+    if (isOpen) {
+      fetchData();
+      setSelectedPropertyId('');
+      setSelectedTenantId('none');
+    }
   }, [isOpen]);
+
+  const handleTenantChange = (tenantId: string) => {
+    setSelectedTenantId(tenantId);
+    if (tenantId !== 'none') {
+      const tenant = tenants.find(t => t.id === tenantId);
+      if (tenant?.property_id) {
+        setSelectedPropertyId(tenant.property_id);
+      }
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,8 +58,6 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
     const formData = new FormData(e.target as HTMLFormElement);
     const type = formData.get('type') as string;
     const category = formData.get('category') as string;
-    const propertyId = formData.get('property') as string;
-    const tenantId = formData.get('tenant') as string;
     const value = parseFloat(formData.get('value') as string);
     const dateStr = formData.get('date') as string;
     
@@ -55,8 +69,8 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
 
       const payload = {
         user_id: user.id,
-        property_id: propertyId,
-        tenant_id: tenantId === 'none' ? null : tenantId,
+        property_id: selectedPropertyId,
+        tenant_id: selectedTenantId === 'none' ? null : selectedTenantId,
         type: category === 'Aluguel' ? 'aluguel' : type,
         month,
         year: parseInt(year),
@@ -69,7 +83,6 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
 
       showSuccess('Transação registrada com sucesso!');
       
-      // Atualiza os dados em todas as telas
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['bills'] });
       
@@ -110,6 +123,9 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Aluguel">Aluguel</SelectItem>
+                  <SelectItem value="Água">Água</SelectItem>
+                  <SelectItem value="Luz">Luz</SelectItem>
+                  <SelectItem value="Internet">Internet</SelectItem>
                   <SelectItem value="Manutenção">Manutenção</SelectItem>
                   <SelectItem value="IPTU">IPTU</SelectItem>
                   <SelectItem value="Condomínio">Condomínio</SelectItem>
@@ -121,25 +137,8 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase text-slate-400">Imóvel</Label>
-            <Select name="property" required>
-              <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-slate-300" />
-                  <SelectValue placeholder="Selecione o imóvel" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                {properties.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
             <Label className="text-xs font-bold uppercase text-slate-400">Inquilino</Label>
-            <Select name="tenant" defaultValue="none">
+            <Select value={selectedTenantId} onValueChange={handleTenantChange}>
               <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4 text-slate-300" />
@@ -150,6 +149,23 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
                 <SelectItem value="none">Nenhum / Outros</SelectItem>
                 {tenants.map(t => (
                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-bold uppercase text-slate-400">Imóvel</Label>
+            <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId} required>
+              <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-slate-300" />
+                  <SelectValue placeholder="Selecione o imóvel" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {properties.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
