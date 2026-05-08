@@ -135,7 +135,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         const selectedProp = properties.find(p => p.id === propertyId);
         const rentValue = selectedProp?.base_rent || 0;
 
-        // Criar ou atualizar contrato para que os valores apareçam no Dashboard
+        // Criar ou atualizar contrato para que os valores apareçam no Dashboard e na aba Contratos
         const contractPayload = {
           user_id: user.id,
           tenant_id: tenantId,
@@ -163,7 +163,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
 
       showSuccess(isEdit ? 'Inquilino e contrato atualizados!' : 'Inquilino vinculado com sucesso!');
       
-      // Atualizar todos os caches
+      // Atualizar todos os caches para refletir a mudança em todas as abas
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       queryClient.invalidateQueries({ queryKey: ['properties'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
