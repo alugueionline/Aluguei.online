@@ -30,41 +30,41 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
     const fetchActiveTenants = async () => {
       try {
         setFetching(true);
-        const { data: { user } } = await supabase.auth.getUser();
         
-        if (!user) return;
-
-        // Buscamos diretamente os inquilinos ativos e seus respectivos imóveis
+        // Buscamos todos os inquilinos vinculados ao usuário (RLS cuidará do filtro de user_id)
+        // Removemos residents_count pois a coluna pode não existir no banco ainda
         const { data, error } = await supabase
           .from('tenants')
           .select(`
             id,
             name,
-            residents_count,
+            status,
             property_id,
             properties (
-              id,
               name
             )
-          `)
-          .eq('user_id', user.id)
-          .eq('status', 'ativo');
+          `);
         
         if (error) throw error;
 
-        const formatted = (data || []).map(t => ({
+        // Filtramos apenas os ativos no lado do cliente para evitar problemas de case-sensitivity
+        const activeTenants = (data || []).filter(t => 
+          t.status?.toLowerCase() === 'ativo'
+        );
+
+        const formatted = activeTenants.map(t => ({
           id: t.id,
           tenantName: t.name,
           propertyName: t.properties?.name || 'Imóvel não vinculado',
           propertyId: t.property_id,
-          residents: t.residents_count || 1,
+          residents: 1, // Valor padrão enquanto a coluna residents_count não é criada no DB
         }));
 
         setParticipants(formatted);
-        // Seleciona todos por padrão
         setSelectedParticipants(formatted.map(p => p.id));
       } catch (err: any) {
-        console.error('Erro ao carregar inquilinos para rateio:', err.message);
+        console.error('Erro ao carregar inquilinos:', err.message);
+        setParticipants([]);
       } finally {
         setFetching(false);
       }
@@ -84,7 +84,7 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (totalResidents === 0) {
-      showError('Nenhum morador selecionado para o rateio.');
+      showError('Nenhum inquilino selecionado.');
       return;
     }
 
@@ -97,7 +97,6 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
-      // Criamos um lançamento de conta para cada imóvel dos inquilinos selecionados
       const billsToInsert = participants
         .filter(p => selectedParticipants.includes(p.id) && p.propertyId)
         .map(p => ({
@@ -112,20 +111,13 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
           status: 'pendente'
         }));
 
-      if (billsToInsert.length === 0) throw new Error('Nenhum inquilino com imóvel vinculado selecionado.');
+      if (billsToInsert.length === 0) throw new Error('Inquilinos selecionados precisam estar vinculados a um imóvel.');
 
       const { error } = await supabase.from('bills').insert(billsToInsert);
       if (error) throw error;
 
-      onSave({
-        type,
-        totalValue: parseFloat(totalValue),
-        totalResidents,
-        valuePerPerson,
-        date: new Date().toISOString()
-      });
-
-      showSuccess(`Rateio de ${type} processado com sucesso!`);
+      onSave({ type, totalValue: parseFloat(totalValue) });
+      showSuccess(`Rateio de ${type} processado!`);
       onClose();
     } catch (error: any) {
       showError(error.message);
@@ -144,16 +136,9 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[650px] rounded-[2.5rem] p-8">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-black tracking-tight text-gray-900">Rateio por Pessoa (Morador)</DialogTitle>
+          <DialogTitle className="text-2xl font-black tracking-tight text-gray-900">Rateio de Despesas</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSave} className="space-y-6 py-4">
-          <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-start gap-3">
-            <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-            <p className="text-xs font-medium text-blue-800 leading-relaxed">
-              O sistema dividirá o valor total pelo número de moradores dos inquilinos selecionados.
-            </p>
-          </div>
-
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo de Conta</Label>
@@ -165,37 +150,29 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
                   <SelectItem value="energia">Energia (Comum)</SelectItem>
                   <SelectItem value="agua">Água (Comum)</SelectItem>
                   <SelectItem value="internet">Internet</SelectItem>
-                  <SelectItem value="manutencao">Manutenção Geral</SelectItem>
+                  <SelectItem value="manutencao">Manutenção</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Total da Fatura (R$)</Label>
-              <div className="relative">
-                <Receipt className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                <Input 
-                  type="number" 
-                  step="0.01"
-                  className="pl-11 h-12 rounded-xl bg-slate-50 border-none font-bold"
-                  placeholder="0,00"
-                  value={totalValue}
-                  onChange={(e) => setTotalValue(e.target.value)}
-                  required
-                />
-              </div>
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Total (R$)</Label>
+              <Input 
+                type="number" 
+                step="0.01"
+                className="h-12 rounded-xl bg-slate-50 border-none font-bold"
+                placeholder="0,00"
+                value={totalValue}
+                onChange={(e) => setTotalValue(e.target.value)}
+                required
+              />
             </div>
           </div>
 
           <div className="space-y-3">
-            <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between">
-              Inquilinos Participantes
-              <span className="text-blue-600">{totalResidents} moradores no total</span>
-            </Label>
+            <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Inquilinos Ativos</Label>
             <div className="grid grid-cols-1 gap-3 max-h-[250px] overflow-y-auto p-4 border rounded-2xl bg-slate-50/50">
               {fetching ? (
-                <div className="py-10 flex justify-center">
-                  <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-                </div>
+                <div className="py-10 flex justify-center"><Loader2 className="w-6 h-6 text-blue-600 animate-spin" /></div>
               ) : participants.length > 0 ? (
                 participants.map((p) => (
                   <div 
@@ -203,9 +180,7 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
                     onClick={() => toggleParticipant(p.id)}
                     className={cn(
                       "flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all",
-                      selectedParticipants.includes(p.id) 
-                        ? "bg-white border-blue-200 shadow-sm" 
-                        : "bg-transparent border-transparent text-slate-400"
+                      selectedParticipants.includes(p.id) ? "bg-white border-blue-200 shadow-sm" : "bg-transparent border-transparent text-slate-400"
                     )}
                   >
                     <div className="flex items-center gap-4">
@@ -221,36 +196,29 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
                         </div>
                       </div>
                     </div>
-                    <Badge variant="outline" className="text-[10px] font-black border-slate-100 bg-slate-50">
-                      {p.residents} {p.residents === 1 ? 'MORADOR' : 'MORADORES'}
-                    </Badge>
                   </div>
                 ))
               ) : (
-                <div className="py-10 text-center text-slate-400 text-sm font-medium">
-                  Nenhum inquilino ativo encontrado. Certifique-se de que seus inquilinos estão com status "Ativo".
-                </div>
+                <div className="py-10 text-center text-slate-400 text-sm font-medium">Nenhum inquilino ativo encontrado.</div>
               )}
             </div>
           </div>
 
           <div className="p-6 bg-slate-900 rounded-[2rem] flex items-center justify-between text-white">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-600 rounded-2xl shadow-lg">
-                <Calculator className="w-6 h-6 text-white" />
-              </div>
+              <div className="p-3 bg-blue-600 rounded-2xl shadow-lg"><Calculator className="w-6 h-6 text-white" /></div>
               <div>
-                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Valor por Pessoa</p>
+                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Valor por Unidade</p>
                 <p className="text-2xl font-black leading-none mt-1">
                   R$ {valuePerPerson > 0 ? valuePerPerson.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00'}
                 </p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Base de Cálculo</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Participantes</p>
               <div className="flex items-center gap-1.5 justify-end mt-1">
                 <Users className="w-3.5 h-3.5 text-blue-400" />
-                <span className="text-sm font-bold">{totalResidents} Moradores</span>
+                <span className="text-sm font-bold">{selectedParticipants.length} Unidades</span>
               </div>
             </div>
           </div>
