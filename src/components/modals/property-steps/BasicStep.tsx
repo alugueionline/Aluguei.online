@@ -12,12 +12,6 @@ interface BasicStepProps {
 }
 
 export const BasicStep = ({ formData, setFormData }: BasicStepProps) => {
-  const formatCurrency = (value: string) => {
-    const digits = value.replace(/\D/g, "");
-    const amount = parseFloat(digits) / 100;
-    return amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-  };
-
   const handleCurrencyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/\D/g, "");
     const numericValue = parseFloat(rawValue) / 100;
@@ -34,7 +28,7 @@ export const BasicStep = ({ formData, setFormData }: BasicStepProps) => {
         <div className="space-y-2 md:col-span-2">
           <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nome de Exibição</Label>
           <Input 
-            placeholder="Ex: Apartamento Luxo - Ed. Horizon" 
+            placeholder="Ex: Terreno Lote 05 - Setor Sul" 
             value={formData.name}
             onChange={e => setFormData({...formData, name: e.target.value})}
             className="h-14 rounded-2xl bg-slate-50 border-none font-bold text-slate-900 text-lg"
@@ -51,6 +45,7 @@ export const BasicStep = ({ formData, setFormData }: BasicStepProps) => {
               <SelectItem value="apartamento">Apartamento</SelectItem>
               <SelectItem value="kitnet">Kitnet</SelectItem>
               <SelectItem value="comercial">Comercial</SelectItem>
+              <SelectItem value="terreno">Terreno</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -71,7 +66,7 @@ export const BasicStep = ({ formData, setFormData }: BasicStepProps) => {
       <div className="space-y-2">
         <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Descrição Detalhada</Label>
         <Textarea 
-          placeholder="Descreva os diferenciais do imóvel..." 
+          placeholder="Descreva os diferenciais do imóvel ou terreno..." 
           value={formData.description}
           onChange={e => setFormData({...formData, description: e.target.value})}
           className="rounded-2xl bg-slate-50 border-none font-medium min-h-[120px] p-5 focus-visible:ring-2 focus-visible:ring-blue-500/20"
