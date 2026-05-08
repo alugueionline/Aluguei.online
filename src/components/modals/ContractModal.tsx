@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Calendar, Loader2, User, Home, DollarSign } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface ContractModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
   const [loading, setLoading] = useState(false);
   const [tenants, setTenants] = useState<any[]>([]);
   const [properties, setProperties] = useState<any[]>([]);
+  const queryClient = useQueryClient();
   
   const [formData, setFormData] = useState({
     tenant_id: '',
@@ -100,11 +102,21 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
         const { error: contractError } = await supabase.from('contracts').insert([payload]);
         if (contractError) throw contractError;
 
-        await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
+        // Atualiza o status do imóvel para alugado
+        const { error: propError } = await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
+        if (propError) throw propError;
+
+        // Atualiza o vínculo do inquilino (opcional, mas mantido para compatibilidade)
         await supabase.from('tenants').update({ property_id: formData.property_id }).eq('id', formData.tenant_id);
 
         showSuccess('Contrato gerado com sucesso!');
       }
+
+      // Invalida os caches para atualizar a UI imediatamente
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      queryClient.invalidateQueries({ queryKey: ['properties-preview'] });
+      queryClient.invalidateQueries({ queryKey: ['tenant'] });
+      
       onClose();
     } catch (error: any) {
       showError(error.message);

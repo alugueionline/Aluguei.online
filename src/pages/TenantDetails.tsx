@@ -21,7 +21,8 @@ import {
   Loader2,
   TrendingUp,
   CheckCircle2,
-  Edit2
+  Edit2,
+  Building2
 } from 'lucide-react';
 import { 
   Table, 
@@ -46,7 +47,22 @@ const TenantDetails = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tenants')
-        .select('*, properties(id, name, base_rent)')
+        .select(`
+          *,
+          contracts (
+            id,
+            rent_value,
+            status,
+            properties (
+              id,
+              name,
+              address,
+              base_rent,
+              image_url,
+              type
+            )
+          )
+        `)
         .eq('id', id)
         .single();
       
@@ -58,12 +74,19 @@ const TenantDetails = () => {
   const { data: financialData } = useQuery({
     queryKey: ['tenant-financial', id],
     queryFn: async () => {
-      if (!tenant?.property_id) return { history: [], totalProfit: 0 };
+      if (!tenant?.contracts || tenant.contracts.length === 0) return { history: [], totalProfit: 0 };
+      
+      const propertyIds = tenant.contracts
+        .filter((c: any) => c.status === 'ativo')
+        .map((c: any) => c.properties?.id)
+        .filter(Boolean);
+
+      if (propertyIds.length === 0) return { history: [], totalProfit: 0 };
       
       const { data: bills } = await supabase
         .from('bills')
         .select('*')
-        .eq('property_id', tenant.property_id)
+        .in('property_id', propertyIds)
         .order('year', { ascending: false })
         .order('month', { ascending: false });
 
@@ -104,7 +127,7 @@ const TenantDetails = () => {
     return new Date(dateStr).toLocaleDateString('pt-BR');
   };
 
-  const dueDay = tenant.due_day || 5;
+  const activeContracts = tenant.contracts?.filter((c: any) => c.status === 'ativo') || [];
 
   return (
     <DashboardLayout title="Perfil do Inquilino">
@@ -159,36 +182,11 @@ const TenantDetails = () => {
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-sm bg-blue-50 border-blue-100 rounded-[2rem]">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-black text-blue-800 flex items-center gap-2 uppercase tracking-widest">
-                <Clock className="w-4 h-4" />
-                Vigência e Vencimento
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between items-center p-3 bg-white rounded-xl shadow-sm">
-                <span className="text-[10px] text-blue-600 font-black uppercase">Dia de Pagamento</span>
-                <span className="text-lg font-black text-blue-900">Todo dia {dueDay}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest">Início</p>
-                  <p className="text-sm font-black text-blue-900">{formatDate(tenant.contract_start_date)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest">Término</p>
-                  <p className="text-sm font-black text-blue-900">{formatDate(tenant.contract_end_date)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
           <Card className="border-none shadow-sm bg-emerald-50 border-emerald-100 rounded-[2rem]">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-black text-emerald-800 flex items-center gap-2 uppercase tracking-widest">
                 <TrendingUp className="w-4 h-4" />
-                Lucro Acumulado
+                Lucro Acumulado Total
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -197,7 +195,7 @@ const TenantDetails = () => {
                   R$ {financialData?.totalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
                 <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">
-                  Total recebido deste inquilino
+                  Soma de todos os imóveis locados
                 </p>
               </div>
             </CardContent>
@@ -205,36 +203,61 @@ const TenantDetails = () => {
         </div>
 
         <div className="lg:col-span-2 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="border-none shadow-sm rounded-[2rem]">
-              <CardContent className="p-6 flex items-center gap-4">
-                <div className="p-3 bg-blue-50 rounded-xl text-blue-600">
-                  <Home className="w-6 h-6" />
+          <div className="space-y-4">
+            <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-blue-600" />
+              Imóveis Locados ({activeContracts.length})
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {activeContracts.length > 0 ? activeContracts.map((contract: any) => (
+                <Card key={contract.id} className="border-none shadow-sm rounded-[2rem] overflow-hidden group hover:shadow-md transition-all">
+                  <CardContent className="p-0">
+                    <div className="h-24 bg-slate-100 relative">
+                      {contract.properties?.image_url ? (
+                        <img src={contract.properties.image_url} alt={contract.properties.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-300">
+                          <Home className="w-8 h-8" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-5">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-bold text-slate-900 truncate">{contract.properties?.name}</h4>
+                        <Badge variant="outline" className="text-[8px] font-black uppercase border-blue-100 text-blue-600">
+                          {contract.properties?.type}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between items-end mt-4">
+                        <div>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase">Aluguel</p>
+                          <p className="text-sm font-black text-blue-600">R$ {Number(contract.rent_value).toLocaleString('pt-BR')}</p>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 text-[10px] font-black uppercase text-slate-400 hover:text-blue-600"
+                          onClick={() => navigate(`/properties/${contract.properties?.id}`)}
+                        >
+                          Ver Imóvel
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )) : (
+                <div className="col-span-2 p-10 text-center bg-slate-50 rounded-[2rem] border border-dashed border-slate-200">
+                  <p className="text-slate-400 font-medium">Nenhum imóvel vinculado no momento.</p>
                 </div>
-                <div>
-                  <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Imóvel Atual</p>
-                  <p className="text-lg font-black text-gray-900">{tenant.properties?.name || 'Não vinculado'}</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-none shadow-sm rounded-[2rem]">
-              <CardContent className="p-6 flex items-center gap-4">
-                <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600">
-                  <ShieldCheck className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Aluguel Mensal</p>
-                  <p className="text-lg font-black text-gray-900">R$ {Number(tenant.properties?.base_rent || 0).toLocaleString('pt-BR')}</p>
-                </div>
-              </CardContent>
-            </Card>
+              )}
+            </div>
           </div>
 
           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
             <CardHeader className="p-8 border-b border-slate-50">
               <CardTitle className="text-lg font-black flex items-center gap-2 tracking-tight">
                 <History className="w-5 h-5 text-blue-600" />
-                Histórico de Pagamentos
+                Histórico de Pagamentos (Geral)
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
