@@ -1,46 +1,70 @@
+"use client";
+
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useQuery } from '@tanstack/react-query';
 import { 
   ArrowLeft, 
   User, 
   Phone, 
   Mail, 
   Calendar, 
-  FileText, 
   Home,
   CreditCard,
   History,
   ShieldCheck,
-  Clock
+  Clock,
+  Loader2
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const TenantDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Mock de dados do inquilino com datas de contrato
-  const tenant = {
-    id: '1',
-    name: 'João Silva',
-    cpf: '123.456.789-00',
-    email: 'joao.silva@email.com',
-    phone: '(11) 98888-7777',
-    property: 'Apto 101 - Edifício Central',
-    entryDate: '10/01/2024',
-    contractStartDate: '10/01/2024',
-    contractEndDate: '10/01/2025',
-    rentValue: 1200.00,
-    securityDeposit: 3600.00,
-    securityDepositDate: '10/01/2024',
-    status: 'ativo',
-    documents: [
-      { name: 'Contrato de Locação.pdf', date: '10/01/2024' },
-      { name: 'RG_CPF_Frente.jpg', date: '08/01/2024' }
-    ]
+  const { data: tenant, isLoading } = useQuery({
+    queryKey: ['tenant', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('*, properties(name, base_rent)')
+        .eq('id', id)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
+          <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+          <p className="text-gray-500 font-medium">Carregando perfil do inquilino...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!tenant) {
+    return (
+      <DashboardLayout>
+        <div className="text-center py-20">
+          <h2 className="text-2xl font-bold text-gray-900">Inquilino não encontrado</h2>
+          <Button onClick={() => navigate('/tenants')} className="mt-4">Voltar para Lista</Button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return 'Não definida';
+    return new Date(dateStr).toLocaleDateString('pt-BR');
   };
 
   return (
@@ -55,7 +79,7 @@ const TenantDetails = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 space-y-6">
-          <Card className="border-none shadow-sm overflow-hidden">
+          <Card className="border-none shadow-sm overflow-hidden rounded-[2.5rem]">
             <div className="h-32 bg-blue-600" />
             <CardContent className="relative pt-0">
               <div className="absolute -top-12 left-6">
@@ -67,65 +91,60 @@ const TenantDetails = () => {
               </div>
               <div className="pt-16 pb-6">
                 <h2 className="text-2xl font-bold text-gray-900">{tenant.name}</h2>
-                <Badge className="mt-2 bg-green-50 text-green-700 border-none uppercase text-[10px]">
+                <Badge className="mt-2 bg-green-50 text-green-700 border-none uppercase text-[10px] font-black">
                   {tenant.status}
                 </Badge>
               </div>
               <div className="space-y-4 border-t pt-6">
                 <div className="flex items-center gap-3 text-gray-600">
-                  <Phone className="w-4 h-4" />
-                  <span className="text-sm">{tenant.phone}</span>
+                  <Phone className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-bold">{tenant.phone || 'Não informado'}</span>
                 </div>
                 <div className="flex items-center gap-3 text-gray-600">
-                  <Mail className="w-4 h-4" />
-                  <span className="text-sm">{tenant.email}</span>
+                  <Mail className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-bold">{tenant.email || 'Não informado'}</span>
                 </div>
                 <div className="flex items-center gap-3 text-gray-600">
-                  <CreditCard className="w-4 h-4" />
-                  <span className="text-sm">CPF: {tenant.cpf}</span>
+                  <CreditCard className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-bold">CPF: {tenant.cpf || 'Não informado'}</span>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-sm bg-blue-50 border-blue-100">
+          <Card className="border-none shadow-sm bg-blue-50 border-blue-100 rounded-[2rem]">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-bold text-blue-800 flex items-center gap-2">
+              <CardTitle className="text-sm font-black text-blue-800 flex items-center gap-2 uppercase tracking-widest">
                 <Clock className="w-4 h-4" />
                 Vigência do Contrato
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
               <div>
-                <p className="text-[10px] text-blue-600 font-bold uppercase">Início</p>
-                <p className="text-sm font-bold text-blue-900">{new Date(tenant.contractStartDate).toLocaleDateString('pt-BR')}</p>
+                <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest">Início</p>
+                <p className="text-sm font-black text-blue-900">{formatDate(tenant.contract_start_date)}</p>
               </div>
               <div>
-                <p className="text-[10px] text-blue-600 font-bold uppercase">Término</p>
-                <p className="text-sm font-bold text-blue-900">{new Date(tenant.contractEndDate).toLocaleDateString('pt-BR')}</p>
-              </div>
-              <div className="pt-2">
-                <Badge className="bg-blue-600 text-white border-none text-[10px]">
-                  Faltam 6 meses
-                </Badge>
+                <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest">Término</p>
+                <p className="text-sm font-black text-blue-900">{formatDate(tenant.contract_end_date)}</p>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-sm bg-emerald-50 border-emerald-100">
+          <Card className="border-none shadow-sm bg-emerald-50 border-emerald-100 rounded-[2rem]">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-bold text-emerald-800 flex items-center gap-2">
+              <CardTitle className="text-sm font-black text-emerald-800 flex items-center gap-2 uppercase tracking-widest">
                 <ShieldCheck className="w-4 h-4" />
-                Garantia (Caução)
+                Aluguel Atual
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-1">
-                <p className="text-2xl font-bold text-emerald-900">
-                  R$ {tenant.securityDeposit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                <p className="text-2xl font-black text-emerald-900">
+                  R$ {Number(tenant.properties?.base_rent || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
-                <p className="text-xs text-emerald-600">
-                  Recebido em: {tenant.securityDepositDate}
+                <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">
+                  Valor base do imóvel
                 </p>
               </div>
             </CardContent>
@@ -134,55 +153,40 @@ const TenantDetails = () => {
 
         <div className="lg:col-span-2 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="border-none shadow-sm">
+            <Card className="border-none shadow-sm rounded-[2rem]">
               <CardContent className="p-6 flex items-center gap-4">
                 <div className="p-3 bg-blue-50 rounded-xl text-blue-600">
                   <Home className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400 font-bold uppercase">Imóvel Atual</p>
-                  <p className="text-lg font-bold text-gray-900">{tenant.property}</p>
+                  <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Imóvel Atual</p>
+                  <p className="text-lg font-black text-gray-900">{tenant.properties?.name || 'Não vinculado'}</p>
                 </div>
               </CardContent>
             </Card>
-            <Card className="border-none shadow-sm">
+            <Card className="border-none shadow-sm rounded-[2rem]">
               <CardContent className="p-6 flex items-center gap-4">
                 <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600">
                   <Calendar className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400 font-bold uppercase">Data de Entrada</p>
-                  <p className="text-lg font-bold text-gray-900">{tenant.entryDate}</p>
+                  <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Data de Cadastro</p>
+                  <p className="text-lg font-black text-gray-900">{formatDate(tenant.created_at)}</p>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <Card className="border-none shadow-sm">
+          <Card className="border-none shadow-sm rounded-[2.5rem]">
             <CardHeader>
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <CardTitle className="text-lg font-black flex items-center gap-2 tracking-tight">
                 <History className="w-5 h-5 text-blue-600" />
                 Histórico de Pagamentos
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {[
-                  { ref: '06/2024', type: 'Aluguel', value: 1200, status: 'pago' },
-                  { ref: '06/2024', type: 'Energia', value: 145.20, status: 'pago' },
-                  { ref: '05/2024', type: 'Aluguel', value: 1200, status: 'pago' },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 border-b last:border-0">
-                    <div>
-                      <p className="font-bold text-gray-900">{item.type}</p>
-                      <p className="text-xs text-gray-500">Referência: {item.ref}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-gray-900">R$ {item.value.toFixed(2)}</p>
-                      <Badge className="bg-green-50 text-green-700 border-none text-[10px]">PAGO</Badge>
-                    </div>
-                  </div>
-                ))}
+              <div className="py-10 text-center text-slate-400 font-medium">
+                Nenhum pagamento registrado no histórico.
               </div>
             </CardContent>
           </Card>

@@ -17,7 +17,8 @@ import {
   Trash2,
   Image as ImageIcon,
   Building2,
-  Loader2
+  Loader2,
+  Copy
 } from 'lucide-react';
 import { PropertyModal } from '@/components/modals/PropertyModal';
 import { cn } from '@/lib/utils';
@@ -52,6 +53,30 @@ const Properties = () => {
   const handleNew = () => {
     setSelectedProperty(null);
     setIsModalOpen(true);
+  };
+
+  const handleDuplicate = async (property: any) => {
+    try {
+      const { id, created_at, ...rest } = property;
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) throw new Error('Não autenticado');
+
+      const duplicatedProperty = {
+        ...rest,
+        name: `${rest.name} (Cópia)`,
+        status: 'disponivel',
+        user_id: user.id
+      };
+
+      const { error } = await supabase.from('properties').insert([duplicatedProperty]);
+      if (error) throw error;
+
+      showSuccess('Imóvel duplicado com sucesso! Agora você pode editar os detalhes específicos.');
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+    } catch (error: any) {
+      showError('Erro ao duplicar: ' + error.message);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -125,7 +150,16 @@ const Properties = () => {
                       <p className="text-[10px] text-gray-400 uppercase font-bold mb-1">Aluguel Base</p>
                       <p className="text-xl font-bold text-gray-900">R$ {Number(property.base_rent).toLocaleString('pt-BR')}</p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="rounded-xl hover:bg-blue-50 text-blue-600" 
+                        title="Duplicar Imóvel"
+                        onClick={() => handleDuplicate(property)}
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="rounded-xl hover:bg-red-50 text-red-500" onClick={() => handleDelete(property.id)}>
                         <Trash2 className="w-4 h-4" />
                       </Button>

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Calendar, Loader2 } from 'lucide-react';
 
 interface TenantModalProps {
   isOpen: boolean;
@@ -26,12 +27,14 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
     phone: '',
     email: '',
     property_id: '',
-    status: 'ativo'
+    status: 'ativo',
+    contract_start_date: '',
+    contract_end_date: ''
   });
 
   useEffect(() => {
     const fetchProperties = async () => {
-      const { data } = await supabase.from('properties').select('id, name');
+      const { data } = await supabase.from('properties').select('id, name, status');
       setProperties(data || []);
     };
 
@@ -44,7 +47,9 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
           phone: tenant.phone || '',
           email: tenant.email || '',
           property_id: tenant.property_id || '',
-          status: tenant.status
+          status: tenant.status,
+          contract_start_date: tenant.contract_start_date || '',
+          contract_end_date: tenant.contract_end_date || ''
         });
       } else {
         setFormData({
@@ -53,7 +58,9 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
           phone: '',
           email: '',
           property_id: '',
-          status: 'ativo'
+          status: 'ativo',
+          contract_start_date: '',
+          contract_end_date: ''
         });
       }
     }
@@ -76,11 +83,23 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
       if (isEdit) {
         const { error } = await supabase.from('tenants').update(payload).eq('id', tenant.id);
         if (error) throw error;
+        
+        // Se mudou o imóvel ou é um novo vínculo, atualiza o status do imóvel
+        if (formData.property_id) {
+          await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
+        }
+        
         showSuccess('Inquilino atualizado!');
       } else {
         const { error } = await supabase.from('tenants').insert([payload]);
         if (error) throw error;
-        showSuccess('Inquilino cadastrado com sucesso!');
+
+        // Atualiza o status do imóvel para alugado
+        if (formData.property_id) {
+          await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
+        }
+
+        showSuccess('Inquilino cadastrado e imóvel atualizado para locado!');
       }
       onClose();
     } catch (error: any) {
@@ -92,13 +111,13 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[550px] rounded-[2.5rem]">
+      <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] p-8">
         <DialogHeader>
           <DialogTitle className="text-2xl font-black tracking-tight">{isEdit ? 'Editar Inquilino' : 'Novo Inquilino'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSave} className="space-y-5 py-4">
           <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase text-gray-400 ml-1">Nome Completo</Label>
+            <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nome Completo</Label>
             <Input 
               value={formData.name}
               onChange={e => setFormData({...formData, name: e.target.value})}
@@ -106,9 +125,10 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
               className="rounded-xl h-12 bg-gray-50 border-none font-bold" 
             />
           </div>
+          
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase text-gray-400 ml-1">CPF</Label>
+              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">CPF</Label>
               <Input 
                 placeholder="000.000.000-00" 
                 value={formData.cpf}
@@ -117,7 +137,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase text-gray-400 ml-1">Telefone</Label>
+              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Telefone</Label>
               <Input 
                 placeholder="(00) 00000-0000" 
                 value={formData.phone}
@@ -126,28 +146,57 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
               />
             </div>
           </div>
-          
+
           <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase text-gray-400 ml-1">Imóvel Vinculado</Label>
+            <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Imóvel Vinculado</Label>
             <Select 
               value={formData.property_id} 
               onValueChange={v => setFormData({...formData, property_id: v})}
             >
-              <SelectTrigger className="rounded-xl h-12 bg-gray-50 border-none font-bold">
-                <SelectValue placeholder="Selecione um imóvel" />
+              <SelectTrigger className="rounded-xl h-12 bg-blue-50/50 border-none font-bold text-blue-900">
+                <SelectValue placeholder="Selecione um imóvel disponível" />
               </SelectTrigger>
               <SelectContent>
                 {properties.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} {p.status === 'alugado' ? '(Já Locado)' : ''}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
+          <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-4">
+            <div className="flex items-center gap-2 text-slate-900">
+              <Calendar className="w-4 h-4 text-blue-600" />
+              <span className="text-xs font-black uppercase tracking-widest">Vigência do Contrato</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase">Data de Início</Label>
+                <Input 
+                  type="date"
+                  value={formData.contract_start_date}
+                  onChange={e => setFormData({...formData, contract_start_date: e.target.value})}
+                  className="h-10 rounded-xl bg-white border-slate-200 font-bold text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase">Data de Término</Label>
+                <Input 
+                  type="date"
+                  value={formData.contract_end_date}
+                  onChange={e => setFormData({...formData, contract_end_date: e.target.value})}
+                  className="h-10 rounded-xl bg-white border-slate-200 font-bold text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
           <DialogFooter className="pt-4">
-            <Button type="button" variant="ghost" onClick={onClose} className="rounded-xl font-bold">Cancelar</Button>
-            <Button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8 font-bold h-12 shadow-lg shadow-blue-100">
-              {loading ? 'Salvando...' : 'Salvar Inquilino'}
+            <Button type="button" variant="ghost" onClick={onClose} className="rounded-xl font-bold text-slate-400">Cancelar</Button>
+            <Button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8 font-black h-12 shadow-lg shadow-blue-100">
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Salvar Inquilino'}
             </Button>
           </DialogFooter>
         </form>
