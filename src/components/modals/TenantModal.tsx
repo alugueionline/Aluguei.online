@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, Loader2, User, DollarSign } from 'lucide-react';
+import { Calendar, Loader2, User, DollarSign, Hash } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { addMonths, format, parseISO, isValid } from 'date-fns';
 
 interface TenantModalProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
     status: 'ativo',
     contract_start_date: '',
     contract_end_date: '',
+    duration_months: '12',
     due_day: '5'
   });
 
@@ -53,6 +55,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
           status: tenant.status || 'ativo',
           contract_start_date: tenant.contract_start_date || '',
           contract_end_date: tenant.contract_end_date || '',
+          duration_months: '12', // Valor padrão para edição se não existir
           due_day: (tenant.due_day || 5).toString()
         });
       } else {
@@ -65,11 +68,28 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
           status: 'ativo',
           contract_start_date: '',
           contract_end_date: '',
+          duration_months: '12',
           due_day: '5'
         });
       }
     }
   }, [isOpen, tenant]);
+
+  // Cálculo automático da data de término
+  useEffect(() => {
+    if (formData.contract_start_date && formData.duration_months) {
+      const startDate = parseISO(formData.contract_start_date);
+      const months = parseInt(formData.duration_months);
+      
+      if (isValid(startDate) && !isNaN(months)) {
+        const endDate = addMonths(startDate, months);
+        setFormData(prev => ({
+          ...prev,
+          contract_end_date: format(endDate, 'yyyy-MM-dd')
+        }));
+      }
+    }
+  }, [formData.contract_start_date, formData.duration_months]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,7 +132,6 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         showSuccess('Inquilino cadastrado com sucesso!');
       }
 
-      // Invalida os caches para atualizar a UI imediatamente
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       queryClient.invalidateQueries({ queryKey: ['properties'] });
       queryClient.invalidateQueries({ queryKey: ['properties-preview'] });
@@ -208,9 +227,9 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
               <Calendar className="w-4 h-4 text-blue-600" />
               <span className="text-xs font-black uppercase tracking-widest">Vigência do Contrato</span>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold text-slate-400 uppercase">Data de Início</Label>
+                <Label className="text-[10px] font-bold text-slate-400 uppercase">Início</Label>
                 <Input 
                   type="date"
                   value={formData.contract_start_date}
@@ -219,7 +238,19 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold text-slate-400 uppercase">Data de Término</Label>
+                <Label className="text-[10px] font-bold text-slate-400 uppercase">Meses</Label>
+                <div className="relative">
+                  <Hash className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-300" />
+                  <Input 
+                    type="number"
+                    value={formData.duration_months}
+                    onChange={e => setFormData({...formData, duration_months: e.target.value})}
+                    className="h-10 pl-7 rounded-xl bg-white border-slate-200 font-bold text-xs"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase">Término</Label>
                 <Input 
                   type="date"
                   value={formData.contract_end_date}
