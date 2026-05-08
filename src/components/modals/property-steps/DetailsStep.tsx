@@ -18,7 +18,11 @@ const DetailInput = ({ icon, label, value, onChange }: { icon: React.ReactNode, 
     <Input 
       type="number" 
       value={value}
-      onChange={e => onChange(e.target.value)}
+      onFocus={(e) => e.target.value === '0' && onChange('')}
+      onChange={e => {
+        const val = e.target.value.replace(/^0+(?=\d)/, '');
+        onChange(val);
+      }}
       className="h-14 rounded-2xl bg-slate-50 border-none font-black text-slate-900 text-center text-lg focus-visible:ring-2 focus-visible:ring-blue-500/20"
     />
   </div>
@@ -73,13 +77,20 @@ export const DetailsStep = ({ formData, setFormData }: DetailsStepProps) => {
           </div>
           <div className="space-y-2">
             <Label className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Valor Mensal (R$)</Label>
-            <Input 
-              type="number" 
-              placeholder="0,00"
-              value={formData.condo_fee}
-              onChange={e => setFormData({...formData, condo_fee: e.target.value})}
-              className="h-12 rounded-xl bg-white border-none font-black text-slate-900 shadow-sm"
-            />
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 font-bold text-xs">R$</span>
+              <Input 
+                type="number" 
+                placeholder="0,00"
+                value={formData.condo_fee}
+                onFocus={(e) => e.target.value === '0' && setFormData({...formData, condo_fee: ''})}
+                onChange={e => {
+                  const val = e.target.value.replace(/^0+(?=\d)/, '');
+                  setFormData({...formData, condo_fee: val});
+                }}
+                className="h-12 pl-10 rounded-xl bg-white border-none font-black text-slate-900 shadow-sm"
+              />
+            </div>
           </div>
         </div>
       </div>

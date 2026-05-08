@@ -13,6 +13,12 @@ interface BasicStepProps {
 }
 
 export const BasicStep = ({ formData, setFormData }: BasicStepProps) => {
+  const handleNumberChange = (field: string, value: string) => {
+    // Remove leading zeros unless the value is just "0"
+    const cleanValue = value.replace(/^0+(?=\d)/, '');
+    setFormData({ ...formData, [field]: cleanValue });
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -42,12 +48,13 @@ export const BasicStep = ({ formData, setFormData }: BasicStepProps) => {
         <div className="space-y-2">
           <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluguel Base (R$)</Label>
           <div className="relative">
-            <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">R$</span>
             <Input 
               type="number" 
               placeholder="0,00"
               value={formData.base_rent}
-              onChange={e => setFormData({...formData, base_rent: e.target.value})}
+              onFocus={(e) => e.target.value === '0' && handleNumberChange('base_rent', '')}
+              onChange={e => handleNumberChange('base_rent', e.target.value)}
               className="h-14 pl-12 rounded-2xl bg-slate-50 border-none font-black text-slate-900 text-lg"
             />
           </div>
