@@ -39,7 +39,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
 
   useEffect(() => {
     const fetchProperties = async () => {
-      const { data } = await supabase.from('properties').select('id, name, status');
+      const { data } = await supabase.from('properties').select('id, name, status, base_rent');
       setProperties(data || []);
     };
 
@@ -55,7 +55,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
           status: tenant.status || 'ativo',
           contract_start_date: tenant.contract_start_date || '',
           contract_end_date: tenant.contract_end_date || '',
-          duration_months: '12', // Valor padrão para edição se não existir
+          duration_months: '12',
           due_day: (tenant.due_day || 5).toString()
         });
       } else {
@@ -66,7 +66,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
           email: '',
           property_id: '',
           status: 'ativo',
-          contract_start_date: '',
+          contract_start_date: format(new Date(), 'yyyy-MM-dd'),
           contract_end_date: '',
           duration_months: '12',
           due_day: '5'
@@ -75,18 +75,13 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
     }
   }, [isOpen, tenant]);
 
-  // Cálculo automático da data de término
   useEffect(() => {
     if (formData.contract_start_date && formData.duration_months) {
       const startDate = parseISO(formData.contract_start_date);
       const months = parseInt(formData.duration_months);
-      
       if (isValid(startDate) && !isNaN(months)) {
         const endDate = addMonths(startDate, months);
-        setFormData(prev => ({
-          ...prev,
-          contract_end_date: format(endDate, 'yyyy-MM-dd')
-        }));
+        setFormData(prev => ({ ...prev, contract_end_date: format(endDate, 'yyyy-MM-dd') }));
       }
     }
   }, [formData.contract_start_date, formData.duration_months]);
@@ -99,12 +94,14 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
 
-      const payload = {
+      const propertyId = formData.property_id === 'none' ? null : (formData.property_id || null);
+      
+      const tenantPayload = {
         name: formData.name,
         cpf: formData.cpf,
         phone: formData.phone,
         email: formData.email,
-        property_id: formData.property_id === 'none' ? null : (formData.property_id || null),
+        property_id: propertyId,
         status: formData.status,
         contract_start_date: formData.contract_start_date || null,
         contract_end_date: formData.contract_end_date || null,
@@ -112,35 +109,69 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         user_id: user.id
       };
 
+      let tenantId = tenant?.id;
+
+      // 1. Salvar/Atualizar Inquilino
       if (isEdit) {
-        const { error } = await supabase.from('tenants').update(payload).eq('id', tenant.id);
+        const { error } = await supabase.from('tenants').update(tenantPayload).eq('id', tenant.id);
         if (error) throw error;
         
-        if (payload.property_id) {
-          await supabase.from('properties').update({ status: 'alugado' }).eq('id', payload.property_id);
+        // Se o imóvel mudou, liberar o antigo
+        if (tenant.property_id && tenant.property_id !== propertyId) {
+          await supabase.from('properties').update({ status: 'disponivel' }).eq('id', tenant.property_id);
         }
-        
-        showSuccess('Inquilino atualizado!');
       } else {
-        const { error } = await supabase.from('tenants').insert([payload]);
+        const { data, error } = await supabase.from('tenants').insert([tenantPayload]).select().single();
         if (error) throw error;
-
-        if (payload.property_id) {
-          await supabase.from('properties').update({ status: 'alugado' }).eq('id', payload.property_id);
-        }
-
-        showSuccess('Inquilino cadastrado com sucesso!');
+        tenantId = data.id;
       }
 
+      // 2. Se houver imóvel vinculado, atualizar status e garantir contrato
+      if (propertyId) {
+        // Marcar como alugado
+        await supabase.from('properties').update({ status: 'alugado' }).eq('id', propertyId);
+        
+        // Pegar valor do aluguel base do imóvel
+        const selectedProp = properties.find(p => p.id === propertyId);
+        const rentValue = selectedProp?.base_rent || 0;
+
+        // Criar ou atualizar contrato para que os valores apareçam no Dashboard
+        const contractPayload = {
+          user_id: user.id,
+          tenant_id: tenantId,
+          property_id: propertyId,
+          rent_value: rentValue,
+          start_date: formData.contract_start_date || format(new Date(), 'yyyy-MM-dd'),
+          duration_months: parseInt(formData.duration_months) || 12,
+          status: 'ativo'
+        };
+
+        // Tenta encontrar contrato existente para este inquilino/imóvel
+        const { data: existingContract } = await supabase
+          .from('contracts')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('property_id', propertyId)
+          .maybeSingle();
+
+        if (existingContract) {
+          await supabase.from('contracts').update(contractPayload).eq('id', existingContract.id);
+        } else {
+          await supabase.from('contracts').insert([contractPayload]);
+        }
+      }
+
+      showSuccess(isEdit ? 'Inquilino e contrato atualizados!' : 'Inquilino vinculado com sucesso!');
+      
+      // Atualizar todos os caches
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       queryClient.invalidateQueries({ queryKey: ['properties'] });
-      queryClient.invalidateQueries({ queryKey: ['properties-preview'] });
-      queryClient.invalidateQueries({ queryKey: ['tenant'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
       
       onClose();
     } catch (error: any) {
-      console.error("Erro ao salvar:", error);
-      showError('Erro ao salvar: ' + (error.message || 'Verifique os campos e tente novamente.'));
+      showError('Erro ao salvar: ' + error.message);
     } finally {
       setLoading(false);
     }
