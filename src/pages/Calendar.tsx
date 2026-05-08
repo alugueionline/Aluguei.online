@@ -13,12 +13,13 @@ import {
   ChevronRight, 
   CalendarDays,
   Bell,
-  Plus
+  Plus,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ptBR } from 'date-fns/locale';
-import { addMonths, subMonths, format, isSameDay, setDate as setDayOfMonth } from 'date-fns';
+import { addMonths, subMonths, format, isSameDay, setDate as setDayOfMonth, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { EventModal } from '@/components/modals/EventModal';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -32,23 +33,47 @@ const Calendar = () => {
   const fetchEvents = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('events')
-        .select('*');
       
-      if (error) {
-        // Se a tabela não existir, apenas ignoramos o erro e mostramos vazio
-        setEvents([]);
-      } else {
-        // Convertemos as strings de data para objetos Date
-        const formattedEvents = (data || []).map(e => ({
-          ...e,
-          date: new Date(e.date)
-        }));
-        setEvents(formattedEvents);
+      // 1. Buscar eventos manuais
+      const { data: manualEvents } = await supabase.from('events').select('*');
+      
+      // 2. Buscar contratos ativos para gerar vencimentos
+      const { data: contracts } = await supabase
+        .from('contracts')
+        .select('*, tenants(name), properties(name)')
+        .eq('status', 'ativo');
+
+      const formattedManual = (manualEvents || []).map(e => ({
+        ...e,
+        date: new Date(e.date)
+      }));
+
+      // 3. Gerar eventos de vencimento para o mês atual e próximos
+      const rentEvents: any[] = [];
+      if (contracts) {
+        contracts.forEach(c => {
+          if (c.start_date) {
+            const startDate = new Date(c.start_date);
+            const dueDay = startDate.getDate();
+            
+            // Gerar para o mês atual visualizado
+            const eventDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), dueDay);
+            
+            rentEvents.push({
+              id: `rent-${c.id}`,
+              title: `Aluguel: ${c.tenants?.name}`,
+              description: `Vencimento aluguel ${c.properties?.name}`,
+              type: 'payment',
+              date: eventDate,
+              time: '08:00'
+            });
+          }
+        });
       }
+
+      setEvents([...formattedManual, ...rentEvents]);
     } catch (err) {
-      setEvents([]);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -56,7 +81,7 @@ const Calendar = () => {
 
   useEffect(() => {
     fetchEvents();
-  }, []);
+  }, [currentMonth]);
 
   const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
@@ -74,7 +99,10 @@ const Calendar = () => {
   };
 
   const selectedDayEvents = events.filter(e => date && isSameDay(e.date, date));
-  const upcomingEvents = [...events].sort((a, b) => a.date.getTime() - b.date.getTime()).slice(0, 5);
+  const upcomingEvents = [...events]
+    .filter(e => e.date >= new Date())
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .slice(0, 5);
 
   return (
     <DashboardLayout title="Agenda de Gestão">
@@ -100,39 +128,45 @@ const Calendar = () => {
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
           <div className="xl:col-span-8 space-y-8">
             <Card className="premium-card rounded-[2.5rem] border-none p-8">
-              <CalendarUI
-                mode="single"
-                selected={date}
-                onSelect={setDate}
-                month={currentMonth}
-                onMonthChange={setCurrentMonth}
-                locale={ptBR}
-                className="w-full"
-                modifiers={eventDays}
-                modifiersClassNames={{
-                  payment: "bg-emerald-100 text-emerald-700 font-black",
-                  maintenance: "bg-amber-100 text-amber-700 font-black",
-                  contract: "bg-rose-100 text-rose-700 font-black",
-                  visit: "bg-blue-100 text-blue-700 font-black",
-                }}
-                classNames={{
-                  months: "w-full",
-                  month: "w-full space-y-4",
-                  caption: "hidden",
-                  table: "w-full border-collapse",
-                  head_row: "flex w-full justify-between",
-                  head_cell: "text-slate-400 font-bold uppercase text-[10px] tracking-widest w-12 text-center",
-                  row: "flex w-full justify-between mt-2",
-                  cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 w-12 h-12",
-                  day: "h-12 w-12 p-0 font-bold text-slate-900 rounded-2xl hover:bg-slate-100 transition-all flex items-center justify-center",
-                  day_selected: "bg-[#2563FF] text-white hover:bg-blue-700 focus:bg-[#2563FF] shadow-lg shadow-blue-100",
-                  day_today: "border-2 border-blue-500 text-blue-600",
-                  day_outside: "text-slate-300 opacity-50",
-                }}
-              />
+              {loading ? (
+                <div className="h-[400px] flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                </div>
+              ) : (
+                <CalendarUI
+                  mode="single"
+                  selected={date}
+                  onSelect={setDate}
+                  month={currentMonth}
+                  onMonthChange={setCurrentMonth}
+                  locale={ptBR}
+                  className="w-full"
+                  modifiers={eventDays}
+                  modifiersClassNames={{
+                    payment: "bg-emerald-100 text-emerald-700 font-black",
+                    maintenance: "bg-amber-100 text-amber-700 font-black",
+                    contract: "bg-rose-100 text-rose-700 font-black",
+                    visit: "bg-blue-100 text-blue-700 font-black",
+                  }}
+                  classNames={{
+                    months: "w-full",
+                    month: "w-full space-y-4",
+                    caption: "hidden",
+                    table: "w-full border-collapse",
+                    head_row: "flex w-full justify-between",
+                    head_cell: "text-slate-400 font-bold uppercase text-[10px] tracking-widest w-12 text-center",
+                    row: "flex w-full justify-between mt-2",
+                    cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 w-12 h-12",
+                    day: "h-12 w-12 p-0 font-bold text-slate-900 rounded-2xl hover:bg-slate-100 transition-all flex items-center justify-center",
+                    day_selected: "bg-[#2563FF] text-white hover:bg-blue-700 focus:bg-[#2563FF] shadow-lg shadow-blue-100",
+                    day_today: "border-2 border-blue-500 text-blue-600",
+                    day_outside: "text-slate-300 opacity-50",
+                  }}
+                />
+              )}
               
               <div className="mt-8 flex flex-wrap gap-6 pt-6 border-t border-slate-50">
-                <LegendItem color="bg-emerald-400" label="Pagamentos" />
+                <LegendItem color="bg-emerald-400" label="Vencimentos / Pagamentos" />
                 <LegendItem color="bg-amber-400" label="Manutenção" />
                 <LegendItem color="bg-rose-400" label="Contratos" />
                 <LegendItem color="bg-blue-400" label="Vistorias" />
@@ -179,7 +213,7 @@ const Calendar = () => {
             <Card className="premium-card rounded-[2.5rem] border-none p-8">
               <h3 className="text-lg font-black text-slate-900 tracking-tight mb-8 flex items-center gap-2">
                 <Bell className="w-5 h-5 text-blue-600" />
-                Próximos Eventos
+                Próximos Vencimentos
               </h3>
               <div className="space-y-6">
                 {upcomingEvents.length > 0 ? upcomingEvents.map((event, i) => (
@@ -201,19 +235,13 @@ const Calendar = () => {
                   <p className="text-xs text-slate-400 font-medium">Nenhum evento futuro.</p>
                 )}
               </div>
-              <Button variant="ghost" className="w-full mt-8 text-blue-600 font-black text-xs uppercase tracking-widest hover:bg-blue-50 rounded-2xl h-12">
-                Ver Agenda Completa
-              </Button>
             </Card>
 
             <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-xl">
               <h4 className="text-lg font-black tracking-tight mb-4">Dica de Gestão</h4>
               <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                Mantenha seu calendário atualizado para receber alertas automáticos de vencimento no seu WhatsApp.
+                Os vencimentos de aluguel são gerados automaticamente com base na data de início do contrato.
               </p>
-              <Button className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 rounded-2xl">
-                Configurar Alertas
-              </Button>
             </div>
           </div>
         </div>

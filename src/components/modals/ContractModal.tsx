@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, User, Home, DollarSign } from 'lucide-react';
+import { Calendar, Loader2, User, Home, DollarSign } from 'lucide-react';
 
 interface ContractModalProps {
   isOpen: boolean;
@@ -32,7 +32,7 @@ export const ContractModal = ({ isOpen, onClose }: ContractModalProps) => {
   useEffect(() => {
     const fetchData = async () => {
       const { data: t } = await supabase.from('tenants').select('id, name');
-      const { data: p } = await supabase.from('properties').select('id, name, base_rent');
+      const { data: p } = await supabase.from('properties').select('id, name, base_rent').eq('status', 'disponivel');
       setTenants(t || []);
       setProperties(p || []);
     };
@@ -47,16 +47,31 @@ export const ContractModal = ({ isOpen, onClose }: ContractModalProps) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
 
-      const { error } = await supabase.from('contracts').insert([{
+      // 1. Criar o contrato
+      const { error: contractError } = await supabase.from('contracts').insert([{
         ...formData,
         user_id: user.id,
         rent_value: parseFloat(formData.rent_value),
         duration_months: parseInt(formData.duration_months)
       }]);
 
-      if (error) throw error;
+      if (contractError) throw contractError;
 
-      showSuccess('Contrato gerado com sucesso!');
+      // 2. Atualizar o status do imóvel para alugado
+      const { error: propertyError } = await supabase
+        .from('properties')
+        .update({ status: 'alugado' })
+        .eq('id', formData.property_id);
+
+      if (propertyError) throw propertyError;
+
+      // 3. Atualizar o inquilino com o imóvel vinculado
+      await supabase
+        .from('tenants')
+        .update({ property_id: formData.property_id })
+        .eq('id', formData.tenant_id);
+
+      showSuccess('Contrato gerado e imóvel atualizado para alugado!');
       onClose();
     } catch (error: any) {
       showError(error.message);
@@ -88,7 +103,7 @@ export const ContractModal = ({ isOpen, onClose }: ContractModalProps) => {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Imóvel</Label>
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Imóvel Disponível</Label>
               <Select value={formData.property_id} onValueChange={v => {
                 const p = properties.find(prop => prop.id === v);
                 setFormData({...formData, property_id: v, rent_value: p?.base_rent?.toString() || ''});
@@ -151,7 +166,7 @@ export const ContractModal = ({ isOpen, onClose }: ContractModalProps) => {
           <DialogFooter className="pt-6">
             <Button type="button" variant="ghost" onClick={onClose} className="rounded-xl font-bold text-slate-400">Cancelar</Button>
             <Button type="submit" disabled={loading} className="bg-[#2563FF] hover:bg-blue-700 text-white rounded-xl px-10 font-black h-12 shadow-lg shadow-blue-100">
-              {loading ? 'Gerando...' : 'Gerar Contrato'}
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Gerar Contrato'}
             </Button>
           </DialogFooter>
         </form>

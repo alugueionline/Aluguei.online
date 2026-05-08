@@ -24,7 +24,6 @@ import { supabase } from '@/integrations/supabase/client';
 const Dashboard = () => {
   const navigate = useNavigate();
 
-  // Busca dados do usuário
   const { data: user } = useQuery({
     queryKey: ['user'],
     queryFn: async () => {
@@ -33,7 +32,6 @@ const Dashboard = () => {
     }
   });
 
-  // Busca imóveis com cache
   const { data: properties = [], isLoading: loadingProps } = useQuery({
     queryKey: ['properties-preview'],
     queryFn: async () => {
@@ -42,14 +40,16 @@ const Dashboard = () => {
     }
   });
 
-  // Busca contas e calcula estatísticas com cache
   const { data: financialData, isLoading: loadingBills } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
       const { data: bills } = await supabase.from('bills').select('*');
+      const { data: contracts } = await supabase.from('contracts').select('*').eq('status', 'ativo');
+      
       let rec = 0, des = 0, pen = 0;
       const overdue: any[] = [];
 
+      // Somar contas já lançadas
       if (bills) {
         bills.forEach(b => {
           const val = Number(b.total_value || b.calculated_value) || 0;
@@ -58,12 +58,31 @@ const Dashboard = () => {
             else des += val;
           } else {
             if (b.type === 'receita' || b.type === 'aluguel') pen += val;
-            if (b.due_date && new Date(b.due_date) < new Date()) {
-              overdue.push({ id: b.id, title: `Atraso: ${b.description || b.type}`, type: 'error' });
-            }
           }
         });
       }
+
+      // Somar aluguéis de contratos ativos que ainda não foram pagos este mês
+      if (contracts) {
+        const currentMonth = new Date().getMonth() + 1;
+        const currentYear = new Date().getFullYear();
+        
+        contracts.forEach(c => {
+          // Verifica se já existe uma conta de aluguel paga para este imóvel este mês
+          const alreadyPaid = bills?.some(b => 
+            b.property_id === c.property_id && 
+            b.type === 'aluguel' && 
+            b.status === 'pago' &&
+            b.month === currentMonth.toString().padStart(2, '0') &&
+            b.year === currentYear
+          );
+
+          if (!alreadyPaid) {
+            pen += Number(c.rent_value);
+          }
+        });
+      }
+
       return { stats: { receitas: rec, despesas: des, lucro: rec - des, pendente: pen }, alerts: overdue };
     }
   });

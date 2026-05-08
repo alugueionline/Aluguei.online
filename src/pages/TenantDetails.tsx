@@ -18,9 +18,20 @@ import {
   History,
   ShieldCheck,
   Clock,
-  Loader2
+  Loader2,
+  TrendingUp,
+  CheckCircle2
 } from 'lucide-react';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
 
 const TenantDetails = () => {
   const { id } = useParams();
@@ -31,13 +42,35 @@ const TenantDetails = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tenants')
-        .select('*, properties(name, base_rent)')
+        .select('*, properties(id, name, base_rent)')
         .eq('id', id)
         .single();
       
       if (error) throw error;
       return data;
     }
+  });
+
+  const { data: financialData } = useQuery({
+    queryKey: ['tenant-financial', id],
+    queryFn: async () => {
+      if (!tenant?.property_id) return { history: [], totalProfit: 0 };
+      
+      const { data: bills } = await supabase
+        .from('bills')
+        .select('*')
+        .eq('property_id', tenant.property_id)
+        .order('year', { ascending: false })
+        .order('month', { ascending: false });
+
+      const history = bills || [];
+      const totalProfit = history
+        .filter(b => b.status === 'pago' && (b.type === 'aluguel' || b.type === 'receita'))
+        .reduce((acc, curr) => acc + Number(curr.total_value || curr.calculated_value), 0);
+
+      return { history, totalProfit };
+    },
+    enabled: !!tenant
   });
 
   if (isLoading) {
@@ -66,6 +99,8 @@ const TenantDetails = () => {
     if (!dateStr) return 'Não definida';
     return new Date(dateStr).toLocaleDateString('pt-BR');
   };
+
+  const dueDay = tenant.contract_start_date ? new Date(tenant.contract_start_date).getDate() : 'N/A';
 
   return (
     <DashboardLayout title="Perfil do Inquilino">
@@ -116,17 +151,23 @@ const TenantDetails = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-black text-blue-800 flex items-center gap-2 uppercase tracking-widest">
                 <Clock className="w-4 h-4" />
-                Vigência do Contrato
+                Vigência e Vencimento
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest">Início</p>
-                <p className="text-sm font-black text-blue-900">{formatDate(tenant.contract_start_date)}</p>
+              <div className="flex justify-between items-center p-3 bg-white rounded-xl shadow-sm">
+                <span className="text-[10px] text-blue-600 font-black uppercase">Dia de Pagamento</span>
+                <span className="text-lg font-black text-blue-900">Todo dia {dueDay}</span>
               </div>
-              <div>
-                <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest">Término</p>
-                <p className="text-sm font-black text-blue-900">{formatDate(tenant.contract_end_date)}</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest">Início</p>
+                  <p className="text-sm font-black text-blue-900">{formatDate(tenant.contract_start_date)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest">Término</p>
+                  <p className="text-sm font-black text-blue-900">{formatDate(tenant.contract_end_date)}</p>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -134,17 +175,17 @@ const TenantDetails = () => {
           <Card className="border-none shadow-sm bg-emerald-50 border-emerald-100 rounded-[2rem]">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-black text-emerald-800 flex items-center gap-2 uppercase tracking-widest">
-                <ShieldCheck className="w-4 h-4" />
-                Aluguel Atual
+                <TrendingUp className="w-4 h-4" />
+                Lucro Acumulado
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-1">
                 <p className="text-2xl font-black text-emerald-900">
-                  R$ {Number(tenant.properties?.base_rent || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  R$ {financialData?.totalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
                 <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">
-                  Valor base do imóvel
+                  Total recebido deste inquilino
                 </p>
               </div>
             </CardContent>
@@ -167,27 +208,60 @@ const TenantDetails = () => {
             <Card className="border-none shadow-sm rounded-[2rem]">
               <CardContent className="p-6 flex items-center gap-4">
                 <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600">
-                  <Calendar className="w-6 h-6" />
+                  <ShieldCheck className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Data de Cadastro</p>
-                  <p className="text-lg font-black text-gray-900">{formatDate(tenant.created_at)}</p>
+                  <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Aluguel Mensal</p>
+                  <p className="text-lg font-black text-gray-900">R$ {Number(tenant.properties?.base_rent || 0).toLocaleString('pt-BR')}</p>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <Card className="border-none shadow-sm rounded-[2.5rem]">
-            <CardHeader>
+          <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
+            <CardHeader className="p-8 border-b border-slate-50">
               <CardTitle className="text-lg font-black flex items-center gap-2 tracking-tight">
                 <History className="w-5 h-5 text-blue-600" />
                 Histórico de Pagamentos
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="py-10 text-center text-slate-400 font-medium">
-                Nenhum pagamento registrado no histórico.
-              </div>
+            <CardContent className="p-0">
+              {financialData?.history && financialData.history.length > 0 ? (
+                <Table>
+                  <TableHeader className="bg-slate-50/50">
+                    <TableRow>
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Referência</TableHead>
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Tipo</TableHead>
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Valor</TableHead>
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {financialData.history.map((bill) => (
+                      <TableRow key={bill.id} className="border-slate-50">
+                        <TableCell className="p-6 font-bold text-slate-900">{bill.month}/{bill.year}</TableCell>
+                        <TableCell className="p-6 capitalize text-slate-500 font-medium">{bill.type}</TableCell>
+                        <TableCell className="p-6 font-black text-slate-900">R$ {Number(bill.total_value || bill.calculated_value).toLocaleString('pt-BR')}</TableCell>
+                        <TableCell className="p-6">
+                          <Badge className={cn(
+                            "border-none px-3 py-1 rounded-lg font-black text-[10px] uppercase",
+                            bill.status === 'pago' ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                          )}>
+                            {bill.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="py-20 text-center flex flex-col items-center">
+                  <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 mb-4">
+                    <History className="w-8 h-8" />
+                  </div>
+                  <p className="text-slate-400 font-medium">Nenhum pagamento registrado no histórico.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
