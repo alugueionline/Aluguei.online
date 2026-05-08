@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, Loader2, User, DollarSign, Hash } from 'lucide-react';
+import { Calendar, Loader2, User, DollarSign, Hash, Users } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { addMonths, format, parseISO, isValid } from 'date-fns';
 
@@ -34,7 +34,8 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
     contract_start_date: '',
     contract_end_date: '',
     duration_months: '12',
-    due_day: '5'
+    due_day: '5',
+    residents_count: '1'
   });
 
   useEffect(() => {
@@ -56,7 +57,8 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
           contract_start_date: tenant.contract_start_date || '',
           contract_end_date: tenant.contract_end_date || '',
           duration_months: '12',
-          due_day: (tenant.due_day || 5).toString()
+          due_day: (tenant.due_day || 5).toString(),
+          residents_count: (tenant.residents_count || 1).toString()
         });
       } else {
         setFormData({
@@ -69,7 +71,8 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
           contract_start_date: format(new Date(), 'yyyy-MM-dd'),
           contract_end_date: '',
           duration_months: '12',
-          due_day: '5'
+          due_day: '5',
+          residents_count: '1'
         });
       }
     }
@@ -106,17 +109,16 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         contract_start_date: formData.contract_start_date || null,
         contract_end_date: formData.contract_end_date || null,
         due_day: parseInt(formData.due_day) || 5,
+        residents_count: parseInt(formData.residents_count) || 1,
         user_id: user.id
       };
 
       let tenantId = tenant?.id;
 
-      // 1. Salvar/Atualizar Inquilino
       if (isEdit) {
         const { error } = await supabase.from('tenants').update(tenantPayload).eq('id', tenant.id);
         if (error) throw error;
         
-        // Se o imóvel mudou, liberar o antigo
         if (tenant.property_id && tenant.property_id !== propertyId) {
           await supabase.from('properties').update({ status: 'disponivel' }).eq('id', tenant.property_id);
         }
@@ -126,16 +128,11 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         tenantId = data.id;
       }
 
-      // 2. Se houver imóvel vinculado, atualizar status e garantir contrato
       if (propertyId) {
-        // Marcar como alugado
         await supabase.from('properties').update({ status: 'alugado' }).eq('id', propertyId);
-        
-        // Pegar valor do aluguel base do imóvel
         const selectedProp = properties.find(p => p.id === propertyId);
         const rentValue = selectedProp?.base_rent || 0;
 
-        // Criar ou atualizar contrato para que os valores apareçam no Dashboard e na aba Contratos
         const contractPayload = {
           user_id: user.id,
           tenant_id: tenantId,
@@ -146,7 +143,6 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
           status: 'ativo'
         };
 
-        // Tenta encontrar contrato existente para este inquilino/imóvel
         const { data: existingContract } = await supabase
           .from('contracts')
           .select('id')
@@ -161,14 +157,9 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         }
       }
 
-      showSuccess(isEdit ? 'Inquilino e contrato atualizados!' : 'Inquilino vinculado com sucesso!');
-      
-      // Atualizar todos os caches para refletir a mudança em todas as abas
+      showSuccess(isEdit ? 'Inquilino atualizado!' : 'Inquilino cadastrado!');
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       queryClient.invalidateQueries({ queryKey: ['properties'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['contracts'] });
-      
       onClose();
     } catch (error: any) {
       showError('Erro ao salvar: ' + error.message);
@@ -207,13 +198,17 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Telefone</Label>
-              <Input 
-                placeholder="(00) 00000-0000" 
-                value={formData.phone}
-                onChange={e => setFormData({...formData, phone: e.target.value})}
-                className="rounded-xl h-12 bg-gray-50 border-none font-bold"
-              />
+              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nº de Moradores</Label>
+              <div className="relative">
+                <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400" />
+                <Input 
+                  type="number"
+                  min="1"
+                  value={formData.residents_count}
+                  onChange={e => setFormData({...formData, residents_count: e.target.value})}
+                  className="rounded-xl h-12 bg-blue-50/30 border-none font-bold pl-10"
+                />
+              </div>
             </div>
           </div>
 

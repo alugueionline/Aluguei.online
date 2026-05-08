@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calculator, Users, Receipt, Building2, Loader2 } from 'lucide-react';
+import { Calculator, Users, Receipt, Building2, Loader2, Info } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -27,34 +27,74 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
 
   useEffect(() => {
     const fetchProperties = async () => {
-      const { data } = await supabase.from('properties').select('id, name');
-      setProperties(data || []);
-      if (data) setSelectedParticipants(data.map(p => p.id));
+      // Buscamos propriedades e seus inquilinos ativos para saber o número de moradores
+      const { data } = await supabase
+        .from('properties')
+        .select(`
+          id, 
+          name,
+          tenants (
+            id,
+            name,
+            residents_count,
+            status
+          )
+        `);
+      
+      // Filtramos apenas propriedades que têm inquilinos ativos (ou tratamos como 0 moradores)
+      const formatted = (data || []).map(p => {
+        const activeTenant = p.tenants?.find((t: any) => t.status === 'ativo');
+        return {
+          id: p.id,
+          name: p.name,
+          residents: activeTenant?.residents_count || 0
+        };
+      });
+
+      setProperties(formatted);
+      if (formatted.length > 0) setSelectedParticipants(formatted.map(p => p.id));
     };
     if (isOpen) fetchProperties();
   }, [isOpen]);
 
-  const individualValue = parseFloat(totalValue) / (selectedParticipants.length || 1);
+  // Cálculo do total de moradores selecionados
+  const totalResidents = properties
+    .filter(p => selectedParticipants.includes(p.id))
+    .reduce((acc, p) => acc + p.residents, 0);
+
+  const valuePerPerson = totalResidents > 0 ? parseFloat(totalValue) / totalResidents : 0;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (totalResidents === 0) {
+      showError('Nenhum morador encontrado nas unidades selecionadas.');
+      return;
+    }
+
     setLoading(true);
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
 
-      // Criar lançamentos individuais para cada imóvel
-      const billsToInsert = selectedParticipants.map(propId => ({
-        user_id: user.id,
-        property_id: propId,
-        type: type,
-        month: (new Date().getMonth() + 1).toString().padStart(2, '0'),
-        year: new Date().getFullYear(),
-        total_value: parseFloat(totalValue),
-        calculated_value: individualValue,
-        status: 'pendente'
-      }));
+      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+      const currentYear = new Date().getFullYear();
+
+      // Criar lançamentos individuais baseados no número de moradores de cada imóvel
+      const billsToInsert = properties
+        .filter(p => selectedParticipants.includes(p.id) && p.residents > 0)
+        .map(p => ({
+          user_id: user.id,
+          property_id: p.id,
+          type: type,
+          month: currentMonth,
+          year: currentYear,
+          total_value: parseFloat(totalValue), // Valor total da fatura original
+          calculated_value: p.residents * valuePerPerson, // Valor que esta unidade deve pagar
+          status: 'pendente'
+        }));
+
+      if (billsToInsert.length === 0) throw new Error('Nenhuma unidade com moradores para ratear.');
 
       const { error } = await supabase.from('bills').insert(billsToInsert);
       if (error) throw error;
@@ -62,12 +102,12 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
       onSave({
         type,
         totalValue: parseFloat(totalValue),
-        participantsCount: selectedParticipants.length,
-        individualValue,
+        totalResidents,
+        valuePerPerson,
         date: new Date().toISOString()
       });
 
-      showSuccess('Rateio processado e enviado para as cobranças!');
+      showSuccess(`Rateio de ${type} processado por pessoa!`);
       onClose();
     } catch (error: any) {
       showError(error.message);
@@ -84,11 +124,18 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] rounded-[2.5rem] p-8">
+      <DialogContent className="sm:max-w-[650px] rounded-[2.5rem] p-8">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-black tracking-tight text-gray-900">Novo Rateio de Despesa</DialogTitle>
+          <DialogTitle className="text-2xl font-black tracking-tight text-gray-900">Rateio por Pessoa (Morador)</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSave} className="space-y-6 py-4">
+          <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-start gap-3">
+            <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+            <p className="text-xs font-medium text-blue-800 leading-relaxed">
+              O sistema somará todos os moradores das unidades selecionadas e dividirá o valor total. Cada casa pagará proporcionalmente ao seu número de moradores.
+            </p>
+          </div>
+
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo de Conta</Label>
@@ -105,7 +152,7 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Total (R$)</Label>
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Total da Fatura (R$)</Label>
               <div className="relative">
                 <Receipt className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                 <Input 
@@ -123,8 +170,8 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
 
           <div className="space-y-3">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between">
-              Selecionar Imóveis Participantes
-              <span className="text-blue-600">{selectedParticipants.length} selecionados</span>
+              Unidades Participantes
+              <span className="text-blue-600">{totalResidents} moradores no total</span>
             </Label>
             <div className="grid grid-cols-2 gap-3 max-h-[200px] overflow-y-auto p-4 border rounded-2xl bg-slate-50/50">
               {properties.map((p) => (
@@ -132,39 +179,44 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
                   key={p.id}
                   onClick={() => toggleParticipant(p.id)}
                   className={cn(
-                    "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all",
+                    "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all",
                     selectedParticipants.includes(p.id) 
                       ? "bg-white border-blue-200 shadow-sm" 
                       : "bg-transparent border-transparent text-slate-400"
                   )}
                 >
-                  <Checkbox checked={selectedParticipants.includes(p.id)} />
-                  <div className="flex items-center gap-2">
-                    <Building2 className={cn("w-4 h-4", selectedParticipants.includes(p.id) ? "text-blue-600" : "text-slate-300")} />
-                    <span className="text-sm font-bold truncate">{p.name}</span>
+                  <div className="flex items-center gap-3">
+                    <Checkbox checked={selectedParticipants.includes(p.id)} />
+                    <div className="flex items-center gap-2">
+                      <Building2 className={cn("w-4 h-4", selectedParticipants.includes(p.id) ? "text-blue-600" : "text-slate-300")} />
+                      <span className="text-sm font-bold truncate max-w-[120px]">{p.name}</span>
+                    </div>
                   </div>
+                  <Badge variant="outline" className="text-[10px] font-black border-slate-100">
+                    {p.residents} {p.residents === 1 ? 'PESSOA' : 'PESSOAS'}
+                  </Badge>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="p-6 bg-blue-50 rounded-[2rem] border border-blue-100 flex items-center justify-between">
+          <div className="p-6 bg-slate-900 rounded-[2rem] flex items-center justify-between text-white">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-white rounded-2xl shadow-sm">
-                <Calculator className="w-6 h-6 text-blue-600" />
+              <div className="p-3 bg-blue-600 rounded-2xl shadow-lg">
+                <Calculator className="w-6 h-6 text-white" />
               </div>
               <div>
-                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Cálculo Individual</p>
-                <p className="text-2xl font-black text-slate-900 leading-none mt-1">
-                  R$ {individualValue > 0 ? individualValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00'}
+                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Valor por Pessoa</p>
+                <p className="text-2xl font-black leading-none mt-1">
+                  R$ {valuePerPerson > 0 ? valuePerPerson.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00'}
                 </p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Divisão Igualitária</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Base de Cálculo</p>
               <div className="flex items-center gap-1.5 justify-end mt-1">
-                <Users className="w-3.5 h-3.5 text-slate-400" />
-                <span className="text-sm font-bold text-slate-600">{selectedParticipants.length} Unidades</span>
+                <Users className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-sm font-bold">{totalResidents} Moradores</span>
               </div>
             </div>
           </div>
