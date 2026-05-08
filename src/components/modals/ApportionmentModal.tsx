@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calculator, Users, Receipt, Building2, Loader2, Info } from 'lucide-react';
+import { Calculator, Users, Receipt, Building2, Loader2, Info, User } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -21,63 +21,61 @@ interface ApportionmentModalProps {
 export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentModalProps) => {
   const [type, setType] = useState('energia');
   const [totalValue, setTotalValue] = useState('');
-  const [properties, setProperties] = useState<any[]>([]);
+  const [participants, setParticipants] = useState<any[]>([]);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
 
   useEffect(() => {
-    const fetchProperties = async () => {
+    const fetchActiveTenants = async () => {
       try {
         setFetching(true);
         const { data: { user } } = await supabase.auth.getUser();
         
         if (!user) return;
 
-        // Buscamos propriedades e seus inquilinos ativos do usuário logado
+        // Buscamos diretamente os inquilinos ativos e seus respectivos imóveis
         const { data, error } = await supabase
-          .from('properties')
+          .from('tenants')
           .select(`
-            id, 
+            id,
             name,
-            user_id,
-            tenants (
+            residents_count,
+            property_id,
+            properties (
               id,
-              name,
-              residents_count,
-              status
+              name
             )
           `)
-          .eq('user_id', user.id);
+          .eq('user_id', user.id)
+          .eq('status', 'ativo');
         
         if (error) throw error;
 
-        const formatted = (data || []).map(p => {
-          const activeTenant = p.tenants?.find((t: any) => t.status === 'ativo');
-          return {
-            id: p.id,
-            name: p.name,
-            residents: activeTenant?.residents_count || 0,
-            hasActiveTenant: !!activeTenant
-          };
-        });
+        const formatted = (data || []).map(t => ({
+          id: t.id,
+          tenantName: t.name,
+          propertyName: t.properties?.name || 'Imóvel não vinculado',
+          propertyId: t.property_id,
+          residents: t.residents_count || 1,
+        }));
 
-        setProperties(formatted);
-        // Seleciona automaticamente apenas as unidades que possuem inquilinos ativos
-        setSelectedParticipants(formatted.filter(p => p.hasActiveTenant).map(p => p.id));
+        setParticipants(formatted);
+        // Seleciona todos por padrão
+        setSelectedParticipants(formatted.map(p => p.id));
       } catch (err: any) {
-        console.error('Erro ao carregar unidades para rateio:', err.message);
+        console.error('Erro ao carregar inquilinos para rateio:', err.message);
       } finally {
         setFetching(false);
       }
     };
 
     if (isOpen) {
-      fetchProperties();
+      fetchActiveTenants();
     }
   }, [isOpen]);
 
-  const totalResidents = properties
+  const totalResidents = participants
     .filter(p => selectedParticipants.includes(p.id))
     .reduce((acc, p) => acc + p.residents, 0);
 
@@ -86,7 +84,7 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (totalResidents === 0) {
-      showError('Nenhum morador encontrado nas unidades selecionadas.');
+      showError('Nenhum morador selecionado para o rateio.');
       return;
     }
 
@@ -99,11 +97,13 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
-      const billsToInsert = properties
-        .filter(p => selectedParticipants.includes(p.id) && p.residents > 0)
+      // Criamos um lançamento de conta para cada imóvel dos inquilinos selecionados
+      const billsToInsert = participants
+        .filter(p => selectedParticipants.includes(p.id) && p.propertyId)
         .map(p => ({
           user_id: user.id,
-          property_id: p.id,
+          property_id: p.propertyId,
+          tenant_id: p.id,
           type: type,
           month: currentMonth,
           year: currentYear,
@@ -112,7 +112,7 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
           status: 'pendente'
         }));
 
-      if (billsToInsert.length === 0) throw new Error('Nenhuma unidade com moradores para ratear.');
+      if (billsToInsert.length === 0) throw new Error('Nenhum inquilino com imóvel vinculado selecionado.');
 
       const { error } = await supabase.from('bills').insert(billsToInsert);
       if (error) throw error;
@@ -150,7 +150,7 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
           <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-start gap-3">
             <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
             <p className="text-xs font-medium text-blue-800 leading-relaxed">
-              O sistema dividirá o valor total pelo número de moradores das unidades selecionadas.
+              O sistema dividirá o valor total pelo número de moradores dos inquilinos selecionados.
             </p>
           </div>
 
@@ -188,41 +188,47 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
 
           <div className="space-y-3">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between">
-              Unidades Participantes
+              Inquilinos Participantes
               <span className="text-blue-600">{totalResidents} moradores no total</span>
             </Label>
-            <div className="grid grid-cols-2 gap-3 max-h-[200px] overflow-y-auto p-4 border rounded-2xl bg-slate-50/50">
+            <div className="grid grid-cols-1 gap-3 max-h-[250px] overflow-y-auto p-4 border rounded-2xl bg-slate-50/50">
               {fetching ? (
-                <div className="col-span-2 py-10 flex justify-center">
+                <div className="py-10 flex justify-center">
                   <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
                 </div>
-              ) : properties.length > 0 ? (
-                properties.map((p) => (
+              ) : participants.length > 0 ? (
+                participants.map((p) => (
                   <div 
                     key={p.id}
                     onClick={() => toggleParticipant(p.id)}
                     className={cn(
-                      "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all",
+                      "flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all",
                       selectedParticipants.includes(p.id) 
                         ? "bg-white border-blue-200 shadow-sm" 
                         : "bg-transparent border-transparent text-slate-400"
                     )}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
                       <Checkbox checked={selectedParticipants.includes(p.id)} />
-                      <div className="flex items-center gap-2">
-                        <Building2 className={cn("w-4 h-4", selectedParticipants.includes(p.id) ? "text-blue-600" : "text-slate-300")} />
-                        <span className="text-sm font-bold truncate max-w-[120px]">{p.name}</span>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <User className={cn("w-4 h-4", selectedParticipants.includes(p.id) ? "text-blue-600" : "text-slate-300")} />
+                          <span className="text-sm font-black">{p.tenantName}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Building2 className="w-3 h-3 text-slate-300" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">{p.propertyName}</span>
+                        </div>
                       </div>
                     </div>
-                    <Badge variant="outline" className="text-[10px] font-black border-slate-100">
-                      {p.residents} {p.residents === 1 ? 'PESSOA' : 'PESSOAS'}
+                    <Badge variant="outline" className="text-[10px] font-black border-slate-100 bg-slate-50">
+                      {p.residents} {p.residents === 1 ? 'MORADOR' : 'MORADORES'}
                     </Badge>
                   </div>
                 ))
               ) : (
-                <div className="col-span-2 py-10 text-center text-slate-400 text-sm font-medium">
-                  Nenhuma unidade encontrada.
+                <div className="py-10 text-center text-slate-400 text-sm font-medium">
+                  Nenhum inquilino ativo encontrado. Certifique-se de que seus inquilinos estão com status "Ativo".
                 </div>
               )}
             </div>
