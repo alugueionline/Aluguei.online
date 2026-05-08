@@ -15,7 +15,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit2, Trash2, ExternalLink, UserX, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, ExternalLink, UserX, Loader2, Home } from 'lucide-react';
 import { TenantModal } from '@/components/modals/TenantModal';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
@@ -36,7 +36,11 @@ const Tenants = () => {
         .select(`
           *,
           properties (name),
-          contracts (id, properties(name))
+          contracts (
+            id, 
+            status,
+            properties (name)
+          )
         `)
         .order('created_at', { ascending: false });
       
@@ -94,8 +98,14 @@ const Tenants = () => {
                 </TableHeader>
                 <TableBody>
                   {tenants.map((tenant) => {
-                    const contractCount = tenant.contracts?.length || 0;
-                    const propertyName = tenant.properties?.name;
+                    // Pegamos os contratos ativos para mostrar o imóvel correto
+                    const activeContracts = tenant.contracts?.filter((c: any) => c.status === 'ativo') || [];
+                    const contractCount = activeContracts.length;
+                    
+                    // Priorizamos o nome do imóvel vindo do contrato ativo
+                    const propertyName = contractCount > 0 
+                      ? activeContracts[0].properties?.name 
+                      : tenant.properties?.name;
                     
                     return (
                       <TableRow key={tenant.id} className="hover:bg-gray-50/50 transition-colors border-gray-50">
@@ -126,11 +136,14 @@ const Tenants = () => {
                               <span className="text-[10px] text-slate-400 font-bold uppercase">Gestor / Master</span>
                             </div>
                           ) : propertyName ? (
-                            <span className="font-bold text-blue-600 text-sm">
-                              {propertyName}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <Home className="w-3.5 h-3.5 text-blue-600" />
+                              <span className="font-bold text-blue-600 text-sm">
+                                {propertyName}
+                              </span>
+                            </div>
                           ) : (
-                            <span className="text-xs text-slate-400 font-medium italic">Sem vínculo direto</span>
+                            <span className="text-xs text-slate-400 font-medium italic">Sem contrato ativo</span>
                           )}
                         </TableCell>
                         <TableCell className="p-6">
