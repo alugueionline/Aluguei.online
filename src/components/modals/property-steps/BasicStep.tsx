@@ -34,6 +34,7 @@ export const BasicStep = ({ formData, setFormData }: BasicStepProps) => {
             className="h-14 rounded-2xl bg-slate-50 border-none font-bold text-slate-900 text-lg"
           />
         </div>
+        
         <div className="space-y-2">
           <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo de Imóvel</Label>
           <Select value={formData.type} onValueChange={v => setFormData({...formData, type: v})}>
@@ -49,7 +50,22 @@ export const BasicStep = ({ formData, setFormData }: BasicStepProps) => {
             </SelectContent>
           </Select>
         </div>
+
         <div className="space-y-2">
+          <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Status Atual</Label>
+          <Select value={formData.status} onValueChange={v => setFormData({...formData, status: v})}>
+            <SelectTrigger className="h-14 rounded-2xl bg-blue-50/50 border-none font-bold text-blue-900">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="rounded-2xl border-none shadow-2xl">
+              <SelectItem value="disponivel">Disponível</SelectItem>
+              <SelectItem value="alugado">Alugado</SelectItem>
+              <SelectItem value="manutencao">Em Manutenção</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
           <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluguel Base (R$)</Label>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">R$</span>
@@ -63,6 +79,7 @@ export const BasicStep = ({ formData, setFormData }: BasicStepProps) => {
           </div>
         </div>
       </div>
+      
       <div className="space-y-2">
         <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Descrição Detalhada</Label>
         <Textarea 
