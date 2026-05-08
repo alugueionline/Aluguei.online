@@ -1,7 +1,6 @@
 "use client";
 
 import React from 'react';
-import { DollarSign } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,11 +12,21 @@ interface BasicStepProps {
 }
 
 export const BasicStep = ({ formData, setFormData }: BasicStepProps) => {
-  const handleNumberChange = (field: string, value: string) => {
-    // Remove leading zeros unless the value is just "0"
-    const cleanValue = value.replace(/^0+(?=\d)/, '');
-    setFormData({ ...formData, [field]: cleanValue });
+  const formatCurrency = (value: string) => {
+    const digits = value.replace(/\D/g, "");
+    const amount = parseFloat(digits) / 100;
+    return amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   };
+
+  const handleCurrencyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\D/g, "");
+    const numericValue = parseFloat(rawValue) / 100;
+    setFormData({ ...formData, base_rent: numericValue.toString() });
+  };
+
+  const displayValue = formData.base_rent 
+    ? parseFloat(formData.base_rent).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) 
+    : "0,00";
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -50,11 +59,10 @@ export const BasicStep = ({ formData, setFormData }: BasicStepProps) => {
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">R$</span>
             <Input 
-              type="number" 
+              type="text" 
               placeholder="0,00"
-              value={formData.base_rent}
-              onFocus={(e) => e.target.value === '0' && handleNumberChange('base_rent', '')}
-              onChange={e => handleNumberChange('base_rent', e.target.value)}
+              value={displayValue}
+              onChange={handleCurrencyChange}
               className="h-14 pl-12 rounded-2xl bg-slate-50 border-none font-black text-slate-900 text-lg"
             />
           </div>

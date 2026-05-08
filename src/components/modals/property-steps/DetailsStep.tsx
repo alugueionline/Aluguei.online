@@ -29,6 +29,16 @@ const DetailInput = ({ icon, label, value, onChange }: { icon: React.ReactNode, 
 );
 
 export const DetailsStep = ({ formData, setFormData }: DetailsStepProps) => {
+  const handleCondoFeeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\D/g, "");
+    const numericValue = parseFloat(rawValue) / 100;
+    setFormData({ ...formData, condo_fee: numericValue.toString() });
+  };
+
+  const condoDisplayValue = formData.condo_fee 
+    ? parseFloat(formData.condo_fee).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) 
+    : "0,00";
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -80,14 +90,10 @@ export const DetailsStep = ({ formData, setFormData }: DetailsStepProps) => {
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 font-bold text-xs">R$</span>
               <Input 
-                type="number" 
+                type="text" 
                 placeholder="0,00"
-                value={formData.condo_fee}
-                onFocus={(e) => e.target.value === '0' && setFormData({...formData, condo_fee: ''})}
-                onChange={e => {
-                  const val = e.target.value.replace(/^0+(?=\d)/, '');
-                  setFormData({...formData, condo_fee: val});
-                }}
+                value={condoDisplayValue}
+                onChange={handleCondoFeeChange}
                 className="h-12 pl-10 rounded-xl bg-white border-none font-black text-slate-900 shadow-sm"
               />
             </div>
