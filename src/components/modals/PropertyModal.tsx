@@ -180,26 +180,28 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
         </div>
 
         <div className="p-10">
-          {step === 'photo' && (
-            <PhotoStep 
-              imageUrl={formData.image_url} 
-              isUploading={isUploading} 
-              setIsUploading={setIsUploading} 
-              onChange={(url) => setFormData({...formData, image_url: url})} 
-            />
-          )}
+          <div className="min-h-[350px]">
+            {step === 'photo' && (
+              <PhotoStep 
+                imageUrl={formData.image_url} 
+                isUploading={isUploading} 
+                setIsUploading={setIsUploading} 
+                onChange={(url) => setFormData({...formData, image_url: url})} 
+              />
+            )}
 
-          {step === 'basic' && (
-            <BasicStep formData={formData} setFormData={setFormData} />
-          )}
+            {step === 'basic' && (
+              <BasicStep formData={formData} setFormData={setFormData} />
+            )}
 
-          {step === 'details' && (
-            <DetailsStep formData={formData} setFormData={setFormData} />
-          )}
+            {step === 'details' && (
+              <DetailsStep formData={formData} setFormData={setFormData} />
+            )}
 
-          {step === 'address' && (
-            <AddressStep formData={formData} setFormData={setFormData} />
-          )}
+            {step === 'address' && (
+              <AddressStep formData={formData} setFormData={setFormData} />
+            )}
+          </div>
 
           <DialogFooter className="pt-10 flex justify-between items-center sm:justify-between">
             {currentStepIndex > 0 ? (

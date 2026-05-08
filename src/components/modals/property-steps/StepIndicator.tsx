@@ -15,8 +15,8 @@ export const StepIndicator = ({ currentStepIndex, totalSteps }: StepIndicatorPro
         <div 
           key={i} 
           className={cn(
-            "h-1.5 w-10 rounded-full transition-all duration-500",
-            i <= currentStepIndex ? "bg-blue-500 w-12" : "bg-slate-800"
+            "h-1.5 w-8 rounded-full transition-all duration-500",
+            i <= currentStepIndex ? "bg-blue-500 w-10" : "bg-slate-700"
           )} 
         />
       ))}
