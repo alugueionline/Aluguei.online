@@ -43,7 +43,6 @@ const Dashboard = () => {
   const { data: financialData, isLoading: loadingBills } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
-      // Buscar faturas e contratos simultaneamente
       const [billsRes, contractsRes] = await Promise.all([
         supabase.from('bills').select('*'),
         supabase.from('contracts').select('*').eq('status', 'ativo')
@@ -56,15 +55,22 @@ const Dashboard = () => {
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
-      // 1. Somar faturas já existentes (Lançamentos manuais ou rateios)
+      // Tipos que são considerados Receita
+      const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet'];
+
+      // 1. Somar faturas existentes
       bills.forEach(b => {
-        const val = Number(b.total_value || b.calculated_value) || 0;
+        const val = Number(b.calculated_value || b.total_value) || 0;
+        const isIncome = incomeTypes.includes(b.type?.toLowerCase());
+        const isExpense = b.type?.toLowerCase() === 'despesa';
+
         if (b.status === 'pago') {
-          if (b.type === 'receita' || b.type === 'aluguel') rec += val;
-          else des += val;
+          if (isIncome) rec += val;
+          else if (isExpense) des += val;
+          // Outros tipos não mapeados são ignorados ou tratados como despesa por padrão se não forem income
+          else des += val; 
         } else {
-          // Soma tudo que está pendente ou atrasado
-          if (b.type === 'receita' || b.type === 'aluguel') pen += val;
+          if (isIncome) pen += val;
         }
       });
 
@@ -72,7 +78,6 @@ const Dashboard = () => {
       contracts.forEach(c => {
         const rentVal = Number(c.rent_value) || 0;
         
-        // Verifica se já existe QUALQUER fatura de aluguel (paga ou pendente) para este imóvel este mês
         const hasBillThisMonth = bills.some(b => 
           b.property_id === c.property_id && 
           b.type === 'aluguel' && 
@@ -80,7 +85,6 @@ const Dashboard = () => {
           b.year === currentYear
         );
 
-        // Se não tem fatura nenhuma, o valor do contrato é considerado "A receber" esperado
         if (!hasBillThisMonth) {
           pen += rentVal;
         }
@@ -92,15 +96,13 @@ const Dashboard = () => {
           despesas: des, 
           lucro: rec - des, 
           pendente: pen 
-        }, 
-        alerts: [] 
+        }
       };
     }
   });
 
   const userName = user?.user_metadata?.full_name?.split(' ')[0] || 'Usuário';
   const stats = financialData?.stats || { receitas: 0, despesas: 0, lucro: 0, pendente: 0 };
-  const alerts = financialData?.alerts || [];
 
   if (loadingProps || loadingBills) {
     return (
@@ -117,10 +119,10 @@ const Dashboard = () => {
     <DashboardLayout>
       <div className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Olá, {userName}! 👋</h1>
-          <p className="text-gray-500 mt-1.5 text-lg">Aqui está o resumo da sua gestão pessoal.</p>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Olá, {userName}! 👋</h1>
+          <p className="text-gray-500 mt-1.5 text-lg font-medium">Aqui está o resumo da sua gestão pessoal.</p>
         </div>
-        <Button onClick={() => navigate('/properties')} className="bg-[#2563FF] hover:bg-[#1d4ed8] rounded-2xl h-12 px-6 font-bold shadow-lg gap-2">
+        <Button onClick={() => navigate('/properties')} className="bg-blue-600 hover:bg-blue-700 rounded-2xl h-12 px-6 font-black shadow-lg gap-2 transition-all active:scale-95">
           Novo Imóvel <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
@@ -136,31 +138,31 @@ const Dashboard = () => {
 
           <div className="space-y-5">
             <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold text-gray-900 tracking-tight">Meus Imóveis</h3>
-              <button onClick={() => navigate('/properties')} className="text-xs font-bold text-[#2563FF] hover:underline">Ver todos</button>
+              <h3 className="text-lg font-black text-gray-900 tracking-tight">Meus Imóveis</h3>
+              <button onClick={() => navigate('/properties')} className="text-xs font-black text-blue-600 hover:underline uppercase tracking-widest">Ver todos</button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               {properties.length > 0 ? properties.map((prop) => (
-                <Card key={prop.id} className="premium-card rounded-3xl overflow-hidden border-none cursor-pointer" onClick={() => navigate(`/properties/${prop.id}`)}>
+                <Card key={prop.id} className="premium-card rounded-[2rem] overflow-hidden border-none cursor-pointer group" onClick={() => navigate(`/properties/${prop.id}`)}>
                   <div className="relative h-28 bg-slate-100">
-                    {prop.image_url && <img src={prop.image_url} alt={prop.name} className="w-full h-full object-cover" />}
+                    {prop.image_url && <img src={prop.image_url} alt={prop.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />}
                     <div className="absolute top-2 right-2">
-                      <Badge className={cn("border-none px-2 py-0.5 rounded-md font-bold text-[8px] uppercase", prop.status === 'alugado' ? 'bg-emerald-500 text-white' : 'bg-[#2563FF] text-white')}>
+                      <Badge className={cn("border-none px-2 py-0.5 rounded-lg font-black text-[8px] uppercase", prop.status === 'alugado' ? 'bg-emerald-500 text-white' : 'bg-blue-600 text-white')}>
                         {prop.status}
                       </Badge>
                     </div>
                   </div>
-                  <div className="p-4">
-                    <h4 className="font-bold text-gray-900 text-sm truncate">{prop.name}</h4>
-                    <div className="flex items-center gap-1.5 text-gray-400 text-[10px] mt-1">
-                      <MapPin className="w-2.5 h-2.5 text-[#2563FF]" />
+                  <div className="p-5">
+                    <h4 className="font-black text-gray-900 text-sm truncate tracking-tight">{prop.name}</h4>
+                    <div className="flex items-center gap-1.5 text-gray-400 text-[10px] mt-1 font-bold">
+                      <MapPin className="w-2.5 h-2.5 text-blue-600" />
                       <span className="truncate">{prop.address}</span>
                     </div>
                   </div>
                 </Card>
               )) : (
-                <div className="col-span-4 py-10 text-center bg-white rounded-3xl border border-dashed border-gray-200">
-                  <p className="text-gray-400 font-medium">Nenhum imóvel cadastrado ainda.</p>
+                <div className="col-span-4 py-10 text-center bg-white rounded-[2rem] border border-dashed border-gray-200">
+                  <p className="text-gray-400 font-bold">Nenhum imóvel cadastrado ainda.</p>
                 </div>
               )}
             </div>
@@ -168,25 +170,18 @@ const Dashboard = () => {
         </div>
 
         <div className="space-y-8">
-          <Card className="premium-card p-7 rounded-[2rem]">
-            <h3 className="font-bold text-gray-900 flex items-center gap-2.5 tracking-tight mb-8">
-              <AlertCircle className="w-5 h-5 text-[#2563FF]" />
+          <Card className="premium-card p-8 rounded-[2.5rem]">
+            <h3 className="font-black text-gray-900 flex items-center gap-2.5 tracking-tight mb-8">
+              <AlertCircle className="w-5 h-5 text-blue-600" />
               Avisos e Pendências
             </h3>
             <div className="space-y-4">
-              {alerts.length > 0 ? alerts.map(alert => (
-                <div key={alert.id} className="flex items-center gap-3 p-3 bg-rose-50 rounded-xl text-rose-700 text-xs font-bold">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  {alert.title}
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-emerald-500">
+                  <CheckCircle2 className="w-8 h-8" />
                 </div>
-              )) : (
-                <div className="text-center py-8">
-                  <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3 text-emerald-500">
-                    <CheckCircle2 className="w-6 h-6" />
-                  </div>
-                  <p className="text-gray-400 text-xs font-bold">Tudo em dia por aqui!</p>
-                </div>
-              )}
+                <p className="text-gray-400 text-xs font-black uppercase tracking-widest">Tudo em dia por aqui!</p>
+              </div>
             </div>
           </Card>
         </div>
@@ -196,15 +191,18 @@ const Dashboard = () => {
 };
 
 const SummaryCard = ({ label, value, icon, color }: any) => (
-  <Card className="premium-card p-7 rounded-[2rem]">
+  <Card className="premium-card p-8 rounded-[2.5rem] border-none">
     <div className={cn(
       "w-12 h-12 rounded-2xl text-white flex items-center justify-center mb-6 shadow-lg",
-      color === 'blue' ? 'bg-[#2563FF]' : color === 'red' ? 'bg-rose-500' : color === 'green' ? 'bg-emerald-500' : 'bg-purple-500'
+      color === 'blue' ? 'bg-blue-600 shadow-blue-100' : 
+      color === 'red' ? 'bg-rose-500 shadow-rose-100' : 
+      color === 'green' ? 'bg-emerald-500 shadow-emerald-100' : 
+      'bg-purple-500 shadow-purple-100'
     )}>
       {icon}
     </div>
-    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">{label}</p>
-    <h3 className="text-2xl font-bold text-gray-900 mt-2 tracking-tight">{value}</h3>
+    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{label}</p>
+    <h3 className="text-2xl font-black text-gray-900 mt-2 tracking-tight">{value}</h3>
   </Card>
 );
 

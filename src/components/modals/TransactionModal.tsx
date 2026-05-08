@@ -1,13 +1,14 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { showSuccess } from '@/utils/toast';
-import { DollarSign, Calendar, Building2, User } from 'lucide-react';
+import { showSuccess, showError } from '@/utils/toast';
+import { DollarSign, Calendar, Building2, User, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -15,39 +16,64 @@ interface TransactionModalProps {
   onSave: (data: any) => void;
 }
 
-// Mock de dados para os seletores
-const availableProperties = [
-  { id: '1', name: 'Apto 101' },
-  { id: '2', name: 'Casa 02' },
-  { id: '3', name: 'Kitnet A' },
-  { id: '4', name: 'Apto 202' },
-];
-
-const availableTenants = [
-  { id: '1', name: 'João Silva' },
-  { id: '2', name: 'Maria Oliveira' },
-  { id: '3', name: 'Pedro Santos' },
-  { id: '4', name: 'Ana Costa' },
-];
-
 export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalProps) => {
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-    
-    const data = {
-      type: formData.get('type'),
-      category: formData.get('category'),
-      property: formData.get('property'),
-      tenant: formData.get('tenant'),
-      value: parseFloat(formData.get('value') as string),
-      date: formData.get('date'),
-      status: 'pendente'
+  const [loading, setLoading] = useState(false);
+  const [properties, setProperties] = useState<any[]>([]);
+  const [tenants, setTenants] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const [propsRes, tenantsRes] = await Promise.all([
+        supabase.from('properties').select('id, name'),
+        supabase.from('tenants').select('id, name')
+      ]);
+      setProperties(propsRes.data || []);
+      setTenants(tenantsRes.data || []);
     };
+    if (isOpen) fetchData();
+  }, [isOpen]);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
     
-    onSave(data);
-    showSuccess('Transação registrada com sucesso!');
-    onClose();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const type = formData.get('type') as string;
+    const category = formData.get('category') as string;
+    const propertyId = formData.get('property') as string;
+    const tenantId = formData.get('tenant') as string;
+    const value = parseFloat(formData.get('value') as string);
+    const dateStr = formData.get('date') as string;
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Não autenticado');
+
+      const [year, month, day] = dateStr.split('-');
+
+      const payload = {
+        user_id: user.id,
+        property_id: propertyId,
+        tenant_id: tenantId === 'none' ? null : tenantId,
+        type: category === 'Aluguel' ? 'aluguel' : type, // Mapeia para tipos do dashboard
+        month,
+        year: parseInt(year),
+        total_value: value,
+        calculated_value: value,
+        status: 'pago' // Transações manuais geralmente já são pagas
+      };
+
+      const { error } = await supabase.from('bills').insert([payload]);
+      if (error) throw error;
+
+      showSuccess('Transação registrada com sucesso!');
+      onSave(payload);
+      onClose();
+    } catch (err: any) {
+      showError('Erro ao salvar: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -98,8 +124,8 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
                 </div>
               </SelectTrigger>
               <SelectContent>
-                {availableProperties.map(p => (
-                  <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
+                {properties.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -107,7 +133,7 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
 
           <div className="space-y-2">
             <Label className="text-xs font-bold uppercase text-slate-400">Inquilino</Label>
-            <Select name="tenant">
+            <Select name="tenant" defaultValue="none">
               <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4 text-slate-300" />
@@ -115,9 +141,9 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
                 </div>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Nenhum">Nenhum / Outros</SelectItem>
-                {availableTenants.map(t => (
-                  <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>
+                <SelectItem value="none">Nenhum / Outros</SelectItem>
+                {tenants.map(t => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -141,9 +167,9 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
           </div>
 
           <DialogFooter className="pt-6">
-            <Button type="button" variant="ghost" onClick={onClose} className="rounded-xl font-bold">Cancelar</Button>
-            <Button type="submit" className="bg-[#2563FF] hover:bg-blue-700 text-white rounded-xl px-8 font-bold h-12 shadow-lg shadow-blue-100">
-              Salvar Transação
+            <Button type="button" variant="ghost" onClick={onClose} className="rounded-xl font-bold text-slate-400">Cancelar</Button>
+            <Button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8 font-black h-12 shadow-lg shadow-blue-100">
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Salvar Transação'}
             </Button>
           </DialogFooter>
         </form>
