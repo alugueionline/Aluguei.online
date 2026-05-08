@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { showSuccess, showError } from '@/utils/toast';
 import { Calculator, Users, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface BillingModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
   const isEdit = !!bill;
   const [loading, setLoading] = useState(false);
   const [properties, setProperties] = useState<any[]>([]);
+  const queryClient = useQueryClient();
   
   const [type, setType] = useState('energia');
   const [propertyId, setPropertyId] = useState('');
@@ -61,12 +63,7 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
   useEffect(() => {
     const val = parseFloat(totalValue) || 0;
     const res = parseInt(residents) || 1;
-    
-    if (billingMethod === 'por_pessoa') {
-      setCalculated(val / res);
-    } else {
-      setCalculated(val);
-    }
+    setCalculated(billingMethod === 'por_pessoa' ? val / res : val);
   }, [totalValue, billingMethod, residents]);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -85,8 +82,7 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
         property_id: propertyId,
         month,
         year: parseInt(year),
-        total_value: parseFloat(totalValue),
-        calculated_value: calculated,
+        total_value: calculated, // Salvamos o valor final que o inquilino deve pagar
         status
       };
 
@@ -100,6 +96,10 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
         showSuccess('Lançamento realizado com sucesso!');
       }
 
+      // Atualiza os dados em todas as telas
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['bills'] });
+      
       onSave(payload);
       onClose();
     } catch (err: any) {

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { showSuccess, showError } from '@/utils/toast';
 import { DollarSign, Calendar, Building2, User, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
   const [loading, setLoading] = useState(false);
   const [properties, setProperties] = useState<any[]>([]);
   const [tenants, setTenants] = useState<any[]>([]);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -49,24 +51,28 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
 
-      const [year, month, day] = dateStr.split('-');
+      const [year, month] = dateStr.split('-');
 
       const payload = {
         user_id: user.id,
         property_id: propertyId,
         tenant_id: tenantId === 'none' ? null : tenantId,
-        type: category === 'Aluguel' ? 'aluguel' : type, // Mapeia para tipos do dashboard
+        type: category === 'Aluguel' ? 'aluguel' : type,
         month,
         year: parseInt(year),
         total_value: value,
-        calculated_value: value,
-        status: 'pago' // Transações manuais geralmente já são pagas
+        status: 'pago'
       };
 
       const { error } = await supabase.from('bills').insert([payload]);
       if (error) throw error;
 
       showSuccess('Transação registrada com sucesso!');
+      
+      // Atualiza os dados em todas as telas
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['bills'] });
+      
       onSave(payload);
       onClose();
     } catch (err: any) {

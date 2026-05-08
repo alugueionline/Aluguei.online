@@ -55,29 +55,28 @@ const Dashboard = () => {
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
-      // Tipos que são considerados Receita
+      // Tipos que são considerados Receita (Entradas)
       const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet'];
 
-      // 1. Somar faturas existentes
+      // 1. Processar faturas existentes no banco
       bills.forEach(b => {
-        const val = Number(b.calculated_value || b.total_value) || 0;
-        const isIncome = incomeTypes.includes(b.type?.toLowerCase());
-        const isExpense = b.type?.toLowerCase() === 'despesa';
+        const val = Number(b.total_value) || 0;
+        const type = b.type?.toLowerCase();
+        const isIncome = incomeTypes.includes(type);
+        const isExpense = type === 'despesa';
 
         if (b.status === 'pago') {
           if (isIncome) rec += val;
           else if (isExpense) des += val;
-          // Outros tipos não mapeados são ignorados ou tratados como despesa por padrão se não forem income
-          else des += val; 
+          else des += val; // Por segurança, outros tipos não mapeados são despesas
         } else {
           if (isIncome) pen += val;
         }
       });
 
-      // 2. Somar aluguéis de contratos ativos que ainda NÃO geraram fatura este mês
+      // 2. Somar aluguéis de contratos ativos que ainda não geraram fatura este mês (Previsão)
       contracts.forEach(c => {
         const rentVal = Number(c.rent_value) || 0;
-        
         const hasBillThisMonth = bills.some(b => 
           b.property_id === c.property_id && 
           b.type === 'aluguel' && 
@@ -109,7 +108,7 @@ const Dashboard = () => {
       <DashboardLayout>
         <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
           <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
-          <p className="text-gray-500 font-medium">Sincronizando seu workspace...</p>
+          <p className="text-gray-500 font-medium">Sincronizando dados financeiros...</p>
         </div>
       </DashboardLayout>
     );
@@ -120,7 +119,7 @@ const Dashboard = () => {
       <div className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-black text-gray-900 tracking-tight">Olá, {userName}! 👋</h1>
-          <p className="text-gray-500 mt-1.5 text-lg font-medium">Aqui está o resumo da sua gestão pessoal.</p>
+          <p className="text-gray-500 mt-1.5 text-lg font-medium">Aqui está o resumo da sua gestão imobiliária.</p>
         </div>
         <Button onClick={() => navigate('/properties')} className="bg-blue-600 hover:bg-blue-700 rounded-2xl h-12 px-6 font-black shadow-lg gap-2 transition-all active:scale-95">
           Novo Imóvel <ChevronRight className="w-4 h-4" />
