@@ -14,16 +14,19 @@ import {
   DollarSign,
   Wallet,
   Calculator,
-  History
+  History,
+  MessageSquare
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TransactionModal } from '@/components/modals/TransactionModal';
 import { ApportionmentModule } from '@/components/financial/ApportionmentModule';
+import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 
 const Financial = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);
   const [bills, setBills] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
@@ -70,14 +73,23 @@ const Financial = () => {
       </div>
 
       <Tabs defaultValue="transactions" className="space-y-8">
-        <TabsList className="bg-white p-1 shadow-sm border-none h-14 rounded-2xl">
-          <TabsTrigger value="transactions" className="gap-2 px-8 rounded-xl data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 font-bold">
-            <History className="w-4 h-4" /> Transações
-          </TabsTrigger>
-          <TabsTrigger value="apportionment" className="gap-2 px-8 rounded-xl data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 font-bold">
-            <Calculator className="w-4 h-4" /> Rateio de Despesas
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <TabsList className="bg-white p-1 shadow-sm border-none h-14 rounded-2xl">
+            <TabsTrigger value="transactions" className="gap-2 px-8 rounded-xl data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 font-bold">
+              <History className="w-4 h-4" /> Transações
+            </TabsTrigger>
+            <TabsTrigger value="apportionment" className="gap-2 px-8 rounded-xl data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 font-bold">
+              <Calculator className="w-4 h-4" /> Rateio de Despesas
+            </TabsTrigger>
+          </TabsList>
+          
+          <Button 
+            onClick={() => setIsBillingModalOpen(true)}
+            className="bg-emerald-500 hover:bg-emerald-600 text-white h-14 px-8 rounded-2xl font-black gap-2 shadow-lg shadow-emerald-100 w-full md:w-auto"
+          >
+            <MessageSquare className="w-5 h-5" /> Enviar Cobrança WhatsApp
+          </Button>
+        </div>
 
         <TabsContent value="transactions" className="space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -160,6 +172,11 @@ const Financial = () => {
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         onSave={fetchBills}
+      />
+
+      <BillingSummaryModal 
+        isOpen={isBillingModalOpen} 
+        onClose={() => setIsBillingModalOpen(false)} 
       />
     </DashboardLayout>
   );
