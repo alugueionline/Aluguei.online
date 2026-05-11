@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,7 +30,6 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
   const [totalValue, setTotalValue] = useState('');
   const [billingMethod, setBillingMethod] = useState<'fixo' | 'por_pessoa'>('fixo');
   const [residents, setResidents] = useState('1');
-  const [calculated, setCalculated] = useState<number>(0);
   const [status, setStatus] = useState('pendente');
 
   useEffect(() => {
@@ -60,10 +59,14 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
     }
   }, [isOpen, bill]);
 
-  useEffect(() => {
+  // Cálculo derivado usando useMemo em vez de useEffect + useState
+  const calculated = useMemo(() => {
     const val = parseFloat(totalValue) || 0;
     const res = parseInt(residents) || 1;
-    setCalculated(billingMethod === 'por_pessoa' ? val / res : val);
+    if (billingMethod === 'por_pessoa') {
+      return res > 0 ? val / res : 0;
+    }
+    return val;
   }, [totalValue, billingMethod, residents]);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -82,7 +85,7 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
         property_id: propertyId,
         month,
         year: parseInt(year),
-        total_value: calculated, // Salvamos o valor final que o inquilino deve pagar
+        total_value: calculated,
         status
       };
 
@@ -96,7 +99,6 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
         showSuccess('Lançamento realizado com sucesso!');
       }
 
-      // Atualiza os dados em todas as telas
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['bills'] });
       

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,8 +26,13 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
 
+  // Busca inquilinos apenas quando o modal abre
   useEffect(() => {
+    let isMounted = true;
+    
     const fetchActiveTenants = async () => {
+      if (!isOpen) return;
+      
       try {
         setFetching(true);
         const { data, error } = await supabase
@@ -38,48 +43,57 @@ export const ApportionmentModal = ({ isOpen, onClose, onSave }: ApportionmentMod
             status,
             property_id,
             properties (name)
-          `);
+          `)
+          .eq('status', 'ativo');
         
         if (error) throw error;
 
-        const activeTenants = (data || []).filter(t => 
-          t.status?.toLowerCase() === 'ativo'
-        );
+        if (isMounted) {
+          const formatted = (data || []).map(t => ({
+            id: t.id,
+            tenantName: t.name,
+            propertyName: t.properties?.name || 'Imóvel não vinculado',
+            propertyId: t.property_id,
+            residents: 1,
+          }));
 
-        const formatted = activeTenants.map(t => ({
-          id: t.id,
-          tenantName: t.name,
-          propertyName: t.properties?.name || 'Imóvel não vinculado',
-          propertyId: t.property_id,
-          residents: 1,
-        }));
-
-        setParticipants(formatted);
-        setSelectedParticipants(formatted.map(p => p.id));
+          setParticipants(formatted);
+          setSelectedParticipants(formatted.map(p => p.id));
+        }
       } catch (err: any) {
         console.error('Erro ao carregar inquilinos:', err.message);
-        setParticipants([]);
+        if (isMounted) setParticipants([]);
       } finally {
-        setFetching(false);
+        if (isMounted) setFetching(false);
       }
     };
 
-    if (isOpen) {
-      fetchActiveTenants();
-    }
+    fetchActiveTenants();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [isOpen]);
+
+  // Cálculos derivados usando useMemo para evitar loops e re-renders desnecessários
+  const totalResidents = useMemo(() => {
+    return participants
+      .filter(p => selectedParticipants.includes(p.id))
+      .reduce((acc, p) => acc + (p.residents || 1), 0);
+  }, [participants, selectedParticipants]);
+
+  const valuePerPerson = useMemo(() => {
+    const total = parseFloat(totalValue) || 0;
+    // Validação contra divisão por zero
+    if (totalResidents <= 0) return 0;
+    return total / totalResidents;
+  }, [totalValue, totalResidents]);
 
   const toggleParticipant = (id: string) => {
     setSelectedParticipants(prev => 
       prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
     );
   };
-
-  const totalResidents = participants
-    .filter(p => selectedParticipants.includes(p.id))
-    .reduce((acc, p) => acc + p.residents, 0);
-
-  const valuePerPerson = totalResidents > 0 ? parseFloat(totalValue) / totalResidents : 0;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -78,16 +78,22 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
     }
   }, [isOpen, tenant]);
 
+  // Cálculo automático da data de término com proteção contra loops
   useEffect(() => {
     if (formData.contract_start_date && formData.duration_months) {
       const startDate = parseISO(formData.contract_start_date);
       const months = parseInt(formData.duration_months);
       if (isValid(startDate) && !isNaN(months)) {
         const endDate = addMonths(startDate, months);
-        setFormData(prev => ({ ...prev, contract_end_date: format(endDate, 'yyyy-MM-dd') }));
+        const formattedEndDate = format(endDate, 'yyyy-MM-dd');
+        
+        // Só atualiza se for diferente para evitar loops infinitos
+        if (formData.contract_end_date !== formattedEndDate) {
+          setFormData(prev => ({ ...prev, contract_end_date: formattedEndDate }));
+        }
       }
     }
-  }, [formData.contract_start_date, formData.duration_months]);
+  }, [formData.contract_start_date, formData.duration_months, formData.contract_end_date]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
