@@ -53,6 +53,13 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
     if (isOpen) fetchTenants();
   }, [isOpen]);
 
+  // Se mudar o tipo e não for energia, reseta o modo de cálculo se estiver em leitura
+  useEffect(() => {
+    if (type !== 'energia' && calculationMode === 'leitura') {
+      setCalculationMode('igual');
+    }
+  }, [type, calculationMode]);
+
   // Cálculo prévio para exibição no modal
   const summary = useMemo(() => {
     const activeTenants = tenants.filter(t => selectedTenants[t.id]?.selected);
@@ -168,7 +175,10 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
 
           <div className="space-y-3">
             <Label className="text-[10px] font-black uppercase text-blue-600 ml-1">Modo de Divisão</Label>
-            <div className="grid grid-cols-3 gap-2 p-1 bg-slate-50 rounded-2xl border border-slate-100">
+            <div className={cn(
+              "grid gap-2 p-1 bg-slate-50 rounded-2xl border border-slate-100",
+              type === 'energia' ? "grid-cols-3" : "grid-cols-2"
+            )}>
               <button 
                 onClick={() => setCalculationMode('igual')}
                 className={cn(
@@ -189,16 +199,18 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
                 <UserPlus className="w-4 h-4" />
                 <span className="text-[10px] font-black uppercase">Morador</span>
               </button>
-              <button 
-                onClick={() => setCalculationMode('leitura')}
-                className={cn(
-                  "flex flex-col items-center justify-center py-3 rounded-xl transition-all gap-1",
-                  calculationMode === 'leitura' ? "bg-white shadow-sm text-blue-600" : "text-slate-400 hover:text-slate-600"
-                )}
-              >
-                <Zap className="w-4 h-4" />
-                <span className="text-[10px] font-black uppercase">Leitura</span>
-              </button>
+              {type === 'energia' && (
+                <button 
+                  onClick={() => setCalculationMode('leitura')}
+                  className={cn(
+                    "flex flex-col items-center justify-center py-3 rounded-xl transition-all gap-1",
+                    calculationMode === 'leitura' ? "bg-white shadow-sm text-blue-600" : "text-slate-400 hover:text-slate-600"
+                  )}
+                >
+                  <Zap className="w-4 h-4" />
+                  <span className="text-[10px] font-black uppercase">Leitura</span>
+                </button>
+              )}
             </div>
           </div>
 
