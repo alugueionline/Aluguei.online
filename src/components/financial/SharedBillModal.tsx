@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Zap, Users, Calculator, Save, Loader2, Info, UserPlus } from 'lucide-react';
+import { Zap, Users, Calculator, Save, Loader2, Info, UserPlus, CheckSquare, Square } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { cn } from '@/lib/utils';
@@ -45,13 +45,22 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
         setTenants(data);
         const initial: any = {};
         data.forEach(t => {
-          initial[t.id] = { selected: true, prevReading: '0', currReading: '0' };
+          // Iniciamos como FALSE para que o usuário marque quem deseja
+          initial[t.id] = { selected: false, prevReading: '0', currReading: '0' };
         });
         setSelectedTenants(initial);
       }
     };
     if (isOpen) fetchTenants();
   }, [isOpen]);
+
+  const handleSelectAll = (select: boolean) => {
+    const updated = { ...selectedTenants };
+    Object.keys(updated).forEach(id => {
+      updated[id].selected = select;
+    });
+    setSelectedTenants(updated);
+  };
 
   // Se mudar o tipo e não for energia, reseta o modo de cálculo se estiver em leitura
   useEffect(() => {
@@ -75,6 +84,13 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
   }, [tenants, selectedTenants, totalValue, calculationMode]);
 
   const handleSave = async () => {
+    const activeTenants = tenants.filter(t => selectedTenants[t.id]?.selected);
+    
+    if (activeTenants.length === 0) {
+      showError('Selecione pelo menos um inquilino para o rateio.');
+      return;
+    }
+
     if (calculationMode !== 'leitura' && !totalValue) {
       showError('Insira o valor total da fatura.');
       return;
@@ -82,8 +98,6 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
 
     setLoading(true);
     try {
-      const activeTenants = tenants.filter(t => selectedTenants[t.id]?.selected);
-      
       const billsToInsert = activeTenants.map(t => {
         let finalValue = 0;
         const config = selectedTenants[t.id];
@@ -247,9 +261,30 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
           )}
 
           <div className="space-y-4">
-            <Label className="text-[10px] font-black uppercase text-slate-400 ml-1 flex items-center gap-2">
-              <Users className="w-3 h-3" /> Selecionar Inquilinos e Dados
-            </Label>
+            <div className="flex justify-between items-center px-1">
+              <Label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2">
+                <Users className="w-3 h-3" /> Selecionar Inquilinos
+              </Label>
+              <div className="flex gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => handleSelectAll(true)}
+                  className="h-6 px-2 text-[10px] font-black text-blue-600 hover:bg-blue-50 gap-1"
+                >
+                  <CheckSquare className="w-3 h-3" /> TODOS
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => handleSelectAll(false)}
+                  className="h-6 px-2 text-[10px] font-black text-slate-400 hover:bg-slate-50 gap-1"
+                >
+                  <Square className="w-3 h-3" /> LIMPAR
+                </Button>
+              </div>
+            </div>
+            
             <div className="space-y-2">
               {tenants.map(t => (
                 <div key={t.id} className={cn(
