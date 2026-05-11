@@ -6,42 +6,39 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   DollarSign, 
   Clock,
   ChevronRight,
   AlertCircle,
-  MapPin,
   CheckCircle2,
   Loader2,
   Users,
   Home,
-  ArrowUpRight,
   Wallet,
   Plus,
   MessageSquare,
   TrendingUp,
-  PieChart as PieChartIcon
+  Check,
+  PartyPopper,
+  ArrowRight
 } from 'lucide-react';
 import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Cell,
   PieChart,
-  Pie
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { toast } from "sonner";
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: user } = useQuery({
     queryKey: ['user'],
@@ -67,6 +64,36 @@ const Dashboard = () => {
         .select('*, properties(name), bills(*)')
         .eq('status', 'ativo');
       return data || [];
+    }
+  });
+
+  // Mutação para dar baixa no aluguel
+  const markAsPaidMutation = useMutation({
+    mutationFn: async (tenantId: string) => {
+      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+      const currentYear = new Date().getFullYear();
+
+      const { data, error } = await supabase
+        .from('bills')
+        .update({ status: 'pago', payment_date: new Date().toISOString() })
+        .eq('tenant_id', tenantId)
+        .eq('month', currentMonth)
+        .eq('year', currentYear)
+        .eq('type', 'aluguel');
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['tenants-dashboard'] });
+      toast.success("Pagamento confirmado! O caixa foi atualizado.", {
+        icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" />,
+        className: "premium-card border-emerald-100"
+      });
+    },
+    onError: () => {
+      toast.error("Erro ao processar baixa. Tente novamente.");
     }
   });
 
@@ -102,7 +129,6 @@ const Dashboard = () => {
         }
       });
 
-      // Adicionar aluguéis previstos que ainda não foram faturados
       contracts.forEach(c => {
         const rentVal = Number(c.rent_value || 0);
         const hasBillThisMonth = bills.some(b => 
@@ -118,7 +144,6 @@ const Dashboard = () => {
       });
 
       const totalExpected = rec + pen + atr;
-      
       const collectionData = [
         { name: 'Recebido', value: rec, color: '#10b981' },
         { name: 'Pendente', value: pen, color: '#3b82f6' },
@@ -126,13 +151,7 @@ const Dashboard = () => {
       ];
 
       return { 
-        stats: { 
-          receitas: rec, 
-          despesas: des, 
-          lucro: rec - des, 
-          pendente: pen + atr,
-          totalExpected
-        },
+        stats: { receitas: rec, despesas: des, lucro: rec - des, pendente: pen + atr, totalExpected },
         collectionData
       };
     }
@@ -141,6 +160,7 @@ const Dashboard = () => {
   const userName = user?.user_metadata?.full_name?.split(' ')[0] || 'Usuário';
   const stats = financialData?.stats || { receitas: 0, despesas: 0, lucro: 0, pendente: 0, totalExpected: 0 };
   const collectionData = financialData?.collectionData || [];
+  const isAllPaid = stats.totalExpected > 0 && stats.receitas === stats.totalExpected;
 
   if (loadingProps || loadingBills || loadingTenants) {
     return (
@@ -170,7 +190,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* KPIs Financeiros de Alto Impacto */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
         <KPIContainer 
           label="Total Previsto (Mês)" 
@@ -191,7 +210,7 @@ const Dashboard = () => {
           value={`R$ ${stats.pendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} 
           icon={<Clock className="w-4 h-4" />} 
           color="amber"
-          trend="Ação necessária"
+          trend={stats.pendente > 0 ? "Ação necessária" : "Tudo em dia"}
         />
         <KPIContainer 
           label="Lucro Líquido" 
@@ -203,17 +222,18 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        {/* Seção Principal: Inquilinos e Cobrança */}
         <div className="xl:col-span-8 space-y-8">
           <Card className="premium-card rounded-[2rem] overflow-hidden border-none">
             <CardHeader className="p-8 border-b border-slate-50 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-xl font-black tracking-tight">Status de Recebimento do Mês</CardTitle>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Acompanhamento em tempo real</p>
+                <CardTitle className="text-xl font-black tracking-tight">Status de Recebimento</CardTitle>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Mês de {new Date().toLocaleString('pt-BR', { month: 'long' })}</p>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/financial')} className="text-blue-600 font-bold text-xs">
-                Ver Financeiro <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
+              {isAllPaid && (
+                <Badge className="bg-emerald-50 text-emerald-600 border-none px-3 py-1 rounded-full font-black text-[10px] uppercase animate-bounce">
+                  100% Coletado
+                </Badge>
+              )}
             </CardHeader>
             <CardContent className="p-8">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-10 items-center">
@@ -273,50 +293,77 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Lista de Inquilinos Prioritária */}
           <div className="space-y-4">
             <div className="flex justify-between items-center px-2">
-              <h3 className="text-lg font-black text-slate-900 tracking-tight">Gestão de Inquilinos</h3>
+              <h3 className="text-lg font-black text-slate-900 tracking-tight">Inquilinos e Pagamentos</h3>
               <Button variant="ghost" size="sm" onClick={() => navigate('/tenants')} className="text-xs font-bold text-blue-600">
                 Ver todos <ChevronRight className="w-3 h-3 ml-1" />
               </Button>
             </div>
             <div className="grid grid-cols-1 gap-4">
               {tenants.slice(0, 5).map((t) => {
-                const hasDebt = t.bills?.some((b: any) => b.status !== 'pago');
+                const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+                const currentYear = new Date().getFullYear();
+                const billThisMonth = t.bills?.find((b: any) => 
+                  b.month === currentMonth && b.year === currentYear && b.type === 'aluguel'
+                );
+                const isPaid = billThisMonth?.status === 'pago';
+
                 return (
                   <Card 
                     key={t.id} 
-                    className="premium-card rounded-2xl p-5 group hover:border-blue-200 cursor-pointer"
-                    onClick={() => navigate(`/tenants/${t.id}`)}
+                    className={cn(
+                      "premium-card rounded-2xl p-5 group transition-all",
+                      isPaid ? "bg-slate-50/50 border-slate-100" : "hover:border-blue-200"
+                    )}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <Avatar className="w-12 h-12 rounded-xl border-2 border-white shadow-sm">
-                          <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${t.name}`} />
-                          <AvatarFallback className="bg-blue-50 text-blue-600 font-black">
-                            {t.name.substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
+                        <div className="relative">
+                          <Avatar className="w-12 h-12 rounded-xl border-2 border-white shadow-sm">
+                            <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${t.name}`} />
+                            <AvatarFallback className="bg-blue-50 text-blue-600 font-black">
+                              {t.name.substring(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          {isPaid && (
+                            <div className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border-2 border-white">
+                              <Check className="w-2.5 h-2.5" />
+                            </div>
+                          )}
+                        </div>
                         <div>
-                          <h4 className="font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors">{t.name}</h4>
+                          <h4 className="font-black text-slate-900 tracking-tight">{t.name}</h4>
                           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5">
                             <Home className="w-3 h-3" /> {t.properties?.name || 'Sem imóvel'}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-6">
-                        <div className="text-right hidden md:block">
-                          <p className="text-[10px] text-slate-400 font-black uppercase">Status Mês</p>
-                          <Badge className={cn(
-                            "border-none px-2 py-0.5 rounded-lg font-black text-[9px] uppercase mt-1",
-                            hasDebt ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
-                          )}>
-                            {hasDebt ? 'Pendente' : 'Em dia'}
-                          </Badge>
+                      
+                      <div className="flex items-center gap-4">
+                        <div className="text-right hidden md:block mr-4">
+                          <p className="text-[10px] text-slate-400 font-black uppercase">Aluguel</p>
+                          <p className="text-sm font-black text-slate-900">R$ {Number(t.rent_value || 0).toLocaleString('pt-BR')}</p>
                         </div>
-                        <Button variant="ghost" size="icon" className="rounded-xl text-slate-300 group-hover:text-blue-600">
-                          <MessageSquare className="w-5 h-5" />
+                        
+                        {!isPaid ? (
+                          <Button 
+                            size="sm" 
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase px-4 h-9 gap-2 shadow-lg shadow-emerald-100"
+                            onClick={() => markAsPaidMutation.mutate(t.id)}
+                            disabled={markAsPaidMutation.isPending}
+                          >
+                            {markAsPaidMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                            Dar Baixa
+                          </Button>
+                        ) : (
+                          <Badge className="bg-emerald-50 text-emerald-600 border-none px-3 py-1.5 rounded-xl font-black text-[10px] uppercase">
+                            Pago
+                          </Badge>
+                        )}
+                        
+                        <Button variant="ghost" size="icon" className="rounded-xl text-slate-300 hover:text-blue-600" onClick={() => navigate(`/tenants/${t.id}`)}>
+                          <ArrowRight className="w-5 h-5" />
                         </Button>
                       </div>
                     </div>
@@ -327,9 +374,60 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Sidebar do Dashboard: Imóveis e Alertas */}
         <div className="xl:col-span-4 space-y-8">
-          {/* Portfólio Compacto */}
+          {/* Card de Alerta Dinâmico */}
+          <Card className={cn(
+            "premium-card rounded-[2rem] p-8 border-none relative overflow-hidden transition-all duration-500",
+            isAllPaid ? "bg-emerald-600 text-white" : "bg-slate-900 text-white"
+          )}>
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-8">
+                <div className={cn(
+                  "p-2.5 rounded-xl shadow-lg",
+                  isAllPaid ? "bg-white text-emerald-600" : "bg-blue-600 text-white"
+                )}>
+                  {isAllPaid ? <PartyPopper className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                </div>
+                <h3 className="text-lg font-black tracking-tight">
+                  {isAllPaid ? "Tudo em Dia!" : "Ações Urgentes"}
+                </h3>
+              </div>
+              
+              <div className="space-y-4">
+                <div className={cn(
+                  "p-5 rounded-2xl border transition-colors",
+                  isAllPaid ? "bg-white/10 border-white/20" : "bg-white/5 border-white/10"
+                )}>
+                  {isAllPaid ? (
+                    <p className="text-sm font-medium text-emerald-50">
+                      Parabéns! Todos os aluguéis deste mês foram recebidos com sucesso.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Inadimplência</p>
+                      <p className="text-sm font-medium text-slate-300">
+                        Existem R$ {stats.pendente.toLocaleString('pt-BR')} aguardando recebimento.
+                      </p>
+                    </>
+                  )}
+                </div>
+                
+                {!isAllPaid && (
+                  <Button 
+                    className="w-full bg-white text-slate-900 hover:bg-blue-50 rounded-xl font-black text-xs h-12 shadow-xl"
+                    onClick={() => navigate('/financial')}
+                  >
+                    Abrir Central de Cobrança
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className={cn(
+              "absolute top-0 right-0 w-32 h-32 rounded-full -mr-16 -mt-16 blur-3xl",
+              isAllPaid ? "bg-white/20" : "bg-blue-600/10"
+            )} />
+          </Card>
+
           <Card className="premium-card rounded-[2rem] p-8 border-none">
             <div className="flex justify-between items-center mb-8">
               <h3 className="text-lg font-black text-slate-900 tracking-tight">Meus Imóveis</h3>
@@ -367,44 +465,6 @@ const Dashboard = () => {
                   </div>
                 </div>
               ))}
-            </div>
-            <Button 
-              variant="outline" 
-              className="w-full mt-8 rounded-xl border-slate-100 text-slate-500 font-bold text-xs h-11"
-              onClick={() => navigate('/properties')}
-            >
-              Ver Portfólio Completo
-            </Button>
-          </Card>
-
-          {/* Alertas Críticos */}
-          <Card className="premium-card rounded-[2rem] p-8 bg-slate-900 text-white border-none relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 rounded-full -mr-16 -mt-16 blur-3xl" />
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-8">
-                <div className="p-2.5 bg-blue-600 rounded-xl shadow-lg shadow-blue-900/20">
-                  <AlertCircle className="w-5 h-5 text-white" />
-                </div>
-                <h3 className="text-lg font-black tracking-tight">Ações Urgentes</h3>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer">
-                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Inadimplência</p>
-                  <p className="text-sm font-medium text-slate-300">
-                    {stats.pendente > 0 
-                      ? `Existem R$ ${stats.pendente.toLocaleString('pt-BR')} aguardando recebimento.` 
-                      : 'Nenhuma pendência crítica hoje.'}
-                  </p>
-                </div>
-                
-                <Button 
-                  className="w-full bg-white text-slate-900 hover:bg-blue-50 rounded-xl font-black text-xs h-12 shadow-xl transition-all active:scale-95"
-                  onClick={() => navigate('/financial')}
-                >
-                  Abrir Central de Cobrança
-                </Button>
-              </div>
             </div>
           </Card>
         </div>
