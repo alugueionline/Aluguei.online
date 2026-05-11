@@ -102,7 +102,6 @@ const Financial = () => {
     }
   };
 
-  // Lógica para separar encargos em linhas diferentes
   const displayItems = useMemo(() => {
     const items: any[] = [];
     
@@ -111,7 +110,6 @@ const Financial = () => {
       const interest = Number(bill.interest_value) || 0;
       const total = Number(bill.total_value) || 0;
       
-      // 1. Adiciona o Aluguel Base (Valor total menos encargos)
       const baseValue = bill.type === 'aluguel' ? (total - fine - interest) : total;
       
       if (baseValue > 0) {
@@ -123,7 +121,6 @@ const Financial = () => {
         });
       }
 
-      // 2. Adiciona a Multa como linha separada
       if (fine > 0) {
         items.push({
           ...bill,
@@ -136,7 +133,6 @@ const Financial = () => {
         });
       }
 
-      // 3. Adiciona os Juros como linha separada
       if (interest > 0) {
         items.push({
           ...bill,
@@ -172,20 +168,49 @@ const Financial = () => {
     }
   };
 
-  const handleDeleteBill = async (id: string) => {
-    if (!window.confirm('Tem certeza que deseja excluir esta transação?')) return;
-    
-    try {
-      const { error } = await supabase
-        .from('bills')
-        .delete()
-        .eq('id', id);
+  const handleDeleteItem = async (item: any) => {
+    if (item.isCharge) {
+      // Se for um encargo, apenas zeramos o valor no registro original
+      if (!window.confirm(`Deseja remover este encargo (${item.displayType})?`)) return;
       
-      if (error) throw error;
-      showSuccess('Transação excluída com sucesso.');
-      fetchBills();
-    } catch (err: any) {
-      showError('Erro ao excluir: ' + err.message);
+      try {
+        const updateData: any = {};
+        if (item.chargeType === 'fine') updateData.fine_value = 0;
+        if (item.chargeType === 'interest') updateData.interest_value = 0;
+        
+        // Recalcular o total_value subtraindo o encargo removido
+        const originalBill = bills.find(b => b.id === item.originalId);
+        if (originalBill) {
+          updateData.total_value = Number(originalBill.total_value) - Number(item.displayValue);
+        }
+
+        const { error } = await supabase
+          .from('bills')
+          .update(updateData)
+          .eq('id', item.originalId);
+        
+        if (error) throw error;
+        showSuccess('Encargo removido com sucesso.');
+        fetchBills();
+      } catch (err: any) {
+        showError('Erro ao remover encargo: ' + err.message);
+      }
+    } else {
+      // Se for a transação principal, excluímos o registro todo
+      if (!window.confirm('Tem certeza que deseja excluir esta transação completa?')) return;
+      
+      try {
+        const { error } = await supabase
+          .from('bills')
+          .delete()
+          .eq('id', item.id);
+        
+        if (error) throw error;
+        showSuccess('Transação excluída com sucesso.');
+        fetchBills();
+      } catch (err: any) {
+        showError('Erro ao excluir: ' + err.message);
+      }
     }
   };
 
@@ -327,16 +352,14 @@ const Financial = () => {
                                   Baixar
                                 </Button>
                               )}
-                              {!item.isCharge && (
-                                <Button 
-                                  size="icon" 
-                                  variant="ghost" 
-                                  onClick={() => handleDeleteBill(item.id)}
-                                  className="h-9 w-9 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              )}
+                              <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                onClick={() => handleDeleteItem(item)}
+                                className="h-9 w-9 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             </div>
                           </td>
                         </tr>
