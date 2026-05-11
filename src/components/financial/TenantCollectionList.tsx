@@ -43,23 +43,25 @@ export const TenantCollectionList = () => {
         const activeContract = t.contracts?.find((c: any) => c.status === 'ativo');
         const rentValue = Number(activeContract?.rent_value || 0);
 
-        const rentPaidThisMonth = (bills || []).some(b => 
-          b.tenant_id === t.id && 
-          b.type === 'aluguel' && 
-          b.status === 'pago' && 
-          b.month === currentMonth && 
-          b.year === currentYear
-        );
-
+        // 1. Somar todas as faturas que já estão no sistema como PENDENTES
         const pendingBillsValue = (bills || [])
           .filter(b => b.tenant_id === t.id && b.status === 'pendente')
           .reduce((acc, b) => acc + Number(b.calculated_value || b.total_value || 0), 0);
 
-        const totalDebt = (rentPaidThisMonth ? 0 : rentValue) + pendingBillsValue;
+        // 2. Verificar se o aluguel do mês atual já foi lançado (pago ou pendente)
+        const rentAlreadyBilled = (bills || []).some(b => 
+          b.tenant_id === t.id && 
+          b.type === 'aluguel' && 
+          b.month === currentMonth && 
+          b.year === currentYear
+        );
+
+        // Se o aluguel ainda não foi lançado no sistema para este mês, somamos o valor do contrato como projeção
+        const projectedRent = rentAlreadyBilled ? 0 : rentValue;
 
         return {
           ...t,
-          totalDebt
+          totalDebt: pendingBillsValue + projectedRent
         };
       }).sort((a, b) => b.totalDebt - a.totalDebt);
 

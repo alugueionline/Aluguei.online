@@ -49,7 +49,14 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     if (!tenant) return;
 
     try {
-      // Buscar contrato para o aluguel base
+      // 1. Buscar todas as faturas PENDENTES do inquilino
+      const { data: bills } = await supabase
+        .from('bills')
+        .select('type, calculated_value, total_value, month, year')
+        .eq('tenant_id', id)
+        .eq('status', 'pendente');
+
+      // 2. Buscar contrato para o aluguel base (caso não haja fatura de aluguel pendente)
       const { data: contract } = await supabase
         .from('contracts')
         .select('rent_value')
@@ -57,19 +64,16 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         .eq('status', 'ativo')
         .maybeSingle();
 
-      setRentValue(contract?.rent_value?.toString() || '0');
+      // Separar o aluguel das outras contas
+      const rentBill = bills?.find(b => b.type === 'aluguel');
+      const otherBills = bills?.filter(b => b.type !== 'aluguel') || [];
+
+      // Se houver fatura de aluguel pendente, usamos ela. Se não, usamos o valor do contrato.
+      setRentValue(rentBill ? (rentBill.calculated_value || rentBill.total_value).toString() : (contract?.rent_value?.toString() || '0'));
       setCondoValue(tenant.properties?.condo_fee?.toString() || '0');
 
-      // BUSCA TODAS AS CONTAS PENDENTES (Sem filtro de mês para não perder nada)
-      const { data: bills } = await supabase
-        .from('bills')
-        .select('type, calculated_value, total_value, month, year')
-        .eq('tenant_id', id)
-        .eq('status', 'pendente')
-        .neq('type', 'aluguel');
-
-      if (bills && bills.length > 0) {
-        const extras = bills.map(b => ({
+      if (otherBills.length > 0) {
+        const extras = otherBills.map(b => ({
           label: `${b.type.charAt(0).toUpperCase() + b.type.slice(1)} (${b.month}/${b.year})`,
           value: (b.calculated_value || b.total_value).toString()
         }));
@@ -274,6 +278,5 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
           </div>
         </div>
       </DialogContent>
-    </Dialog>
-  );
+    </Dialog);
 };
