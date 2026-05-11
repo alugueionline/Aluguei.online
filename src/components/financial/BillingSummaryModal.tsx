@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Copy, Send, Calculator, Landmark, Trash2, Plus, Search, Loader2, AlertCircle } from 'lucide-react';
+import { MessageSquare, Copy, Send, Calculator, Landmark, Trash2, Plus, Search, Loader2, AlertCircle, Save } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -18,6 +18,7 @@ interface BillingSummaryModalProps {
 
 export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummaryModalProps) => {
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [tenants, setTenants] = useState<any[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [pixKey, setPixKey] = useState('seu-pix@email.com');
@@ -25,6 +26,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
   const [fineValue, setFineValue] = useState('0');
   const [interestValue, setInterestValue] = useState('0');
   const [extraValues, setExtraValues] = useState<any[]>([]);
+  const [currentRentBillId, setCurrentRentBillId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchTenants = async () => {
@@ -51,6 +53,9 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
     try {
       setLoading(true);
+      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+      const currentYear = new Date().getFullYear();
+
       const { data: bills } = await supabase
         .from('bills')
         .select('*')
@@ -63,16 +68,18 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         .eq('tenant_id', id)
         .eq('status', 'ativo');
 
-      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
-      const currentYear = new Date().getFullYear();
-
       let totalRent = 0;
       const extras: any[] = [];
+      let rentBillId = null;
 
       bills?.forEach(b => {
         const val = Number(b.calculated_value || b.total_value || 0);
         if (b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear) {
           totalRent += val;
+          rentBillId = b.id;
+          // Se já tem multa/juros salvos, carrega eles
+          setFineValue((b.fine_value || 0).toString());
+          setInterestValue((b.interest_value || 0).toString());
         } else {
           extras.push({
             label: `${b.type.charAt(0).toUpperCase() + b.type.slice(1)} (${b.month}/${b.year})`,
@@ -81,22 +88,16 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         }
       });
 
-      contracts?.forEach(c => {
-        const hasRentBillThisMonth = bills?.some(b => 
-          b.type === 'aluguel' && 
-          b.property_id === c.property_id && 
-          b.month === currentMonth && 
-          b.year === currentYear
-        );
-
-        if (!hasRentBillThisMonth) {
+      if (!rentBillId) {
+        contracts?.forEach(c => {
           totalRent += Number(c.rent_value || 0);
-        }
-      });
+        });
+        setFineValue('0');
+        setInterestValue('0');
+      }
 
+      setCurrentRentBillId(rentBillId);
       setRentValue(totalRent.toString());
-      setFineValue('0');
-      setInterestValue('0');
       setExtraValues(extras);
     } catch (err) {
       console.error('Erro ao carregar dados financeiros:', err);
@@ -113,6 +114,58 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     const extras = extraValues.reduce((acc, curr) => acc + (parseFloat(curr.value) || 0), 0);
     return rent + fine + interest + extras;
   }, [rentValue, fineValue, interestValue, extraValues]);
+
+  const handleSavePenalties = async () => {
+    if (!selectedTenantId) return;
+    setSaving(true);
+
+    try {
+      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+      const currentYear = new Date().getFullYear();
+      const fine = parseFloat(fineValue) || 0;
+      const interest = parseFloat(interestValue) || 0;
+
+      if (currentRentBillId) {
+        // Atualiza a conta de aluguel existente
+        const { error } = await supabase
+          .from('bills')
+          .update({
+            fine_value: fine,
+            interest_value: interest,
+            total_value: parseFloat(rentValue) + fine + interest
+          })
+          .eq('id', currentRentBillId);
+        
+        if (error) throw error;
+      } else {
+        // Se não existe a conta de aluguel no banco ainda, cria uma nova
+        const tenant = tenants.find(t => t.id === selectedTenantId);
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        const { error } = await supabase.from('bills').insert([{
+          user_id: user?.id,
+          tenant_id: selectedTenantId,
+          property_id: tenant?.property_id,
+          type: 'aluguel',
+          month: currentMonth,
+          year: currentYear,
+          total_value: parseFloat(rentValue) + fine + interest,
+          calculated_value: parseFloat(rentValue),
+          fine_value: fine,
+          interest_value: interest,
+          status: 'pendente'
+        }]);
+
+        if (error) throw error;
+      }
+
+      showSuccess('Encargos salvos no financeiro!');
+    } catch (err: any) {
+      showError('Erro ao salvar encargos: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const generatedMessage = useMemo(() => {
     const tenantObj = tenants.find(t => t.id === selectedTenantId);
@@ -212,6 +265,15 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
                   />
                 </div>
               </div>
+
+              <Button 
+                onClick={handleSavePenalties} 
+                disabled={saving || !selectedTenantId}
+                className="w-full h-11 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold gap-2 text-xs"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Salvar Encargos no Financeiro
+              </Button>
 
               <div className="space-y-3">
                 <div className="flex justify-between items-center">

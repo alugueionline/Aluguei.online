@@ -50,6 +50,8 @@ export interface Bill {
   year: number;
   total_value: number;
   calculated_value?: number;
+  fine_value?: number;
+  interest_value?: number;
   status: 'pago' | 'pendente' | 'atrasado';
   billing_method?: BillingType;
   previous_reading?: number;
