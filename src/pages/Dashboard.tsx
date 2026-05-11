@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,7 @@ import { toast } from "sonner";
 const Dashboard = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   const { data: user } = useQuery({
     queryKey: ['user'],
@@ -72,14 +73,13 @@ const Dashboard = () => {
     }
   });
 
-  // Mutação para dar baixa inteligente
   const markAsPaidMutation = useMutation({
     mutationFn: async (tenant: any) => {
+      setProcessingId(tenant.id);
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
       const { data: { user } } = await supabase.auth.getUser();
 
-      // Verificar se já existe fatura de aluguel
       const existingBill = tenant.bills?.find((b: any) => 
         b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear
       );
@@ -91,7 +91,6 @@ const Dashboard = () => {
           .eq('id', existingBill.id);
         if (error) throw error;
       } else {
-        // Se não existe, criamos baseada no contrato ativo
         const activeContract = tenant.contracts?.find((c: any) => c.status === 'ativo');
         if (!activeContract) throw new Error("Nenhum contrato ativo para este inquilino.");
 
@@ -116,11 +115,13 @@ const Dashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['tenants-dashboard'] });
       toast.success("Aluguel quitado com sucesso!", {
         icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" />,
-        className: "premium-card border-emerald-100"
       });
     },
     onError: (error: any) => {
       toast.error(error.message || "Erro ao processar baixa.");
+    },
+    onSettled: () => {
+      setProcessingId(null);
     }
   });
 
@@ -332,7 +333,6 @@ const Dashboard = () => {
                 const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
                 const currentYear = new Date().getFullYear();
                 
-                // LÓGICA DE CÁLCULO SINCRONIZADA COM O FINANCEIRO
                 const activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
                 const pendingBills = t.bills?.filter((b: any) => b.status !== 'pago') || [];
                 const existingBillsTotal = pendingBills.reduce((acc: number, b: any) => 
@@ -355,12 +355,7 @@ const Dashboard = () => {
 
                 const totalDebt = existingBillsTotal + projectedTotal;
                 const hasOverdue = pendingBills.some((b: any) => b.status === 'atrasado');
-                
-                // Status do aluguel do mês atual para o botão de baixa
-                const rentBillThisMonth = t.bills?.find((b: any) => 
-                  b.month === currentMonth && b.year === currentYear && b.type === 'aluguel'
-                );
-                const isRentPaid = rentBillThisMonth?.status === 'pago';
+                const isProcessing = processingId === t.id;
 
                 return (
                   <Card 
@@ -409,9 +404,9 @@ const Dashboard = () => {
                             size="sm" 
                             className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase px-4 h-9 gap-2 shadow-lg shadow-emerald-100"
                             onClick={() => markAsPaidMutation.mutate(t)}
-                            disabled={markAsPaidMutation.isPending}
+                            disabled={isProcessing || (processingId !== null && processingId !== t.id)}
                           >
-                            {markAsPaidMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                            {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                             Dar Baixa
                           </Button>
                         ) : (
@@ -433,7 +428,6 @@ const Dashboard = () => {
         </div>
 
         <div className="xl:col-span-4 space-y-8">
-          {/* Card de Alerta Dinâmico */}
           <Card className={cn(
             "premium-card rounded-[2rem] p-8 border-none relative overflow-hidden transition-all duration-500",
             isAllPaid ? "bg-emerald-600 text-white" : "bg-slate-900 text-white"
