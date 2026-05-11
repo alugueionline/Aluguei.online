@@ -48,7 +48,7 @@ export const TenantCollectionList = () => {
           .filter(b => b.tenant_id === t.id && (b.status === 'pendente' || b.status === 'atrasado'))
           .reduce((acc, b) => acc + Number(b.calculated_value || b.total_value || 0), 0);
 
-        // 2. Verificar se o aluguel do mês atual já foi lançado
+        // 2. Verificar se o aluguel do mês atual já foi lançado como fatura
         const rentAlreadyBilled = (bills || []).some(b => 
           b.tenant_id === t.id && 
           b.type === 'aluguel' && 
@@ -57,6 +57,7 @@ export const TenantCollectionList = () => {
         );
 
         // Se o aluguel ainda não foi lançado no sistema para este mês, somamos o valor do contrato como projeção
+        // Isso garante que o aluguel esteja sempre incluso na soma total de débitos
         const projectedRent = rentAlreadyBilled ? 0 : rentValue;
 
         return {
@@ -120,7 +121,7 @@ export const TenantCollectionList = () => {
             <div className="flex items-center justify-between md:justify-end gap-8 w-full md:w-auto border-t md:border-none pt-4 md:pt-0">
               <div className="text-left md:text-right">
                 <div className="flex items-center gap-2 md:justify-end">
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Débito Consolidado</p>
+                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Total Pendente</p>
                   {tenant.hasOverdue && <AlertCircle className="w-3 h-3 text-rose-500" />}
                 </div>
                 <p className={cn(

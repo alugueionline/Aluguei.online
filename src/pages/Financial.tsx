@@ -41,14 +41,25 @@ const Financial = () => {
   const fetchBills = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('bills')
-        .select('*, properties(name), tenants(name)')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
       
-      const list = data || [];
+      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+      const currentYear = new Date().getFullYear();
+
+      const [billsRes, contractsRes] = await Promise.all([
+        supabase
+          .from('bills')
+          .select('*, properties(name), tenants(name)')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('contracts')
+          .select('*')
+          .eq('status', 'ativo')
+      ]);
+
+      if (billsRes.error) throw billsRes.error;
+      
+      const list = billsRes.data || [];
+      const contracts = contractsRes.data || [];
       setBills(list);
       
       const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet'];
@@ -63,6 +74,21 @@ const Financial = () => {
           else exp += val;
         } else {
           if (isIncome) pen += val;
+        }
+      });
+
+      // Adiciona projeção de aluguel para contratos ativos que ainda não geraram fatura este mês
+      contracts.forEach(c => {
+        const rentVal = Number(c.rent_value) || 0;
+        const hasBillThisMonth = list.some(b => 
+          b.tenant_id === c.tenant_id && 
+          b.type === 'aluguel' && 
+          b.month === currentMonth &&
+          b.year === currentYear
+        );
+
+        if (!hasBillThisMonth) {
+          pen += rentVal;
         }
       });
       
@@ -116,7 +142,7 @@ const Financial = () => {
         <StatCard label="Receitas (Pago)" value={`R$ ${stats.income.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<CheckCircle2 className="text-emerald-500" />} color="emerald" />
         <StatCard label="Despesas (Pago)" value={`R$ ${stats.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<ArrowDownCircle className="text-rose-500" />} color="rose" />
         <StatCard label="Lucro Líquido" value={`R$ ${stats.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Wallet className="text-blue-500" />} color="blue" />
-        <StatCard label="A Receber" value={`R$ ${stats.pending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Clock className="text-amber-500" />} color="amber" />
+        <StatCard label="A Receber Total" value={`R$ ${stats.pending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Clock className="text-amber-500" />} color="amber" />
       </div>
 
       <Tabs defaultValue="transactions" className="space-y-8">
