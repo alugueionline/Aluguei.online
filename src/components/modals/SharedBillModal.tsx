@@ -11,6 +11,7 @@ import { showSuccess, showError } from '@/utils/toast';
 import { Calculator, Users, Loader2, Zap, Droplets, Wifi, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
+import { cn } from '@/lib/utils';
 
 interface SharedBillModalProps {
   isOpen: boolean;
