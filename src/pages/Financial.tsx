@@ -21,7 +21,8 @@ import {
   Building2,
   User,
   Loader2,
-  Trash2
+  Trash2,
+  AlertCircle
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TransactionModal } from '@/components/modals/TransactionModal';
@@ -77,9 +78,8 @@ const Financial = () => {
         }
       });
 
-      // Adiciona projeção de aluguel para contratos ativos que ainda não geraram fatura este mês
       contracts.forEach(c => {
-        const rentVal = Number(c.rent_value) || 0;
+        const rentVal = Number(c.rent_value || 0);
         const hasBillThisMonth = list.some(b => 
           b.tenant_id === c.tenant_id && 
           b.type === 'aluguel' && 
@@ -190,75 +190,96 @@ const Financial = () => {
                         <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Tipo / Origem</th>
                         <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Imóvel / Inquilino</th>
                         <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Referência</th>
-                        <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Valor</th>
+                        <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Valor Total</th>
                         <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
                         <th className="text-right p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {bills.map((bill) => (
-                        <tr key={bill.id} className="border-b border-gray-50 hover:bg-gray-50/30 transition-colors">
-                          <td className="p-6">
-                            <div className="flex items-center gap-3">
-                              <div className={cn(
-                                "w-10 h-10 rounded-xl flex items-center justify-center",
-                                bill.type === 'despesa' ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
-                              )}>
-                                {bill.type === 'despesa' ? <ArrowDownCircle className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />}
-                              </div>
-                              <span className="font-bold text-gray-900 capitalize">{bill.type}</span>
-                            </div>
-                          </td>
-                          <td className="p-6">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700">
-                                <Building2 className="w-3 h-3 text-blue-500" /> {bill.properties?.name || 'N/A'}
-                              </div>
-                              {bill.tenants?.name && (
-                                <div className="flex items-center gap-1.5 text-[10px] font-medium text-gray-400">
-                                  <User className="w-3 h-3" /> {bill.tenants.name}
+                      {bills.map((bill) => {
+                        const hasCharges = (bill.fine_value > 0 || bill.interest_value > 0);
+                        return (
+                          <tr key={bill.id} className="border-b border-gray-50 hover:bg-gray-50/30 transition-colors">
+                            <td className="p-6">
+                              <div className="flex items-center gap-3">
+                                <div className={cn(
+                                  "w-10 h-10 rounded-xl flex items-center justify-center",
+                                  bill.type === 'despesa' ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
+                                )}>
+                                  {bill.type === 'despesa' ? <ArrowDownCircle className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />}
                                 </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-6 text-sm text-gray-500 font-medium">
-                            {bill.month}/{bill.year}
-                          </td>
-                          <td className="p-6 font-black text-gray-900">
-                            R$ {Number(bill.total_value || bill.calculated_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </td>
-                          <td className="p-6">
-                            <Badge className={cn(
-                              "border-none px-3 py-1 rounded-lg font-black text-[10px] uppercase",
-                              bill.status === 'pago' ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-                            )}>
-                              {bill.status}
-                            </Badge>
-                          </td>
-                          <td className="p-6 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {bill.status !== 'pago' && (
+                                <span className="font-bold text-gray-900 capitalize">{bill.type}</span>
+                              </div>
+                            </td>
+                            <td className="p-6">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700">
+                                  <Building2 className="w-3 h-3 text-blue-500" /> {bill.properties?.name || 'N/A'}
+                                </div>
+                                {bill.tenants?.name && (
+                                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-gray-400">
+                                    <User className="w-3 h-3" /> {bill.tenants.name}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-6 text-sm text-gray-500 font-medium">
+                              {bill.month}/{bill.year}
+                            </td>
+                            <td className="p-6">
+                              <div className="space-y-1">
+                                <p className="font-black text-gray-900">
+                                  R$ {Number(bill.total_value || bill.calculated_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                                {hasCharges && (
+                                  <div className="flex flex-wrap gap-2">
+                                    {bill.fine_value > 0 && (
+                                      <span className="text-[9px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded uppercase">
+                                        Multa: R$ {Number(bill.fine_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                      </span>
+                                    )}
+                                    {bill.interest_value > 0 && (
+                                      <span className="text-[9px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded uppercase">
+                                        Juros: R$ {Number(bill.interest_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-6">
+                              <Badge className={cn(
+                                "border-none px-3 py-1 rounded-lg font-black text-[10px] uppercase",
+                                bill.status === 'pago' ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                              )}>
+                                {bill.status}
+                              </Badge>
+                            </td>
+                            <td className="p-6 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {bill.status !== 'pago' && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    onClick={() => handleMarkAsPaid(bill.id)}
+                                    className="h-9 rounded-xl border-emerald-100 text-emerald-600 hover:bg-emerald-50 font-bold text-xs"
+                                  >
+                                    Baixar
+                                  </Button>
+                                )}
                                 <Button 
-                                  size="sm" 
-                                  variant="outline" 
-                                  onClick={() => handleMarkAsPaid(bill.id)}
-                                  className="h-9 rounded-xl border-emerald-100 text-emerald-600 hover:bg-emerald-50 font-bold text-xs"
+                                  size="icon" 
+                                  variant="ghost" 
+                                  onClick={() => handleDeleteBill(bill.id)}
+                                  className="h-9 w-9 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50"
                                 >
-                                  Baixar
+                                  <Trash2 className="w-4 h-4" />
                                 </Button>
-                              )}
-                              <Button 
-                                size="icon" 
-                                variant="ghost" 
-                                onClick={() => handleDeleteBill(bill.id)}
-                                className="h-9 w-9 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
