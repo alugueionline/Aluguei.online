@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface BillingSummaryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  tenantId?: string; // Novo prop para pré-seleção
+  tenantId?: string;
 }
 
 export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummaryModalProps) => {
@@ -35,7 +35,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       setTenants(data || []);
       setLoading(false);
       
-      // Se um tenantId foi passado, seleciona ele automaticamente
       if (tenantId) {
         handleSelectTenant(tenantId, data || []);
       }
@@ -50,6 +49,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     if (!tenant) return;
 
     try {
+      // Buscar contrato para o aluguel base
       const { data: contract } = await supabase
         .from('contracts')
         .select('rent_value')
@@ -60,21 +60,17 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       setRentValue(contract?.rent_value?.toString() || '0');
       setCondoValue(tenant.properties?.condo_fee?.toString() || '0');
 
-      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
-      const currentYear = new Date().getFullYear();
-
+      // BUSCA TODAS AS CONTAS PENDENTES (Sem filtro de mês para não perder nada)
       const { data: bills } = await supabase
         .from('bills')
-        .select('type, calculated_value, total_value')
-        .eq('tenant_id', id) // Filtrando por tenant_id diretamente
-        .eq('month', currentMonth)
-        .eq('year', currentYear)
+        .select('type, calculated_value, total_value, month, year')
+        .eq('tenant_id', id)
         .eq('status', 'pendente')
         .neq('type', 'aluguel');
 
       if (bills && bills.length > 0) {
         const extras = bills.map(b => ({
-          label: b.type.charAt(0).toUpperCase() + b.type.slice(1),
+          label: `${b.type.charAt(0).toUpperCase() + b.type.slice(1)} (${b.month}/${b.year})`,
           value: (b.calculated_value || b.total_value).toString()
         }));
         setExtraValues(extras);
@@ -110,7 +106,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       }
     });
 
-    return `Olá ${tenantName}! 👋\n\nEstou enviando o resumo do aluguel e demais valores deste mês:\n\n${details}\n💰 *Total a pagar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n\n🔑 *Chave PIX:* ${pixKey}\n\nQualquer dúvida, estou à disposição!`;
+    return `Olá ${tenantName}! 👋\n\nEstou enviando o resumo do aluguel e demais valores pendentes:\n\n${details}\n💰 *Total a pagar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n\n🔑 *Chave PIX:* ${pixKey}\n\nQualquer dúvida, estou à disposição!`;
   }, [selectedTenantId, rentValue, condoValue, extraValues, pixKey, total, tenants]);
 
   const handleSendWhatsApp = () => {
@@ -135,12 +131,12 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         <div className="grid grid-cols-1 md:grid-cols-2 h-[700px]">
           <div className="p-8 space-y-6 bg-white overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">Resumo de Cobrança</DialogTitle>
+              <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">Detalhamento de Débitos</DialogTitle>
             </DialogHeader>
             
             <div className="space-y-5">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Selecionar Inquilino</Label>
+                <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Inquilino Selecionado</Label>
                 <Select onValueChange={(v) => handleSelectTenant(v)} value={selectedTenantId}>
                   <SelectTrigger className="h-12 rounded-xl bg-blue-50/50 border-blue-100 font-bold text-blue-900">
                     <div className="flex items-center gap-2">
@@ -160,7 +156,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluguel (R$)</Label>
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluguel Base (R$)</Label>
                   <Input 
                     type="number" 
                     className="h-11 rounded-xl bg-slate-50 border-none font-bold"
@@ -181,9 +177,9 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Outros Custos Extras</Label>
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contas e Rateios Pendentes</Label>
                   <Button variant="ghost" size="sm" onClick={addExtra} className="h-6 px-2 text-blue-600 font-bold text-[10px]">
-                    <Plus className="w-3 h-3 mr-1" /> ADICIONAR
+                    <Plus className="w-3 h-3 mr-1" /> ADICIONAR MANUAL
                   </Button>
                 </div>
                 
@@ -220,11 +216,14 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
                       </Button>
                     </div>
                   ))}
+                  {extraValues.length === 0 && (
+                    <p className="text-[10px] text-slate-400 italic text-center py-2">Nenhuma conta extra pendente no sistema.</p>
+                  )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chave PIX para Recebimento</Label>
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chave PIX</Label>
                 <div className="relative">
                   <Landmark className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                   <Input 
@@ -240,7 +239,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
               <div className="flex justify-between items-center p-4 bg-blue-50 rounded-2xl">
                 <div className="flex items-center gap-2 text-blue-600">
                   <Calculator className="w-5 h-5" />
-                  <span className="text-xs font-black uppercase tracking-widest">Total Consolidado</span>
+                  <span className="text-xs font-black uppercase tracking-widest">Total a Cobrar</span>
                 </div>
                 <span className="text-xl font-black text-blue-900">R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
@@ -250,7 +249,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
           <div className="bg-slate-900 p-8 flex flex-col">
             <div className="flex items-center gap-2 mb-6 text-blue-400">
               <MessageSquare className="w-5 h-5" />
-              <span className="text-xs font-black uppercase tracking-widest">Preview WhatsApp</span>
+              <span className="text-xs font-black uppercase tracking-widest">Mensagem de Cobrança</span>
             </div>
             
             <div className="flex-1 bg-slate-800/50 rounded-3xl p-6 text-slate-300 text-sm font-medium whitespace-pre-wrap leading-relaxed border border-slate-700/50 overflow-y-auto font-sans">
@@ -263,13 +262,13 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
                 className="rounded-xl h-12 font-bold text-slate-400 hover:bg-slate-800 hover:text-white gap-2"
                 onClick={handleCopy}
               >
-                <Copy className="w-4 h-4" /> Copiar Texto
+                <Copy className="w-4 h-4" /> Copiar
               </Button>
               <Button 
                 className="rounded-xl h-12 bg-emerald-500 hover:bg-emerald-600 text-white font-bold gap-2 shadow-lg shadow-emerald-900/20"
                 onClick={handleSendWhatsApp}
               >
-                <Send className="w-4 h-4" /> Enviar WhatsApp
+                <Send className="w-4 h-4" /> WhatsApp
               </Button>
             </div>
           </div>
