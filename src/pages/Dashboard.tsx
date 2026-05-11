@@ -61,39 +61,66 @@ const Dashboard = () => {
     queryFn: async () => {
       const { data } = await supabase
         .from('tenants')
-        .select('*, properties(name), bills(*)')
+        .select(`
+          *, 
+          properties(name, condo_fee), 
+          bills(*),
+          contracts(rent_value, status, property_id, properties(condo_fee))
+        `)
         .eq('status', 'ativo');
       return data || [];
     }
   });
 
-  // Mutação para dar baixa no aluguel
+  // Mutação para dar baixa inteligente
   const markAsPaidMutation = useMutation({
-    mutationFn: async (tenantId: string) => {
+    mutationFn: async (tenant: any) => {
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
+      const { data: { user } } = await supabase.auth.getUser();
 
-      const { data, error } = await supabase
-        .from('bills')
-        .update({ status: 'pago', payment_date: new Date().toISOString() })
-        .eq('tenant_id', tenantId)
-        .eq('month', currentMonth)
-        .eq('year', currentYear)
-        .eq('type', 'aluguel');
+      // Verificar se já existe fatura de aluguel
+      const existingBill = tenant.bills?.find((b: any) => 
+        b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear
+      );
 
-      if (error) throw error;
-      return data;
+      if (existingBill) {
+        const { error } = await supabase
+          .from('bills')
+          .update({ status: 'pago', payment_date: new Date().toISOString() })
+          .eq('id', existingBill.id);
+        if (error) throw error;
+      } else {
+        // Se não existe, criamos baseada no contrato ativo
+        const activeContract = tenant.contracts?.find((c: any) => c.status === 'ativo');
+        if (!activeContract) throw new Error("Nenhum contrato ativo para este inquilino.");
+
+        const { error } = await supabase
+          .from('bills')
+          .insert([{
+            user_id: user?.id,
+            tenant_id: tenant.id,
+            property_id: activeContract.property_id,
+            type: 'aluguel',
+            month: currentMonth,
+            year: currentYear,
+            total_value: activeContract.rent_value,
+            status: 'pago',
+            payment_date: new Date().toISOString()
+          }]);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['tenants-dashboard'] });
-      toast.success("Pagamento confirmado! O caixa foi atualizado.", {
+      toast.success("Aluguel quitado com sucesso!", {
         icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" />,
         className: "premium-card border-emerald-100"
       });
     },
-    onError: () => {
-      toast.error("Erro ao processar baixa. Tente novamente.");
+    onError: (error: any) => {
+      toast.error(error.message || "Erro ao processar baixa.");
     }
   });
 
@@ -305,23 +332,42 @@ const Dashboard = () => {
                 const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
                 const currentYear = new Date().getFullYear();
                 
-                // Cálculo da dívida real (soma de todas as faturas não pagas)
-                const totalDebt = t.bills?.filter((b: any) => b.status !== 'pago')
-                  .reduce((acc: number, b: any) => acc + Number(b.calculated_value || b.total_value || 0), 0) || 0;
+                // LÓGICA DE CÁLCULO SINCRONIZADA COM O FINANCEIRO
+                const activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
+                const pendingBills = t.bills?.filter((b: any) => b.status !== 'pago') || [];
+                const existingBillsTotal = pendingBills.reduce((acc: number, b: any) => 
+                  acc + Number(b.calculated_value || b.total_value || 0), 0
+                );
+
+                let projectedTotal = 0;
+                activeContracts.forEach((contract: any) => {
+                  const hasRentBill = t.bills?.some((b: any) => 
+                    b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id
+                  );
+                  if (!hasRentBill) projectedTotal += Number(contract.rent_value || 0);
+
+                  const hasCondoBill = t.bills?.some((b: any) => 
+                    b.type === 'condominio' && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id
+                  );
+                  const condoFee = Number(contract.properties?.condo_fee || 0);
+                  if (condoFee > 0 && !hasCondoBill) projectedTotal += condoFee;
+                });
+
+                const totalDebt = existingBillsTotal + projectedTotal;
+                const hasOverdue = pendingBills.some((b: any) => b.status === 'atrasado');
                 
-                const hasOverdue = t.bills?.some((b: any) => b.status === 'atrasado');
-                
-                const billThisMonth = t.bills?.find((b: any) => 
+                // Status do aluguel do mês atual para o botão de baixa
+                const rentBillThisMonth = t.bills?.find((b: any) => 
                   b.month === currentMonth && b.year === currentYear && b.type === 'aluguel'
                 );
-                const isPaid = billThisMonth?.status === 'pago';
+                const isRentPaid = rentBillThisMonth?.status === 'pago';
 
                 return (
                   <Card 
                     key={t.id} 
                     className={cn(
                       "premium-card rounded-2xl p-5 group transition-all",
-                      isPaid ? "bg-slate-50/50 border-slate-100" : "hover:border-blue-200"
+                      totalDebt === 0 ? "bg-slate-50/50 border-slate-100" : "hover:border-blue-200"
                     )}
                   >
                     <div className="flex items-center justify-between">
@@ -333,7 +379,7 @@ const Dashboard = () => {
                               {t.name.substring(0, 2).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
-                          {isPaid && (
+                          {totalDebt === 0 && (
                             <div className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border-2 border-white">
                               <Check className="w-2.5 h-2.5" />
                             </div>
@@ -358,11 +404,11 @@ const Dashboard = () => {
                           </p>
                         </div>
                         
-                        {!isPaid ? (
+                        {totalDebt > 0 ? (
                           <Button 
                             size="sm" 
                             className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase px-4 h-9 gap-2 shadow-lg shadow-emerald-100"
-                            onClick={() => markAsPaidMutation.mutate(t.id)}
+                            onClick={() => markAsPaidMutation.mutate(t)}
                             disabled={markAsPaidMutation.isPending}
                           >
                             {markAsPaidMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
@@ -370,7 +416,7 @@ const Dashboard = () => {
                           </Button>
                         ) : (
                           <Badge className="bg-emerald-50 text-emerald-600 border-none px-3 py-1.5 rounded-xl font-black text-[10px] uppercase">
-                            Pago
+                            Tudo Pago
                           </Badge>
                         )}
                         
