@@ -20,6 +20,7 @@ import Settings from "./pages/Settings";
 import Contracts from "./pages/Contracts";
 import Calendar from "./pages/Calendar";
 import Alerts from "./pages/Alerts";
+import SharedBills from "./pages/SharedBills";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ const App = () => (
           <Route path="/contracts" element={<Contracts />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/alerts" element={<Alerts />} />
+          <Route path="/shared-bills" element={<SharedBills />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
