@@ -7,10 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { showSuccess, showError } from '@/utils/toast';
-import { Calculator, Users, Loader2, Zap, ArrowRight } from 'lucide-react';
+import { Calculator, Users, Loader2, Zap } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
-import { cn } from '@/lib/utils';
 
 interface BillingModalProps {
   isOpen: boolean;
@@ -33,12 +32,10 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
   const [totalValue, setTotalValue] = useState('');
   const [billingMethod, setBillingMethod] = useState<'fixo' | 'por_pessoa' | 'consumo_kwh'>('fixo');
   
-  // Campos para kWh
   const [prevReading, setPrevReading] = useState('');
   const [currReading, setCurrReading] = useState('');
   const [kwhPrice, setKwhPrice] = useState('0.95');
   
-  // Campos para Rateio
   const [residents, setResidents] = useState('1');
   const [status, setStatus] = useState('pendente');
 
@@ -76,7 +73,6 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
     }
   }, [isOpen, bill]);
 
-  // Sincronizar moradores quando o inquilino é selecionado
   const handleTenantChange = (id: string) => {
     setTenantId(id);
     const tenant = tenants.find(t => t.id === id);
@@ -208,7 +204,7 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
           </div>
 
           {billingMethod === 'consumo_kwh' ? (
-            <div className="p-6 bg-orange-50/50 rounded-[2rem] border border-orange-100 space-y-4 animate-in fade-in slide-in-from-top-2">
+            <div className="p-6 bg-orange-50/50 rounded-[2rem] border border-orange-100 space-y-4">
               <div className="flex items-center gap-2 text-orange-700 mb-2">
                 <Zap className="w-4 h-4" />
                 <span className="text-xs font-black uppercase tracking-widest">Cálculo de Energia</span>
@@ -243,10 +239,6 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
                   />
                 </div>
               </div>
-              <div className="flex justify-between items-center pt-2 text-[10px] font-bold text-orange-400 uppercase">
-                <span>Consumo: {(parseFloat(currReading) || 0) - (parseFloat(prevReading) || 0)} kWh</span>
-                <span>Tarifa: R$ {kwhPrice}</span>
-              </div>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">
@@ -267,17 +259,14 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
               {billingMethod === 'por_pessoa' && (
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nº de Moradores</Label>
-                  <div className="relative">
-                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400" />
-                    <Input 
-                      type="number" 
-                      value={residents} 
-                      onChange={(e) => setResidents(e.target.value)} 
-                      className="pl-10 h-12 rounded-xl bg-blue-50/30 border-none font-bold"
-                      min="1"
-                      required 
-                    />
-                  </div>
+                  <Input 
+                    type="number" 
+                    value={residents} 
+                    onChange={(e) => setResidents(e.target.value)} 
+                    className="h-12 rounded-xl bg-blue-50/30 border-none font-bold"
+                    min="1"
+                    required 
+                  />
                 </div>
               )}
             </div>
