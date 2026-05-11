@@ -5,7 +5,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Calculator, ArrowRightLeft, Info } from 'lucide-react';
-import { SharedBillModal } from '@/components/modals/SharedBillModal';
+import { SharedBillModal } from '@/components/financial/SharedBillModal';
 
 const SharedBills = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -33,7 +33,7 @@ const SharedBills = () => {
             </div>
             <h3 className="text-xl font-black text-slate-900 tracking-tight mb-3">Como funciona?</h3>
             <p className="text-slate-500 font-medium leading-relaxed">
-              Insira o valor total de uma conta (ex: Luz do corredor). Selecione os inquilinos que devem pagar. O sistema divide o valor e cria uma conta pendente no perfil de cada um automaticamente.
+              Insira o valor total de uma conta ou use a leitura de medidores. Selecione os inquilinos e o sistema gera as faturas individuais automaticamente.
             </p>
           </Card>
 
@@ -55,7 +55,7 @@ const SharedBills = () => {
           <div>
             <h4 className="font-black text-blue-900 tracking-tight">Dica de Gestão</h4>
             <p className="text-sm text-blue-700/70 font-medium mt-1">
-              Use esta ferramenta para rateios de água, luz de áreas comuns ou internet compartilhada. É a forma mais rápida de "empurrar" despesas variáveis para os inquilinos.
+              Use o modo "Por Leitura (kWh)" para cobrar exatamente o que cada inquilino consumiu se você tiver medidores individuais.
             </p>
           </div>
         </div>
