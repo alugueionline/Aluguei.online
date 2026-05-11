@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Wrench } from 'lucide-react';
+import { Loader2, Wrench, DollarSign } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface MaintenanceModalProps {
   isOpen: boolean;
@@ -22,10 +23,10 @@ export const MaintenanceModal = ({ isOpen, onClose, maintenance }: MaintenanceMo
   const [loading, setLoading] = useState(false);
   const [properties, setProperties] = useState<any[]>([]);
   const [fetchingProps, setFetchingProps] = useState(false);
+  const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState({
     property_id: '',
-    category: 'hidraulica',
     priority: 'media',
     description: '',
     cost: '0',
@@ -49,11 +50,18 @@ export const MaintenanceModal = ({ isOpen, onClose, maintenance }: MaintenanceMo
       if (maintenance) {
         setFormData({
           property_id: maintenance.property_id || '',
-          category: maintenance.category || 'hidraulica',
           priority: maintenance.priority || 'media',
           description: maintenance.description || '',
           cost: (maintenance.cost || 0).toString(),
           status: maintenance.status || 'pendente'
+        });
+      } else {
+        setFormData({
+          property_id: '',
+          priority: 'media',
+          description: '',
+          cost: '0',
+          status: 'pendente'
         });
       }
     }
@@ -74,7 +82,6 @@ export const MaintenanceModal = ({ isOpen, onClose, maintenance }: MaintenanceMo
         status: formData.status,
         priority: formData.priority,
         cost: parseFloat(formData.cost) || 0,
-        // Adicionando categoria se você tiver essa coluna, caso contrário ignorar
       };
 
       if (isEdit) {
@@ -85,7 +92,28 @@ export const MaintenanceModal = ({ isOpen, onClose, maintenance }: MaintenanceMo
         if (error) throw error;
       }
 
+      // Se o status for concluído, gerar despesa no financeiro
+      if (formData.status === 'concluido') {
+        const now = new Date();
+        const month = (now.getMonth() + 1).toString().padStart(2, '0');
+        const year = now.getFullYear();
+
+        await supabase.from('bills').insert([{
+          user_id: user.id,
+          property_id: formData.property_id,
+          type: 'manutencao',
+          month,
+          year,
+          total_value: parseFloat(formData.cost) || 0,
+          status: 'pago',
+          description: `Manutenção: ${formData.description}`
+        }]);
+        
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      }
+
       showSuccess(isEdit ? 'Manutenção atualizada!' : 'Chamado de manutenção registrado!');
+      queryClient.invalidateQueries({ queryKey: ['property-maintenances'] });
       onClose();
     } catch (err: any) {
       showError('Erro ao salvar: ' + err.message);
@@ -116,9 +144,6 @@ export const MaintenanceModal = ({ isOpen, onClose, maintenance }: MaintenanceMo
                 {properties.map(p => (
                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                 ))}
-                {properties.length === 0 && !fetchingProps && (
-                  <SelectItem value="none" disabled>Nenhum imóvel cadastrado</SelectItem>
-                )}
               </SelectContent>
             </Select>
           </div>
@@ -152,7 +177,7 @@ export const MaintenanceModal = ({ isOpen, onClose, maintenance }: MaintenanceMo
                 <SelectContent>
                   <SelectItem value="pendente">Pendente</SelectItem>
                   <SelectItem value="em_andamento">Em Andamento</SelectItem>
-                  <SelectItem value="concluido">Concluído</SelectItem>
+                  <SelectItem value="concluido">Concluído (Gera Despesa)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -171,13 +196,16 @@ export const MaintenanceModal = ({ isOpen, onClose, maintenance }: MaintenanceMo
 
           <div className="space-y-2">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Custo Estimado (R$)</Label>
-            <Input 
-              type="number" 
-              placeholder="0,00" 
-              value={formData.cost}
-              onChange={e => setFormData({...formData, cost: e.target.value})}
-              className="h-12 rounded-xl bg-slate-50 border-none font-bold"
-            />
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+              <Input 
+                type="number" 
+                placeholder="0,00" 
+                value={formData.cost}
+                onChange={e => setFormData({...formData, cost: e.target.value})}
+                className="h-12 pl-10 rounded-xl bg-slate-50 border-none font-bold"
+              />
+            </div>
           </div>
 
           <DialogFooter className="pt-6">

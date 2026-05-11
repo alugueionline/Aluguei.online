@@ -5,16 +5,19 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Wrench, Plus, Hammer } from 'lucide-react';
+import { Wrench, Plus, Hammer, CheckCircle2, DollarSign, Loader2, Trash2, Edit2 } from 'lucide-react';
 import { MaintenanceModal } from '@/components/modals/MaintenanceModal';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { showSuccess, showError } from '@/utils/toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 const Maintenance = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMaintenance, setSelectedMaintenance] = useState<any>(null);
   const [maintenances, setMaintenances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   const fetchMaintenances = async () => {
     try {
@@ -37,6 +40,59 @@ const Maintenance = () => {
     }
   };
 
+  const handleCompleteAndPay = async (maintenance: any) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Não autenticado');
+
+      const now = new Date();
+      const month = (now.getMonth() + 1).toString().padStart(2, '0');
+      const year = now.getFullYear();
+
+      // 1. Atualizar status da manutenção
+      const { error: mError } = await supabase
+        .from('maintenances')
+        .update({ status: 'concluido' })
+        .eq('id', maintenance.id);
+      
+      if (mError) throw mError;
+
+      // 2. Criar despesa no financeiro
+      const { error: bError } = await supabase
+        .from('bills')
+        .insert([{
+          user_id: user.id,
+          property_id: maintenance.property_id,
+          type: 'manutencao',
+          month,
+          year,
+          total_value: maintenance.cost || 0,
+          status: 'pago',
+          description: `Manutenção: ${maintenance.description}`
+        }]);
+
+      if (bError) throw bError;
+
+      showSuccess('Manutenção concluída e despesa registrada no financeiro!');
+      fetchMaintenances();
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    } catch (err: any) {
+      showError('Erro ao processar pagamento: ' + err.message);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Deseja excluir este chamado?')) return;
+    try {
+      const { error } = await supabase.from('maintenances').delete().eq('id', id);
+      if (error) throw error;
+      showSuccess('Chamado removido.');
+      fetchMaintenances();
+    } catch (err: any) {
+      showError('Erro ao excluir: ' + err.message);
+    }
+  };
+
   useEffect(() => {
     fetchMaintenances();
   }, []);
@@ -44,34 +100,74 @@ const Maintenance = () => {
   return (
     <DashboardLayout title="Manutenção">
       <div className="flex justify-end mb-8">
-        <Button className="bg-blue-600 hover:bg-blue-700 gap-2 h-12 px-6 shadow-lg" onClick={() => { setSelectedMaintenance(null); setIsModalOpen(true); }}>
+        <Button className="bg-blue-600 hover:bg-blue-700 gap-2 h-12 px-6 shadow-lg rounded-2xl font-bold" onClick={() => { setSelectedMaintenance(null); setIsModalOpen(true); }}>
           <Plus className="w-5 h-5" /> Novo Chamado
         </Button>
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400 font-medium">Carregando chamados...</div>
+        <div className="text-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600" />
+          <p className="text-gray-400 mt-4 font-medium">Carregando chamados...</p>
+        </div>
       ) : maintenances.length > 0 ? (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4">
           {maintenances.map((m) => (
-            <Card key={m.id} className="border-none shadow-sm p-6 rounded-[2rem] bg-white">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-blue-50 rounded-xl text-blue-600">
-                    <Wrench className="w-5 h-5" />
+            <Card key={m.id} className={cn(
+              "border-none shadow-sm p-6 rounded-[2rem] transition-all",
+              m.status === 'concluido' ? "bg-gray-50/50 opacity-80" : "bg-white"
+            )}>
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div className="flex items-center gap-4 flex-1">
+                  <div className={cn(
+                    "p-4 rounded-2xl shrink-0",
+                    m.status === 'concluido' ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"
+                  )}>
+                    {m.status === 'concluido' ? <CheckCircle2 className="w-6 h-6" /> : <Wrench className="w-6 h-6" />}
                   </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900">{m.properties?.name || 'Imóvel'}</h3>
-                    <p className="text-sm text-gray-500">{m.description}</p>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-black text-slate-900 tracking-tight truncate">{m.properties?.name || 'Imóvel'}</h3>
+                      <Badge className={cn(
+                        "border-none uppercase text-[8px] font-black px-2 py-0.5 rounded-md",
+                        m.priority === 'alta' ? 'bg-rose-100 text-rose-700' : 
+                        m.priority === 'media' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+                      )}>
+                        {m.priority}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-slate-500 font-medium line-clamp-2">{m.description}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase mt-2">Custo: R$ {Number(m.cost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <Badge className={cn(
-                    "border-none uppercase text-[10px] font-black px-3 py-1 rounded-lg",
-                    m.status === 'concluido' ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
-                  )}>
-                    {m.status}
-                  </Badge>
+                
+                <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+                  {m.status !== 'concluido' && (
+                    <Button 
+                      onClick={() => handleCompleteAndPay(m)}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold gap-2 h-11 px-5 shadow-lg shadow-emerald-100"
+                    >
+                      <DollarSign className="w-4 h-4" /> Pagar e Concluir
+                    </Button>
+                  )}
+                  <div className="flex gap-1">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-10 w-10 rounded-xl hover:bg-blue-50 text-blue-600"
+                      onClick={() => { setSelectedMaintenance(m); setIsModalOpen(true); }}
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-10 w-10 rounded-xl hover:bg-rose-50 text-rose-500"
+                      onClick={() => handleDelete(m.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </Card>

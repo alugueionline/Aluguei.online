@@ -11,7 +11,6 @@ import {
   ArrowLeft, 
   MapPin, 
   User, 
-  Receipt, 
   Edit2,
   Zap,
   Droplets,
@@ -23,7 +22,8 @@ import {
   Maximize,
   Building2,
   Loader2,
-  History as HistoryIcon
+  History as HistoryIcon,
+  Wrench
 } from 'lucide-react';
 import { 
   Table, 
@@ -70,6 +70,21 @@ const PropertyDetails = () => {
     enabled: !!property
   });
 
+  const { data: maintenances = [] } = useQuery({
+    queryKey: ['property-maintenances', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('maintenances')
+        .select('*')
+        .eq('property_id', id)
+        .order('created_at', { ascending: false });
+      
+      if (error) return [];
+      return data || [];
+    },
+    enabled: !!property
+  });
+
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -91,15 +106,6 @@ const PropertyDetails = () => {
       </DashboardLayout>
     );
   }
-
-  const getIcon = (type: string) => {
-    switch (type) {
-      case 'energia': return <Zap className="w-3.5 h-3.5 text-orange-500" />;
-      case 'agua': return <Droplets className="w-3.5 h-3.5 text-blue-500" />;
-      case 'aluguel': return <DollarSign className="w-3.5 h-3.5 text-emerald-500" />;
-      default: return <FileText className="w-3.5 h-3.5 text-gray-500" />;
-    }
-  };
 
   return (
     <DashboardLayout title="Detalhes do Imóvel">
@@ -167,51 +173,54 @@ const PropertyDetails = () => {
                   <p className="text-slate-600 font-medium leading-relaxed">{property.description}</p>
                 </div>
               )}
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8 mt-8 border-t border-slate-50">
-                <div>
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Aluguel Base</p>
-                  <p className="text-2xl font-black text-slate-900">R$ {Number(property.base_rent).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                </div>
-                {property.unit_number && (
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Unidade</p>
-                    <p className="text-lg font-bold text-slate-900">{property.unit_number} {property.floor ? `(${property.floor}º andar)` : ''}</p>
-                  </div>
-                )}
-                {property.block && (
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Bloco / Torre</p>
-                    <p className="text-lg font-bold text-slate-900">{property.block} {property.tower ? `/ ${property.tower}` : ''}</p>
-                  </div>
-                )}
-              </div>
             </CardContent>
           </Card>
 
           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
             <CardHeader className="p-8 border-b border-slate-50">
               <CardTitle className="text-lg font-black flex items-center gap-2 tracking-tight">
-                <HistoryIcon className="w-5 h-5 text-blue-600" />
-                Histórico de Cobranças
+                <Wrench className="w-5 h-5 text-blue-600" />
+                Histórico de Manutenções
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader className="bg-slate-50/50">
                   <TableRow>
-                    <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Tipo</TableHead>
-                    <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Referência</TableHead>
-                    <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Valor</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Data</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Descrição</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Custo</TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell colSpan={4} className="p-12 text-center text-slate-400 font-medium">
-                      Nenhum histórico de cobrança registrado para este imóvel.
-                    </TableCell>
-                  </TableRow>
+                  {maintenances.length > 0 ? maintenances.map((m) => (
+                    <TableRow key={m.id} className="border-slate-50">
+                      <TableCell className="p-6 text-sm font-bold text-slate-500">
+                        {new Date(m.created_at).toLocaleDateString('pt-BR')}
+                      </TableCell>
+                      <TableCell className="p-6 text-sm font-medium text-slate-900">
+                        {m.description}
+                      </TableCell>
+                      <TableCell className="p-6 text-sm font-black text-slate-900">
+                        R$ {Number(m.cost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className="p-6">
+                        <Badge className={cn(
+                          "border-none px-3 py-1 rounded-lg font-black text-[10px] uppercase",
+                          m.status === 'concluido' ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                        )}>
+                          {m.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={4} className="p-12 text-center text-slate-400 font-medium">
+                        Nenhuma manutenção registrada para este imóvel.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -236,10 +245,6 @@ const PropertyDetails = () => {
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-bold text-slate-400">Telefone</span>
                     <span className="text-sm font-black">{tenant.phone}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-slate-400">E-mail</span>
-                    <span className="text-sm font-black truncate max-w-[150px]">{tenant.email || 'N/A'}</span>
                   </div>
                 </div>
 
@@ -277,7 +282,9 @@ const PropertyDetails = () => {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm font-bold text-slate-500">Manutenção</span>
-                <span className="font-black text-rose-600">R$ 0,00</span>
+                <span className="font-black text-rose-600">
+                  R$ {maintenances.reduce((acc, m) => acc + (Number(m.cost) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
               </div>
               <div className="pt-4 border-t border-slate-50">
                 <div className="flex justify-between items-center">
