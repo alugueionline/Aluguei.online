@@ -32,6 +32,8 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
   const [residents, setResidents] = useState('1');
   const [status, setStatus] = useState('pendente');
 
+  const billId = bill?.id;
+
   useEffect(() => {
     const fetchProperties = async () => {
       const { data } = await supabase.from('properties').select('id, name');
@@ -57,9 +59,9 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
       setResidents('1');
       setStatus('pendente');
     }
-  }, [isOpen, bill]);
+  }, [isOpen, billId]);
 
-  // Cálculo derivado usando useMemo em vez de useEffect + useState
+  // Cálculo derivado usando useMemo
   const calculated = useMemo(() => {
     const val = parseFloat(totalValue) || 0;
     const res = parseInt(residents) || 1;

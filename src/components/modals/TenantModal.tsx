@@ -38,6 +38,8 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
     residents_count: '1'
   });
 
+  const tenantId = tenant?.id;
+
   useEffect(() => {
     const fetchProperties = async () => {
       const { data } = await supabase.from('properties').select('id, name, status, base_rent');
@@ -76,9 +78,9 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         });
       }
     }
-  }, [isOpen, tenant]);
+  }, [isOpen, tenantId]);
 
-  // Cálculo automático da data de término com proteção contra loops
+  // Cálculo automático da data de término
   useEffect(() => {
     if (formData.contract_start_date && formData.duration_months) {
       const startDate = parseISO(formData.contract_start_date);
@@ -87,13 +89,12 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         const endDate = addMonths(startDate, months);
         const formattedEndDate = format(endDate, 'yyyy-MM-dd');
         
-        // Só atualiza se for diferente para evitar loops infinitos
         if (formData.contract_end_date !== formattedEndDate) {
           setFormData(prev => ({ ...prev, contract_end_date: formattedEndDate }));
         }
       }
     }
-  }, [formData.contract_start_date, formData.duration_months, formData.contract_end_date]);
+  }, [formData.contract_start_date, formData.duration_months]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,7 +120,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         user_id: user.id
       };
 
-      let tenantId = tenant?.id;
+      let currentTenantId = tenant?.id;
 
       if (isEdit) {
         const { error } = await supabase.from('tenants').update(tenantPayload).eq('id', tenant.id);
@@ -131,7 +132,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
       } else {
         const { data, error } = await supabase.from('tenants').insert([tenantPayload]).select().single();
         if (error) throw error;
-        tenantId = data.id;
+        currentTenantId = data.id;
       }
 
       if (propertyId) {
@@ -141,7 +142,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
 
         const contractPayload = {
           user_id: user.id,
-          tenant_id: tenantId,
+          tenant_id: currentTenantId,
           property_id: propertyId,
           rent_value: rentValue,
           start_date: formData.contract_start_date || format(new Date(), 'yyyy-MM-dd'),
@@ -152,7 +153,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         const { data: existingContract } = await supabase
           .from('contracts')
           .select('id')
-          .eq('tenant_id', tenantId)
+          .eq('tenant_id', currentTenantId)
           .eq('property_id', propertyId)
           .maybeSingle();
 
