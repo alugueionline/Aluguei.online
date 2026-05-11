@@ -177,7 +177,7 @@ export const BillingSummaryModal = ({ isOpen, onClose }: BillingSummaryModalProp
 
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Outros Custos / Rateios</Label>
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Outros Custos Extras</Label>
                   <Button variant="ghost" size="sm" onClick={addExtra} className="h-6 px-2 text-blue-600 font-bold text-[10px]">
                     <Plus className="w-3 h-3 mr-1" /> ADICIONAR
                   </Button>
