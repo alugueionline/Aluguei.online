@@ -81,40 +81,49 @@ const Dashboard = () => {
       const currentYear = new Date().getFullYear();
       const { data: { user } } = await supabase.auth.getUser();
 
-      const existingBill = tenant.bills?.find((b: any) => 
+      // 1. Identificar todas as faturas pendentes/atrasadas já existentes
+      const pendingBillIds = tenant.bills
+        ?.filter((b: any) => b.status !== 'pago')
+        .map((b: any) => b.id) || [];
+
+      // 2. Verificar se o aluguel do mês atual já existe. Se não, precisamos criar para dar baixa.
+      const hasRentBillThisMonth = tenant.bills?.some((b: any) => 
         b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear
       );
 
-      if (existingBill) {
-        const { error } = await supabase
+      // Iniciar as operações
+      if (pendingBillIds.length > 0) {
+        const { error: updateError } = await supabase
           .from('bills')
           .update({ status: 'pago', payment_date: new Date().toISOString() })
-          .eq('id', existingBill.id);
-        if (error) throw error;
-      } else {
-        const activeContract = tenant.contracts?.find((c: any) => c.status === 'ativo');
-        if (!activeContract) throw new Error("Nenhum contrato ativo para este inquilino.");
+          .in('id', pendingBillIds);
+        if (updateError) throw updateError;
+      }
 
-        const { error } = await supabase
-          .from('bills')
-          .insert([{
-            user_id: user?.id,
-            tenant_id: tenant.id,
-            property_id: activeContract.property_id,
-            type: 'aluguel',
-            month: currentMonth,
-            year: currentYear,
-            total_value: activeContract.rent_value,
-            status: 'pago',
-            payment_date: new Date().toISOString()
-          }]);
-        if (error) throw error;
+      if (!hasRentBillThisMonth) {
+        const activeContract = tenant.contracts?.find((c: any) => c.status === 'ativo');
+        if (activeContract) {
+          const { error: insertError } = await supabase
+            .from('bills')
+            .insert([{
+              user_id: user?.id,
+              tenant_id: tenant.id,
+              property_id: activeContract.property_id,
+              type: 'aluguel',
+              month: currentMonth,
+              year: currentYear,
+              total_value: activeContract.rent_value,
+              status: 'pago',
+              payment_date: new Date().toISOString()
+            }]);
+          if (insertError) throw insertError;
+        }
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['tenants-dashboard'] });
-      toast.success("Aluguel quitado com sucesso!", {
+      toast.success("Todos os débitos foram quitados!", {
         icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" />,
       });
     },
@@ -132,6 +141,7 @@ const Dashboard = () => {
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
+      // Reverte apenas o aluguel do mês atual para evitar bagunça no histórico
       const billToRevert = tenant.bills?.find((b: any) => 
         b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear && b.status === 'pago'
       );
