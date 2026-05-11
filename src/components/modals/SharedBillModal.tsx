@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { showSuccess, showError } from '@/utils/toast';
-import { Calculator, Users, Loader2, Zap, Droplets, Wifi, FileText } from 'lucide-react';
+import { Calculator, Users, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
@@ -36,6 +36,7 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
         .eq('status', 'ativo');
       setTenants(data || []);
     };
+    
     if (isOpen) {
       fetchTenants();
       setSelectedTenants([]);
@@ -47,13 +48,13 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
     const total = parseFloat(totalValue) || 0;
     const count = selectedTenants.length;
     return count > 0 ? total / count : 0;
-  }, [totalValue, selectedTenants]);
+  }, [totalValue, selectedTenants.length]);
 
-  const handleToggleTenant = (id: string) => {
+  const handleToggleTenant = useCallback((id: string) => {
     setSelectedTenants(prev => 
       prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
     );
-  };
+  }, []);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +70,6 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
 
       const [year, month] = date.split('-');
       
-      // Criar uma conta para cada inquilino selecionado
       const billsToInsert = selectedTenants.map(tenantId => {
         const tenant = tenants.find(t => t.id === tenantId);
         return {
@@ -148,22 +148,24 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Selecionar Inquilinos Participantes</Label>
             <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
               {tenants.map((t) => (
-                <div 
+                <label 
                   key={t.id} 
                   className={cn(
-                    "flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer",
+                    "flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer select-none",
                     selectedTenants.includes(t.id) ? "bg-blue-50 border-blue-200" : "bg-white border-slate-100 hover:bg-slate-50"
                   )}
-                  onClick={() => handleToggleTenant(t.id)}
                 >
                   <div className="flex items-center gap-3">
-                    <Checkbox checked={selectedTenants.includes(t.id)} onCheckedChange={() => handleToggleTenant(t.id)} />
+                    <Checkbox 
+                      checked={selectedTenants.includes(t.id)} 
+                      onCheckedChange={() => handleToggleTenant(t.id)} 
+                    />
                     <div>
                       <p className="text-sm font-bold text-slate-900">{t.name}</p>
                       <p className="text-[10px] text-slate-400 font-bold uppercase">{t.properties?.name}</p>
                     </div>
                   </div>
-                </div>
+                </label>
               ))}
             </div>
           </div>
