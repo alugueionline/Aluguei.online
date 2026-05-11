@@ -23,7 +23,8 @@ import {
   Loader2,
   Trash2,
   AlertCircle,
-  Percent
+  Percent,
+  RotateCcw
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TransactionModal } from '@/components/modals/TransactionModal';
@@ -157,7 +158,7 @@ const Financial = () => {
     try {
       const { error } = await supabase
         .from('bills')
-        .update({ status: 'pago' })
+        .update({ status: 'pago', payment_date: new Date().toISOString() })
         .eq('id', id);
       
       if (error) throw error;
@@ -168,9 +169,23 @@ const Financial = () => {
     }
   };
 
+  const handleRevertPayment = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('bills')
+        .update({ status: 'pendente', payment_date: null })
+        .eq('id', id);
+      
+      if (error) throw error;
+      showSuccess('Pagamento revertido para pendente.');
+      fetchBills();
+    } catch (err: any) {
+      showError('Erro ao reverter: ' + err.message);
+    }
+  };
+
   const handleDeleteItem = async (item: any) => {
     if (item.isCharge) {
-      // Se for um encargo, apenas zeramos o valor no registro original
       if (!window.confirm(`Deseja remover este encargo (${item.displayType})?`)) return;
       
       try {
@@ -178,7 +193,6 @@ const Financial = () => {
         if (item.chargeType === 'fine') updateData.fine_value = 0;
         if (item.chargeType === 'interest') updateData.interest_value = 0;
         
-        // Recalcular o total_value subtraindo o encargo removido
         const originalBill = bills.find(b => b.id === item.originalId);
         if (originalBill) {
           updateData.total_value = Number(originalBill.total_value) - Number(item.displayValue);
@@ -196,7 +210,6 @@ const Financial = () => {
         showError('Erro ao remover encargo: ' + err.message);
       }
     } else {
-      // Se for a transação principal, excluímos o registro todo
       if (!window.confirm('Tem certeza que deseja excluir esta transação completa?')) return;
       
       try {
@@ -342,7 +355,7 @@ const Financial = () => {
                           </td>
                           <td className="p-6 text-right">
                             <div className="flex items-center justify-end gap-2">
-                              {item.status !== 'pago' && !item.isCharge && (
+                              {item.status !== 'pago' && !item.isCharge ? (
                                 <Button 
                                   size="sm" 
                                   variant="outline" 
@@ -350,6 +363,16 @@ const Financial = () => {
                                   className="h-9 rounded-xl border-emerald-100 text-emerald-600 hover:bg-emerald-50 font-bold text-xs"
                                 >
                                   Baixar
+                                </Button>
+                              ) : item.status === 'pago' && !item.isCharge && (
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  onClick={() => handleRevertPayment(item.id)}
+                                  className="h-9 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 font-bold text-xs gap-1.5"
+                                  title="Reverter para Pendente"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" /> Reverter
                                 </Button>
                               )}
                               <Button 

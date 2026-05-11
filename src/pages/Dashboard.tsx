@@ -22,7 +22,8 @@ import {
   TrendingUp,
   Check,
   PartyPopper,
-  ArrowRight
+  ArrowRight,
+  RotateCcw
 } from 'lucide-react';
 import { 
   PieChart,
@@ -119,6 +120,38 @@ const Dashboard = () => {
     },
     onError: (error: any) => {
       toast.error(error.message || "Erro ao processar baixa.");
+    },
+    onSettled: () => {
+      setProcessingId(null);
+    }
+  });
+
+  const revertPaymentMutation = useMutation({
+    mutationFn: async (tenant: any) => {
+      setProcessingId(tenant.id);
+      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+      const currentYear = new Date().getFullYear();
+
+      const billToRevert = tenant.bills?.find((b: any) => 
+        b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear && b.status === 'pago'
+      );
+
+      if (!billToRevert) throw new Error("Nenhum pagamento de aluguel encontrado para este mês.");
+
+      const { error } = await supabase
+        .from('bills')
+        .update({ status: 'pendente', payment_date: null })
+        .eq('id', billToRevert.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['tenants-dashboard'] });
+      toast.success("Pagamento revertido para pendente.");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Erro ao reverter pagamento.");
     },
     onSettled: () => {
       setProcessingId(null);
@@ -410,9 +443,21 @@ const Dashboard = () => {
                             Dar Baixa
                           </Button>
                         ) : (
-                          <Badge className="bg-emerald-50 text-emerald-600 border-none px-3 py-1.5 rounded-xl font-black text-[10px] uppercase">
-                            Tudo Pago
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-emerald-50 text-emerald-600 border-none px-3 py-1.5 rounded-xl font-black text-[10px] uppercase">
+                              Tudo Pago
+                            </Badge>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 rounded-lg text-slate-300 hover:text-blue-600 hover:bg-blue-50"
+                              onClick={() => revertPaymentMutation.mutate(t)}
+                              disabled={isProcessing}
+                              title="Reverter Pagamento"
+                            >
+                              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                            </Button>
+                          </div>
                         )}
                         
                         <Button variant="ghost" size="icon" className="rounded-xl text-slate-300 hover:text-blue-600" onClick={() => navigate(`/tenants/${t.id}`)}>
