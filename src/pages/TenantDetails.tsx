@@ -22,7 +22,8 @@ import {
   TrendingUp,
   CheckCircle2,
   Edit2,
-  Building2
+  Building2,
+  MessageSquare
 } from 'lucide-react';
 import { 
   Table, 
@@ -35,12 +36,14 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { TenantModal } from '@/components/modals/TenantModal';
+import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
 
 const TenantDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);
 
   const { data: tenant, isLoading } = useQuery({
     queryKey: ['tenant', id],
@@ -74,19 +77,10 @@ const TenantDetails = () => {
   const { data: financialData } = useQuery({
     queryKey: ['tenant-financial', id],
     queryFn: async () => {
-      if (!tenant?.contracts || tenant.contracts.length === 0) return { history: [], totalProfit: 0 };
-      
-      const propertyIds = tenant.contracts
-        .filter((c: any) => c.status === 'ativo')
-        .map((c: any) => c.properties?.id)
-        .filter(Boolean);
-
-      if (propertyIds.length === 0) return { history: [], totalProfit: 0 };
-      
       const { data: bills } = await supabase
         .from('bills')
         .select('*')
-        .in('property_id', propertyIds)
+        .eq('tenant_id', id)
         .order('year', { ascending: false })
         .order('month', { ascending: false });
 
@@ -95,7 +89,9 @@ const TenantDetails = () => {
         .filter(b => b.status === 'pago' && (b.type === 'aluguel' || b.type === 'receita'))
         .reduce((acc, curr) => acc + Number(curr.total_value || curr.calculated_value), 0);
 
-      return { history, totalProfit };
+      const pendingCount = history.filter(b => b.status === 'pendente').length;
+
+      return { history, totalProfit, pendingCount };
     },
     enabled: !!tenant
   });
@@ -122,11 +118,6 @@ const TenantDetails = () => {
     );
   }
 
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return 'Não definida';
-    return new Date(dateStr).toLocaleDateString('pt-BR');
-  };
-
   const activeContracts = tenant.contracts?.filter((c: any) => c.status === 'ativo') || [];
 
   return (
@@ -139,12 +130,20 @@ const TenantDetails = () => {
         >
           <ArrowLeft className="w-4 h-4" /> Voltar
         </Button>
-        <Button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold gap-2"
-        >
-          <Edit2 className="w-4 h-4" /> Editar Perfil
-        </Button>
+        <div className="flex gap-3">
+          <Button 
+            onClick={() => setIsBillingModalOpen(true)}
+            className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold gap-2 shadow-lg shadow-emerald-100"
+          >
+            <MessageSquare className="w-4 h-4" /> Cobrar WhatsApp
+          </Button>
+          <Button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold gap-2"
+          >
+            <Edit2 className="w-4 h-4" /> Editar Perfil
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -182,24 +181,35 @@ const TenantDetails = () => {
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-sm bg-emerald-50 border-emerald-100 rounded-[2rem]">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-black text-emerald-800 flex items-center gap-2 uppercase tracking-widest">
-                <TrendingUp className="w-4 h-4" />
-                Lucro Acumulado Total
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-1">
+          <div className="grid grid-cols-1 gap-4">
+            <Card className="border-none shadow-sm bg-emerald-50 border-emerald-100 rounded-[2rem]">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-black text-emerald-800 flex items-center gap-2 uppercase tracking-widest">
+                  <TrendingUp className="w-4 h-4" />
+                  Lucro Acumulado
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
                 <p className="text-2xl font-black text-emerald-900">
                   R$ {financialData?.totalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
-                <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">
-                  Soma de todos os imóveis locados
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-sm bg-amber-50 border-amber-100 rounded-[2rem]">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-black text-amber-800 flex items-center gap-2 uppercase tracking-widest">
+                  <Clock className="w-4 h-4" />
+                  Contas Pendentes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-black text-amber-900">
+                  {financialData?.pendingCount || 0} Lançamentos
                 </p>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         <div className="lg:col-span-2 space-y-6">
@@ -257,7 +267,7 @@ const TenantDetails = () => {
             <CardHeader className="p-8 border-b border-slate-50">
               <CardTitle className="text-lg font-black flex items-center gap-2 tracking-tight">
                 <History className="w-5 h-5 text-blue-600" />
-                Histórico de Pagamentos (Geral)
+                Histórico de Pagamentos
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -301,10 +311,17 @@ const TenantDetails = () => {
           </Card>
         </div>
       </div>
+      
       <TenantModal 
         isOpen={isModalOpen} 
         onClose={() => { setIsModalOpen(false); queryClient.invalidateQueries({ queryKey: ['tenant', id] }); }} 
         tenant={tenant} 
+      />
+
+      <BillingSummaryModal 
+        isOpen={isBillingModalOpen} 
+        onClose={() => setIsBillingModalOpen(false)} 
+        tenantId={id}
       />
     </DashboardLayout>
   );

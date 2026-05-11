@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -10,6 +11,7 @@ import { BillingSummaryModal } from './BillingSummaryModal';
 import { cn } from '@/lib/utils';
 
 export const TenantCollectionList = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [tenantDebts, setTenantDebts] = useState<any[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string | undefined>(undefined);
@@ -73,9 +75,14 @@ export const TenantCollectionList = () => {
     fetchData();
   }, []);
 
-  const handleCollect = (id: string) => {
+  const handleCollect = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
     setSelectedTenantId(id);
     setIsModalOpen(true);
+  };
+
+  const handleNavigateToProfile = (id: string) => {
+    navigate(`/tenants/${id}`);
   };
 
   if (loading) {
@@ -93,7 +100,7 @@ export const TenantCollectionList = () => {
         <Card 
           key={tenant.id} 
           className="border-none shadow-sm hover:shadow-md transition-all rounded-[2rem] overflow-hidden bg-white group cursor-pointer"
-          onClick={() => handleCollect(tenant.id)}
+          onClick={() => handleNavigateToProfile(tenant.id)}
         >
           <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-4 w-full md:w-auto">
@@ -124,6 +131,7 @@ export const TenantCollectionList = () => {
               
               <div className="flex items-center gap-3">
                 <Button 
+                  onClick={(e) => handleCollect(e, tenant.id)}
                   className={cn(
                     "h-12 px-6 rounded-2xl font-black gap-2 transition-all active:scale-95 shadow-lg",
                     tenant.totalDebt > 0 

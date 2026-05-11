@@ -20,7 +20,8 @@ import {
   Clock,
   Building2,
   User,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TransactionModal } from '@/components/modals/TransactionModal';
@@ -85,6 +86,23 @@ const Financial = () => {
       fetchBills();
     } catch (err: any) {
       showError('Erro ao baixar conta: ' + err.message);
+    }
+  };
+
+  const handleDeleteBill = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir esta transação?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('bills')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      showSuccess('Transação excluída com sucesso.');
+      fetchBills();
+    } catch (err: any) {
+      showError('Erro ao excluir: ' + err.message);
     }
   };
 
@@ -192,16 +210,26 @@ const Financial = () => {
                             </Badge>
                           </td>
                           <td className="p-6 text-right">
-                            {bill.status !== 'pago' && (
+                            <div className="flex items-center justify-end gap-2">
+                              {bill.status !== 'pago' && (
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  onClick={() => handleMarkAsPaid(bill.id)}
+                                  className="h-9 rounded-xl border-emerald-100 text-emerald-600 hover:bg-emerald-50 font-bold text-xs"
+                                >
+                                  Baixar
+                                </Button>
+                              )}
                               <Button 
-                                size="sm" 
-                                variant="outline" 
-                                onClick={() => handleMarkAsPaid(bill.id)}
-                                className="h-9 rounded-xl border-emerald-100 text-emerald-600 hover:bg-emerald-50 font-bold text-xs"
+                                size="icon" 
+                                variant="ghost" 
+                                onClick={() => handleDeleteBill(bill.id)}
+                                className="h-9 w-9 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50"
                               >
-                                Baixar Pagamento
+                                <Trash2 className="w-4 h-4" />
                               </Button>
-                            )}
+                            </div>
                           </td>
                         </tr>
                       ))}
