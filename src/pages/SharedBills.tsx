@@ -1,10 +1,8 @@
-"use client";
-
 import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, Plus, Calculator, ArrowRightLeft, Info } from 'lucide-react';
+import { Plus, Calculator, ArrowRightLeft, Info } from 'lucide-react';
 import { SharedBillModal } from '@/components/modals/SharedBillModal';
 
 const SharedBills = () => {
