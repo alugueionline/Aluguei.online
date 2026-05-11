@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { MessageSquare, Copy, Send, Calculator, Landmark, Trash2, Plus, Search, Loader2 } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -36,7 +37,10 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       setLoading(false);
       
       if (tenantId) {
-        handleSelectTenant(tenantId, data || []);
+        const tenant = (data || []).find(t => t.id === tenantId);
+        if (tenant) {
+          handleSelectTenant(tenantId, data || []);
+        }
       }
     };
     if (isOpen) fetchTenants();
@@ -213,6 +217,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
                       <Button 
                         variant="ghost" 
                         size="icon" 
+                        type="button"
                         onClick={() => removeExtra(index)}
                         className="h-10 w-10 rounded-xl text-slate-300 hover:text-rose-500"
                       >
@@ -263,12 +268,14 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
             <div className="mt-8 grid grid-cols-2 gap-3">
               <Button 
                 variant="ghost" 
+                type="button"
                 className="rounded-xl h-12 font-bold text-slate-400 hover:bg-slate-800 hover:text-white gap-2"
                 onClick={handleCopy}
               >
                 <Copy className="w-4 h-4" /> Copiar
               </Button>
               <Button 
+                type="button"
                 className="rounded-xl h-12 bg-emerald-500 hover:bg-emerald-600 text-white font-bold gap-2 shadow-lg shadow-emerald-900/20"
                 onClick={handleSendWhatsApp}
               >
@@ -278,5 +285,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
           </div>
         </div>
       </DialogContent>
-    </Dialog);
+    </Dialog>
+  );
 };
