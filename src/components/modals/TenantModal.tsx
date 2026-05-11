@@ -126,6 +126,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         const { error } = await supabase.from('tenants').update(tenantPayload).eq('id', tenant.id);
         if (error) throw error;
         
+        // Se mudou de imóvel, libera o antigo
         if (tenant.property_id && tenant.property_id !== propertyId) {
           await supabase.from('properties').update({ status: 'disponivel' }).eq('id', tenant.property_id);
         }
@@ -135,8 +136,10 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         currentTenantId = data.id;
       }
 
+      // Atualiza status do imóvel e cria contrato se houver imóvel vinculado
       if (propertyId) {
         await supabase.from('properties').update({ status: 'alugado' }).eq('id', propertyId);
+        
         const selectedProp = properties.find(p => p.id === propertyId);
         const rentValue = selectedProp?.base_rent || 0;
 
@@ -150,6 +153,7 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
           status: 'ativo'
         };
 
+        // Verifica se já existe contrato para este par inquilino/imóvel
         const { data: existingContract } = await supabase
           .from('contracts')
           .select('id')
