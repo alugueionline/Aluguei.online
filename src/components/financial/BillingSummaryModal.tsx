@@ -13,10 +13,10 @@ import { supabase } from '@/integrations/supabase/client';
 interface BillingSummaryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialData?: any;
+  tenantId?: string; // Novo prop para pré-seleção
 }
 
-export const BillingSummaryModal = ({ isOpen, onClose }: BillingSummaryModalProps) => {
+export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummaryModalProps) => {
   const [loading, setLoading] = useState(false);
   const [tenants, setTenants] = useState<any[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState('');
@@ -34,13 +34,19 @@ export const BillingSummaryModal = ({ isOpen, onClose }: BillingSummaryModalProp
         .eq('status', 'ativo');
       setTenants(data || []);
       setLoading(false);
+      
+      // Se um tenantId foi passado, seleciona ele automaticamente
+      if (tenantId) {
+        handleSelectTenant(tenantId, data || []);
+      }
     };
     if (isOpen) fetchTenants();
-  }, [isOpen]);
+  }, [isOpen, tenantId]);
 
-  const handleSelectTenant = async (id: string) => {
+  const handleSelectTenant = async (id: string, currentTenants?: any[]) => {
     setSelectedTenantId(id);
-    const tenant = tenants.find(t => t.id === id);
+    const list = currentTenants || tenants;
+    const tenant = list.find(t => t.id === id);
     if (!tenant) return;
 
     try {
@@ -60,7 +66,7 @@ export const BillingSummaryModal = ({ isOpen, onClose }: BillingSummaryModalProp
       const { data: bills } = await supabase
         .from('bills')
         .select('type, calculated_value, total_value')
-        .eq('property_id', tenant.property_id)
+        .eq('tenant_id', id) // Filtrando por tenant_id diretamente
         .eq('month', currentMonth)
         .eq('year', currentYear)
         .eq('status', 'pendente')
@@ -75,10 +81,8 @@ export const BillingSummaryModal = ({ isOpen, onClose }: BillingSummaryModalProp
       } else {
         setExtraValues([]);
       }
-
-      showSuccess(`Dados de ${tenant.name} carregados!`);
     } catch (err) {
-      showError('Erro ao carregar dados financeiros.');
+      console.error('Erro ao carregar dados financeiros.');
     }
   };
 
@@ -137,7 +141,7 @@ export const BillingSummaryModal = ({ isOpen, onClose }: BillingSummaryModalProp
             <div className="space-y-5">
               <div className="space-y-2">
                 <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Selecionar Inquilino</Label>
-                <Select onValueChange={handleSelectTenant} value={selectedTenantId}>
+                <Select onValueChange={(v) => handleSelectTenant(v)} value={selectedTenantId}>
                   <SelectTrigger className="h-12 rounded-xl bg-blue-50/50 border-blue-100 font-bold text-blue-900">
                     <div className="flex items-center gap-2">
                       {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
