@@ -140,21 +140,24 @@ function toast({ ...props }: Omit<ToasterToast, "id">) {
 
 const dismiss = (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId });
 
-function useToast() {
-  const state = useSyncExternalStore(
-    (callback) => {
-      listeners.add(callback);
-      return () => listeners.delete(callback);
-    },
-    () => memoryState,
-    () => memoryState
-  );
+const subscribe = (callback: () => void) => {
+  listeners.add(callback);
+  return () => listeners.delete(callback);
+};
 
-  return {
-    ...state,
-    toast,
-    dismiss,
-  };
+const getSnapshot = () => memoryState;
+
+function useToast() {
+  const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+  return React.useMemo(
+    () => ({
+      ...state,
+      toast,
+      dismiss,
+    }),
+    [state]
+  );
 }
 
 export { useToast, toast };
