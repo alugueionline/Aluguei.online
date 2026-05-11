@@ -77,7 +77,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         if (b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear) {
           totalRent += val;
           rentBillId = b.id;
-          // Se já tem multa/juros salvos, carrega eles
           setFineValue((b.fine_value || 0).toString());
           setInterestValue((b.interest_value || 0).toString());
         } else {
@@ -126,7 +125,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       const interest = parseFloat(interestValue) || 0;
 
       if (currentRentBillId) {
-        // Atualiza a conta de aluguel existente
         const { error } = await supabase
           .from('bills')
           .update({
@@ -138,7 +136,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         
         if (error) throw error;
       } else {
-        // Se não existe a conta de aluguel no banco ainda, cria uma nova
         const tenant = tenants.find(t => t.id === selectedTenantId);
         const { data: { user } } = await supabase.auth.getUser();
         
