@@ -6,7 +6,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   ArrowLeft, 
   User, 
@@ -24,7 +24,9 @@ import {
   Edit2,
   Building2,
   MessageSquare,
-  AlertCircle
+  AlertCircle,
+  RotateCcw,
+  Wallet
 } from 'lucide-react';
 import { 
   Table, 
@@ -38,6 +40,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { TenantModal } from '@/components/modals/TenantModal';
 import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
+import { showSuccess, showError } from '@/utils/toast';
 
 const TenantDetails = () => {
   const { id } = useParams();
@@ -45,6 +48,7 @@ const TenantDetails = () => {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);
+  const [processingBillId, setProcessingBillId] = useState<string | null>(null);
 
   const { data: tenant, isLoading } = useQuery({
     queryKey: ['tenant', id],
@@ -92,12 +96,40 @@ const TenantDetails = () => {
         .filter(b => b.status !== 'pago')
         .reduce((acc, curr) => acc + Number(curr.total_value || curr.calculated_value), 0);
 
+      // Cálculo do Total Pago (Histórico Completo)
+      const totalPaid = history
+        .filter(b => b.status === 'pago')
+        .reduce((acc, curr) => acc + Number(curr.total_value || curr.calculated_value), 0);
+
       const pendingCount = history.filter(b => b.status === 'pendente').length;
       const overdueCount = history.filter(b => b.status === 'atrasado').length;
 
-      return { history, totalDebt, pendingCount, overdueCount };
+      return { history, totalDebt, totalPaid, pendingCount, overdueCount };
     },
     enabled: !!tenant
+  });
+
+  const revertPaymentMutation = useMutation({
+    mutationFn: async (billId: string) => {
+      setProcessingBillId(billId);
+      const { error } = await supabase
+        .from('bills')
+        .update({ status: 'pendente', payment_date: null })
+        .eq('id', billId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial', id] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      showSuccess("Pagamento revertido para pendente.");
+    },
+    onError: (error: any) => {
+      showError("Erro ao reverter: " + error.message);
+    },
+    onSettled: () => {
+      setProcessingBillId(null);
+    }
   });
 
   if (isLoading) {
@@ -209,17 +241,18 @@ const TenantDetails = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-none shadow-sm bg-amber-50 border-amber-100 rounded-[2rem]">
+            <Card className="border-none shadow-sm bg-blue-50 border-blue-100 rounded-[2rem]">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-black text-amber-800 flex items-center gap-2 uppercase tracking-widest">
-                  <Clock className="w-4 h-4" />
-                  Contas em Aberto
+                <CardTitle className="text-sm font-black text-blue-800 flex items-center gap-2 uppercase tracking-widest">
+                  <Wallet className="w-4 h-4" />
+                  Total Pago (Acumulado)
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-black text-amber-900">
-                  {financialData?.pendingCount || 0} Lançamentos
+                <p className="text-2xl font-black text-blue-900">
+                  R$ {financialData?.totalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
+                <p className="text-[10px] text-blue-400 font-bold uppercase mt-1">Desde o início do contrato</p>
               </CardContent>
             </Card>
           </div>
@@ -292,6 +325,7 @@ const TenantDetails = () => {
                       <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Tipo</TableHead>
                       <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Valor</TableHead>
                       <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Status</TableHead>
+                      <TableHead className="text-right font-black text-[10px] uppercase tracking-widest p-6">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -307,6 +341,20 @@ const TenantDetails = () => {
                           )}>
                             {bill.status}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="p-6 text-right">
+                          {bill.status === 'pago' && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 rounded-lg text-slate-300 hover:text-blue-600 hover:bg-blue-50"
+                              onClick={() => revertPaymentMutation.mutate(bill.id)}
+                              disabled={processingBillId === bill.id}
+                              title="Reverter para Pendente"
+                            >
+                              {processingBillId === bill.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
