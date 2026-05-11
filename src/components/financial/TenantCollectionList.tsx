@@ -25,40 +25,40 @@ export const TenantCollectionList = () => {
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
-      // Buscamos inquilinos e todos os seus contratos (para lidar com múltiplos imóveis)
+      // Buscamos inquilinos e seus contratos/propriedades
       const { data: tenants } = await supabase
         .from('tenants')
         .select(`
           id, 
           name, 
           phone, 
-          properties(name),
-          contracts(rent_value, status, property_id)
+          properties(name, condo_fee),
+          contracts(rent_value, status, property_id, properties(condo_fee))
         `)
         .eq('status', 'ativo');
 
+      // Buscamos todas as faturas pendentes
       const { data: bills } = await supabase
         .from('bills')
-        .select('tenant_id, property_id, type, total_value, calculated_value, status, month, year');
+        .select('*')
+        .in('status', ['pendente', 'atrasado']);
 
       const finalData = (tenants || []).map(t => {
         const activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
         
-        // 1. Pegar todas as faturas PENDENTES ou ATRASADAS deste inquilino (Luz, Internet, Aluguéis já gerados)
-        const pendingBills = (bills || []).filter(b => 
-          b.tenant_id === t.id && (b.status === 'pendente' || b.status === 'atrasado')
-        );
-
+        // 1. Faturas que já existem no banco (Rateios, Aluguéis gerados, etc)
+        const pendingBills = (bills || []).filter(b => b.tenant_id === t.id);
         const existingBillsTotal = pendingBills.reduce((acc, b) => 
           acc + Number(b.calculated_value || b.total_value || 0), 0
         );
 
-        // 2. Verificar para CADA contrato ativo se o aluguel do mês atual já foi faturado
-        let projectedRent = 0;
-        let projectedCount = 0;
+        // 2. Projeções (Aluguel e Condomínio que ainda não foram faturados este mês)
+        let projectedTotal = 0;
+        let projectedItems: any[] = [];
 
         activeContracts.forEach((contract: any) => {
-          const rentAlreadyBilled = (bills || []).some(b => 
+          // Verificar se já existe fatura de aluguel para este imóvel este mês
+          const hasRentBill = (bills || []).some(b => 
             b.tenant_id === t.id && 
             b.property_id === contract.property_id &&
             b.type === 'aluguel' && 
@@ -66,22 +66,37 @@ export const TenantCollectionList = () => {
             b.year === currentYear
           );
 
-          if (!rentAlreadyBilled) {
-            projectedRent += Number(contract.rent_value || 0);
-            projectedCount++;
+          if (!hasRentBill) {
+            const rentVal = Number(contract.rent_value || 0);
+            projectedTotal += rentVal;
+            projectedItems.push({ type: 'Aluguel (Projetado)', value: rentVal });
+          }
+
+          // Verificar se já existe fatura de condomínio
+          const hasCondoBill = (bills || []).some(b => 
+            b.tenant_id === t.id && 
+            b.property_id === contract.property_id &&
+            b.type === 'condominio' && 
+            b.month === currentMonth && 
+            b.year === currentYear
+          );
+
+          const condoFee = Number(contract.properties?.condo_fee || 0);
+          if (condoFee > 0 && !hasCondoBill) {
+            projectedTotal += condoFee;
+            projectedItems.push({ type: 'Condomínio (Projetado)', value: condoFee });
           }
         });
         
-        // Soma Final: Faturas existentes + Projeções de aluguel não faturados
-        const totalDebt = existingBillsTotal + projectedRent;
+        const totalDebt = existingBillsTotal + projectedTotal;
 
         return {
           ...t,
           totalDebt,
-          pendingCount: pendingBills.length + projectedCount,
+          pendingCount: pendingBills.length + projectedItems.length,
           hasOverdue: pendingBills.some(b => b.status === 'atrasado'),
           breakdown: {
-            projectedRent,
+            projectedItems,
             pendingBills: pendingBills
           }
         };
@@ -154,21 +169,21 @@ export const TenantCollectionList = () => {
                         <div className="space-y-1">
                           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Detalhamento</p>
                           
-                          {tenant.breakdown.projectedRent > 0 && (
-                            <div className="flex justify-between gap-8 text-xs">
-                              <span>Aluguel (Mês Atual):</span>
-                              <span className="font-bold text-amber-400">R$ {Number(tenant.breakdown.projectedRent).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          {tenant.breakdown.projectedItems.map((item: any, i: number) => (
+                            <div key={`proj-${i}`} className="flex justify-between gap-8 text-xs">
+                              <span>{item.type}:</span>
+                              <span className="font-bold text-amber-400">R$ {Number(item.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                             </div>
-                          )}
+                          ))}
 
                           {tenant.breakdown.pendingBills.map((b: any, i: number) => (
-                            <div key={i} className="flex justify-between gap-8 text-xs">
+                            <div key={`bill-${i}`} className="flex justify-between gap-8 text-xs">
                               <span className="capitalize">{b.type} ({b.month}/{b.year}):</span>
                               <span className="font-bold">R$ {Number(b.calculated_value || b.total_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                             </div>
                           ))}
 
-                          {tenant.breakdown.projectedRent === 0 && tenant.breakdown.pendingBills.length === 0 && (
+                          {tenant.totalDebt === 0 && (
                             <p className="text-xs text-slate-400 italic">Nenhum débito pendente</p>
                           )}
                         </div>
@@ -207,7 +222,7 @@ export const TenantCollectionList = () => {
 
       <BillingSummaryModal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+        onClose={() => { setIsModalOpen(false); fetchData(); }} 
         tenantId={selectedTenantId}
       />
     </div>
