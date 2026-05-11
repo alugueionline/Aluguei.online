@@ -45,7 +45,6 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
         setTenants(data);
         const initial: any = {};
         data.forEach(t => {
-          // Iniciamos como FALSE para que o usuário marque quem deseja
           initial[t.id] = { selected: false, prevReading: '0', currReading: '0' };
         });
         setSelectedTenants(initial);
@@ -62,14 +61,12 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
     setSelectedTenants(updated);
   };
 
-  // Se mudar o tipo e não for energia, reseta o modo de cálculo se estiver em leitura
   useEffect(() => {
     if (type !== 'energia' && calculationMode === 'leitura') {
       setCalculationMode('igual');
     }
   }, [type, calculationMode]);
 
-  // Cálculo prévio para exibição no modal
   const summary = useMemo(() => {
     const activeTenants = tenants.filter(t => selectedTenants[t.id]?.selected);
     const totalVal = Number(totalValue) || 0;
@@ -98,6 +95,9 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
 
     setLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Não autenticado');
+
       const billsToInsert = activeTenants.map(t => {
         let finalValue = 0;
         const config = selectedTenants[t.id];
@@ -112,6 +112,7 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
         }
 
         return {
+          user_id: user.id,
           tenant_id: t.id,
           property_id: t.property_id,
           type,
