@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { showSuccess, showError } from '@/utils/toast';
-import { Calculator, Users, Loader2 } from 'lucide-react';
+import { Calculator, Users, Loader2, Zap, ArrowRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
+import { cn } from '@/lib/utils';
 
 interface BillingModalProps {
   isOpen: boolean;
@@ -22,34 +23,48 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
   const isEdit = !!bill;
   const [loading, setLoading] = useState(false);
   const [properties, setProperties] = useState<any[]>([]);
+  const [tenants, setTenants] = useState<any[]>([]);
   const queryClient = useQueryClient();
   
   const [type, setType] = useState('energia');
   const [propertyId, setPropertyId] = useState('');
+  const [tenantId, setTenantId] = useState('');
   const [date, setDate] = useState(`${new Date().getFullYear()}-${(new Date().getMonth() + 1).toString().padStart(2, '0')}`);
   const [totalValue, setTotalValue] = useState('');
-  const [billingMethod, setBillingMethod] = useState<'fixo' | 'por_pessoa'>('fixo');
+  const [billingMethod, setBillingMethod] = useState<'fixo' | 'por_pessoa' | 'consumo_kwh'>('fixo');
+  
+  // Campos para kWh
+  const [prevReading, setPrevReading] = useState('');
+  const [currReading, setCurrReading] = useState('');
+  const [kwhPrice, setKwhPrice] = useState('0.95');
+  
+  // Campos para Rateio
   const [residents, setResidents] = useState('1');
   const [status, setStatus] = useState('pendente');
 
-  const billId = bill?.id;
-
   useEffect(() => {
-    const fetchProperties = async () => {
-      const { data } = await supabase.from('properties').select('id, name');
-      setProperties(data || []);
-      if (data && data.length > 0 && !propertyId) setPropertyId(data[0].id);
+    const fetchData = async () => {
+      const [propsRes, tenantsRes] = await Promise.all([
+        supabase.from('properties').select('id, name'),
+        supabase.from('tenants').select('id, name, residents_count, property_id').eq('status', 'ativo')
+      ]);
+      setProperties(propsRes.data || []);
+      setTenants(tenantsRes.data || []);
     };
-    if (isOpen) fetchProperties();
+    if (isOpen) fetchData();
   }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && bill) {
       setType(bill.type || 'energia');
       setPropertyId(bill.property_id || '');
+      setTenantId(bill.tenant_id || '');
       setDate(`${bill.year}-${bill.month}`);
       setTotalValue(bill.total_value?.toString() || '');
       setBillingMethod(bill.billing_method || 'fixo');
+      setPrevReading(bill.previous_reading?.toString() || '');
+      setCurrReading(bill.current_reading?.toString() || '');
+      setKwhPrice(bill.kwh_price?.toString() || '0.95');
       setResidents(bill.residents?.toString() || '1');
       setStatus(bill.status || 'pendente');
     } else if (isOpen && !bill) {
@@ -59,17 +74,35 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
       setResidents('1');
       setStatus('pendente');
     }
-  }, [isOpen, billId]);
+  }, [isOpen, bill]);
 
-  // Cálculo derivado usando useMemo
+  // Sincronizar moradores quando o inquilino é selecionado
+  const handleTenantChange = (id: string) => {
+    setTenantId(id);
+    const tenant = tenants.find(t => t.id === id);
+    if (tenant) {
+      if (tenant.residents_count) setResidents(tenant.residents_count.toString());
+      if (tenant.property_id) setPropertyId(tenant.property_id);
+    }
+  };
+
   const calculated = useMemo(() => {
+    if (billingMethod === 'consumo_kwh') {
+      const prev = parseFloat(prevReading) || 0;
+      const curr = parseFloat(currReading) || 0;
+      const price = parseFloat(kwhPrice) || 0;
+      const consumption = Math.max(0, curr - prev);
+      return consumption * price;
+    }
+    
     const val = parseFloat(totalValue) || 0;
-    const res = parseInt(residents) || 1;
     if (billingMethod === 'por_pessoa') {
+      const res = parseInt(residents) || 1;
       return res > 0 ? val / res : 0;
     }
+    
     return val;
-  }, [totalValue, billingMethod, residents]);
+  }, [totalValue, billingMethod, residents, prevReading, currReading, kwhPrice]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,10 +117,17 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
       const payload = {
         user_id: user.id,
         type,
-        property_id: propertyId,
+        property_id: propertyId || null,
+        tenant_id: tenantId || null,
         month,
         year: parseInt(year),
-        total_value: calculated,
+        total_value: billingMethod === 'consumo_kwh' ? calculated : parseFloat(totalValue) || 0,
+        calculated_value: calculated,
+        billing_method: billingMethod,
+        previous_reading: billingMethod === 'consumo_kwh' ? parseFloat(prevReading) : null,
+        current_reading: billingMethod === 'consumo_kwh' ? parseFloat(currReading) : null,
+        kwh_price: billingMethod === 'consumo_kwh' ? parseFloat(kwhPrice) : null,
+        residents: billingMethod === 'por_pessoa' ? parseInt(residents) : null,
         status
       };
 
@@ -115,16 +155,16 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] rounded-[2rem]">
+      <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] p-8">
         <DialogHeader>
           <DialogTitle className="text-2xl font-black tracking-tight">
             {isEdit ? 'Editar Lançamento' : 'Novo Lançamento'}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSave} className="space-y-4 py-4">
+        <form onSubmit={handleSave} className="space-y-5 py-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo de Conta</Label>
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo de Conta</Label>
               <Select value={type} onValueChange={setType}>
                 <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
                   <SelectValue />
@@ -140,33 +180,112 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Imóvel</Label>
-              <Select value={propertyId} onValueChange={setPropertyId}>
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Inquilino</Label>
+              <Select value={tenantId} onValueChange={handleTenantChange}>
                 <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {properties.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           </div>
 
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Método de Cobrança</Label>
+            <Select value={billingMethod} onValueChange={(v: any) => setBillingMethod(v)}>
+              <SelectTrigger className="h-14 rounded-2xl bg-blue-50/50 border-none font-black text-blue-900">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fixo">Valor Fixo</SelectItem>
+                <SelectItem value="por_pessoa">Rateio por Morador</SelectItem>
+                <SelectItem value="consumo_kwh">Consumo (kWh)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {billingMethod === 'consumo_kwh' ? (
+            <div className="p-6 bg-orange-50/50 rounded-[2rem] border border-orange-100 space-y-4 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-2 text-orange-700 mb-2">
+                <Zap className="w-4 h-4" />
+                <span className="text-xs font-black uppercase tracking-widest">Cálculo de Energia</span>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold text-orange-600 uppercase">Anterior</Label>
+                  <Input 
+                    type="number" 
+                    value={prevReading} 
+                    onChange={e => setPrevReading(e.target.value)}
+                    className="h-10 rounded-xl bg-white border-orange-100 font-bold text-center"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold text-orange-600 uppercase">Atual</Label>
+                  <Input 
+                    type="number" 
+                    value={currReading} 
+                    onChange={e => setCurrReading(e.target.value)}
+                    className="h-10 rounded-xl bg-white border-orange-100 font-bold text-center"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold text-orange-600 uppercase">Preço kWh</Label>
+                  <Input 
+                    type="number" 
+                    step="0.01"
+                    value={kwhPrice} 
+                    onChange={e => setKwhPrice(e.target.value)}
+                    className="h-10 rounded-xl bg-white border-orange-100 font-bold text-center"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-between items-center pt-2 text-[10px] font-bold text-orange-400 uppercase">
+                <span>Consumo: {(parseFloat(currReading) || 0) - (parseFloat(prevReading) || 0)} kWh</span>
+                <span>Tarifa: R$ {kwhPrice}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                  {billingMethod === 'por_pessoa' ? 'Valor Total Fatura' : 'Valor da Conta'}
+                </Label>
+                <Input 
+                  type="number" 
+                  step="0.01"
+                  value={totalValue} 
+                  onChange={(e) => setTotalValue(e.target.value)} 
+                  placeholder="0,00" 
+                  required 
+                  className="h-12 rounded-xl bg-slate-50 border-none font-bold"
+                />
+              </div>
+              {billingMethod === 'por_pessoa' && (
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nº de Moradores</Label>
+                  <div className="relative">
+                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400" />
+                    <Input 
+                      type="number" 
+                      value={residents} 
+                      onChange={(e) => setResidents(e.target.value)} 
+                      className="pl-10 h-12 rounded-xl bg-blue-50/30 border-none font-bold"
+                      min="1"
+                      required 
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Método de Cobrança</Label>
-              <Select value={billingMethod} onValueChange={(v: any) => setBillingMethod(v)}>
-                <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="fixo">Valor Fixo</SelectItem>
-                  <SelectItem value="por_pessoa">Rateio por Pessoa</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mês/Ano Referência</Label>
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mês/Ano Referência</Label>
               <Input 
                 type="month" 
                 value={date} 
@@ -175,25 +294,8 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
                 className="h-12 rounded-xl bg-slate-50 border-none font-bold"
               />
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                {billingMethod === 'por_pessoa' ? 'Valor Total Fatura' : 'Valor da Conta'}
-              </Label>
-              <Input 
-                type="number" 
-                step="0.01"
-                value={totalValue} 
-                onChange={(e) => setTotalValue(e.target.value)} 
-                placeholder="0,00" 
-                required 
-                className="h-12 rounded-xl bg-slate-50 border-none font-bold"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</Label>
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status</Label>
               <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
                   <SelectValue />
@@ -207,31 +309,24 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
             </div>
           </div>
 
-          {billingMethod === 'por_pessoa' && (
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nº de Residentes</Label>
-              <div className="relative">
-                <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input 
-                  type="number" 
-                  value={residents} 
-                  onChange={(e) => setResidents(e.target.value)} 
-                  className="pl-10 h-12 rounded-xl bg-slate-50 border-none font-bold"
-                  min="1"
-                  required 
-                />
+          <div className="p-6 bg-slate-900 rounded-[2rem] text-white flex justify-between items-center shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
+                <Calculator className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Valor Final</p>
+                <p className="text-xs text-slate-300 font-medium">
+                  {billingMethod === 'por_pessoa' ? `Rateio p/ ${residents} pessoas` : 
+                   billingMethod === 'consumo_kwh' ? 'Cálculo por consumo' : 'Valor fixo'}
+                </p>
               </div>
             </div>
-          )}
-
-          <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex justify-between items-center">
-            <div className="flex items-center gap-2 text-blue-700">
-              <Calculator className="w-4 h-4" />
-              <span className="text-xs font-black uppercase tracking-widest">
-                {billingMethod === 'por_pessoa' ? 'Valor por Pessoa' : 'Valor Calculado'}
-              </span>
+            <div className="text-right">
+              <p className="text-2xl font-black text-blue-400">
+                R$ {calculated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
             </div>
-            <span className="text-lg font-black text-blue-900">R$ {calculated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
           </div>
 
           <DialogFooter className="pt-4">
