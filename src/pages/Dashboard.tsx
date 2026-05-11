@@ -304,6 +304,13 @@ const Dashboard = () => {
               {tenants.slice(0, 5).map((t) => {
                 const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
                 const currentYear = new Date().getFullYear();
+                
+                // Cálculo da dívida real (soma de todas as faturas não pagas)
+                const totalDebt = t.bills?.filter((b: any) => b.status !== 'pago')
+                  .reduce((acc: number, b: any) => acc + Number(b.calculated_value || b.total_value || 0), 0) || 0;
+                
+                const hasOverdue = t.bills?.some((b: any) => b.status === 'atrasado');
+                
                 const billThisMonth = t.bills?.find((b: any) => 
                   b.month === currentMonth && b.year === currentYear && b.type === 'aluguel'
                 );
@@ -342,8 +349,13 @@ const Dashboard = () => {
                       
                       <div className="flex items-center gap-4">
                         <div className="text-right hidden md:block mr-4">
-                          <p className="text-[10px] text-slate-400 font-black uppercase">Aluguel</p>
-                          <p className="text-sm font-black text-slate-900">R$ {Number(t.rent_value || 0).toLocaleString('pt-BR')}</p>
+                          <p className="text-[10px] text-slate-400 font-black uppercase">Dívida Real</p>
+                          <p className={cn(
+                            "text-sm font-black",
+                            totalDebt > 0 ? (hasOverdue ? "text-rose-600" : "text-amber-600") : "text-emerald-600"
+                          )}>
+                            R$ {totalDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
                         </div>
                         
                         {!isPaid ? (
