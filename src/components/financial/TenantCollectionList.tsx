@@ -5,9 +5,10 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MessageSquare, Clock, Loader2, ChevronRight, AlertCircle, Info } from 'lucide-react';
+import { MessageSquare, Clock, Loader2, ChevronRight, AlertCircle, Info, Check } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { BillingSummaryModal } from './BillingSummaryModal';
+import { QuickPaymentModal } from '@/components/modals/QuickPaymentModal';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -16,7 +17,9 @@ export const TenantCollectionList = () => {
   const [loading, setLoading] = useState(true);
   const [tenantDebts, setTenantDebts] = useState<any[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string | undefined>(undefined);
+  const [selectedTenantForPayment, setSelectedTenantForPayment] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -95,6 +98,7 @@ export const TenantCollectionList = () => {
           totalDebt,
           pendingCount: pendingBills.length + projectedItems.length,
           hasOverdue: pendingBills.some(b => b.status === 'atrasado'),
+          bills: pendingBills, // Passamos as bills para o modal de pagamento
           breakdown: {
             projectedItems,
             pendingBills: pendingBills
@@ -118,6 +122,12 @@ export const TenantCollectionList = () => {
     e.stopPropagation();
     setSelectedTenantId(id);
     setIsModalOpen(true);
+  };
+
+  const handleOpenPayment = (e: React.MouseEvent, tenant: any) => {
+    e.stopPropagation();
+    setSelectedTenantForPayment(tenant);
+    setIsPaymentModalOpen(true);
   };
 
   if (loading) {
@@ -200,13 +210,23 @@ export const TenantCollectionList = () => {
                 </div>
                 
                 <div className="flex items-center gap-3">
+                  {tenant.totalDebt > 0 && (
+                    <Button 
+                      onClick={(e) => handleOpenPayment(e, tenant)}
+                      className="h-12 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black gap-2 shadow-lg shadow-emerald-100 active:scale-95 transition-all"
+                    >
+                      <Check className="w-4 h-4" />
+                      Dar Baixa
+                    </Button>
+                  )}
                   <Button 
                     onClick={(e) => handleCollect(e, tenant.id)}
+                    variant="outline"
                     className={cn(
-                      "h-12 px-6 rounded-2xl font-black gap-2 transition-all active:scale-95 shadow-lg",
+                      "h-12 px-6 rounded-2xl font-black gap-2 transition-all active:scale-95",
                       tenant.totalDebt > 0 
-                        ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-100" 
-                        : "bg-slate-100 text-slate-400 shadow-none"
+                        ? "border-blue-200 text-blue-600 hover:bg-blue-50" 
+                        : "bg-slate-100 text-slate-400 border-none"
                     )}
                   >
                     <MessageSquare className="w-4 h-4" />
@@ -224,6 +244,13 @@ export const TenantCollectionList = () => {
         isOpen={isModalOpen} 
         onClose={() => { setIsModalOpen(false); fetchData(); }} 
         tenantId={selectedTenantId}
+      />
+
+      <QuickPaymentModal 
+        isOpen={isPaymentModalOpen}
+        onClose={() => { setIsPaymentModalOpen(false); fetchData(); }}
+        tenant={selectedTenantForPayment}
+        onSuccess={fetchData}
       />
     </div>
   );
