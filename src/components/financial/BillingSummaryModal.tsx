@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { MessageSquare, Copy, Send, Calculator, Landmark, Trash2, Plus, Search, Loader2 } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -23,7 +22,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [pixKey, setPixKey] = useState('seu-pix@email.com');
   const [rentValue, setRentValue] = useState('0');
-  const [condoValue, setCondoValue] = useState('0');
   const [extraValues, setExtraValues] = useState<any[]>([]);
 
   useEffect(() => {
@@ -37,10 +35,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       setLoading(false);
       
       if (tenantId) {
-        const tenant = (data || []).find(t => t.id === tenantId);
-        if (tenant) {
-          handleSelectTenant(tenantId, data || []);
-        }
+        handleSelectTenant(tenantId, data || []);
       }
     };
     if (isOpen) fetchTenants();
@@ -53,14 +48,14 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     if (!tenant) return;
 
     try {
-      // 1. Buscar todas as faturas PENDENTES do inquilino
+      // 1. Buscar todas as faturas PENDENTES ou ATRASADAS
       const { data: bills } = await supabase
         .from('bills')
         .select('type, calculated_value, total_value, month, year')
         .eq('tenant_id', id)
-        .eq('status', 'pendente');
+        .in('status', ['pendente', 'atrasado']);
 
-      // 2. Buscar contrato para o aluguel base (caso não haja fatura de aluguel pendente)
+      // 2. Buscar contrato para o aluguel base
       const { data: contract } = await supabase
         .from('contracts')
         .select('rent_value')
@@ -68,23 +63,32 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         .eq('status', 'ativo')
         .maybeSingle();
 
-      // Separar o aluguel das outras contas
-      const rentBill = bills?.find(b => b.type === 'aluguel');
-      const otherBills = bills?.filter(b => b.type !== 'aluguel') || [];
+      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+      const currentYear = new Date().getFullYear();
 
-      // Se houver fatura de aluguel pendente, usamos ela. Se não, usamos o valor do contrato.
+      // Verificar se o aluguel do mês atual já foi faturado
+      const rentBill = bills?.find(b => b.type === 'aluguel' && b.month === currentMonth);
+      const otherBills = bills?.filter(b => !(b.type === 'aluguel' && b.month === currentMonth)) || [];
+
+      // Valor do Aluguel (Fatura pendente ou Projeção do contrato)
       setRentValue(rentBill ? (rentBill.calculated_value || rentBill.total_value).toString() : (contract?.rent_value?.toString() || '0'));
-      setCondoValue(tenant.properties?.condo_fee?.toString() || '0');
 
-      if (otherBills.length > 0) {
-        const extras = otherBills.map(b => ({
-          label: `${b.type.charAt(0).toUpperCase() + b.type.slice(1)} (${b.month}/${b.year})`,
-          value: (b.calculated_value || b.total_value).toString()
-        }));
-        setExtraValues(extras);
-      } else {
-        setExtraValues([]);
+      // Montar lista de outros débitos (incluindo faturas de aluguel de meses passados se houver)
+      const extras = otherBills.map(b => ({
+        label: `${b.type.charAt(0).toUpperCase() + b.type.slice(1)} (${b.month}/${b.year})`,
+        value: (b.calculated_value || b.total_value).toString()
+      }));
+
+      // Adicionar taxa de condomínio se configurada no imóvel e não houver fatura dela
+      const hasCondoBill = bills?.some(b => b.type === 'condominio' && b.month === currentMonth);
+      if (tenant.properties?.condo_fee > 0 && !hasCondoBill) {
+        extras.push({
+          label: `Condomínio (${currentMonth}/${currentYear})`,
+          value: tenant.properties.condo_fee.toString()
+        });
       }
+
+      setExtraValues(extras);
     } catch (err) {
       console.error('Erro ao carregar dados financeiros.');
     }
@@ -92,20 +96,17 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
   const total = useMemo(() => {
     const rent = parseFloat(rentValue) || 0;
-    const condo = parseFloat(condoValue) || 0;
     const extras = extraValues.reduce((acc, curr) => acc + (parseFloat(curr.value) || 0), 0);
-    return rent + condo + extras;
-  }, [rentValue, condoValue, extraValues]);
+    return rent + extras;
+  }, [rentValue, extraValues]);
 
   const generatedMessage = useMemo(() => {
     const tenantObj = tenants.find(t => t.id === selectedTenantId);
     const tenantName = tenantObj?.name || 'Inquilino';
     const rent = parseFloat(rentValue) || 0;
-    const condo = parseFloat(condoValue) || 0;
     
     let details = '';
     if (rent > 0) details += `• *Aluguel:* R$ ${rent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
-    if (condo > 0) details += `• *Condomínio:* R$ ${condo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
 
     extraValues.forEach(e => {
       const val = parseFloat(e.value) || 0;
@@ -115,7 +116,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     });
 
     return `Olá ${tenantName}! 👋\n\nEstou enviando o resumo do aluguel e demais valores pendentes:\n\n${details}\n💰 *Total a pagar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n\n🔑 *Chave PIX:* ${pixKey}\n\nQualquer dúvida, estou à disposição!`;
-  }, [selectedTenantId, rentValue, condoValue, extraValues, pixKey, total, tenants]);
+  }, [selectedTenantId, rentValue, extraValues, pixKey, total, tenants]);
 
   const handleSendWhatsApp = () => {
     const tenantObj = tenants.find(t => t.id === selectedTenantId);
@@ -129,9 +130,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     navigator.clipboard.writeText(generatedMessage);
     showSuccess('Mensagem copiada!');
   };
-
-  const addExtra = () => setExtraValues([...extraValues, { label: '', value: '0' }]);
-  const removeExtra = (index: number) => setExtraValues(extraValues.filter((_, i) => i !== index));
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -162,32 +160,21 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluguel Base (R$)</Label>
-                  <Input 
-                    type="number" 
-                    className="h-11 rounded-xl bg-slate-50 border-none font-bold"
-                    value={rentValue}
-                    onChange={(e) => setRentValue(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Condomínio (R$)</Label>
-                  <Input 
-                    type="number" 
-                    className="h-11 rounded-xl bg-slate-50 border-none font-bold"
-                    value={condoValue}
-                    onChange={(e) => setCondoValue(e.target.value)}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluguel do Mês (R$)</Label>
+                <Input 
+                  type="number" 
+                  className="h-11 rounded-xl bg-slate-50 border-none font-bold"
+                  value={rentValue}
+                  onChange={(e) => setRentValue(e.target.value)}
+                />
               </div>
 
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contas e Rateios Pendentes</Label>
-                  <Button variant="ghost" size="sm" onClick={addExtra} className="h-6 px-2 text-blue-600 font-bold text-[10px]">
-                    <Plus className="w-3 h-3 mr-1" /> ADICIONAR MANUAL
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contas Pendentes / Atrasadas</Label>
+                  <Button variant="ghost" size="sm" onClick={() => setExtraValues([...extraValues, { label: '', value: '0' }])} className="h-6 px-2 text-blue-600 font-bold text-[10px]">
+                    <Plus className="w-3 h-3 mr-1" /> ADICIONAR
                   </Button>
                 </div>
                 
@@ -217,17 +204,13 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        type="button"
-                        onClick={() => removeExtra(index)}
+                        onClick={() => setExtraValues(extraValues.filter((_, i) => i !== index))}
                         className="h-10 w-10 rounded-xl text-slate-300 hover:text-rose-500"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   ))}
-                  {extraValues.length === 0 && (
-                    <p className="text-[10px] text-slate-400 italic text-center py-2">Nenhuma conta extra pendente no sistema.</p>
-                  )}
                 </div>
               </div>
 
@@ -248,7 +231,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
               <div className="flex justify-between items-center p-4 bg-blue-50 rounded-2xl">
                 <div className="flex items-center gap-2 text-blue-600">
                   <Calculator className="w-5 h-5" />
-                  <span className="text-xs font-black uppercase tracking-widest">Total a Cobrar</span>
+                  <span className="text-xs font-black uppercase tracking-widest">Total Consolidado</span>
                 </div>
                 <span className="text-xl font-black text-blue-900">R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
@@ -268,14 +251,12 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
             <div className="mt-8 grid grid-cols-2 gap-3">
               <Button 
                 variant="ghost" 
-                type="button"
                 className="rounded-xl h-12 font-bold text-slate-400 hover:bg-slate-800 hover:text-white gap-2"
                 onClick={handleCopy}
               >
                 <Copy className="w-4 h-4" /> Copiar
               </Button>
               <Button 
-                type="button"
                 className="rounded-xl h-12 bg-emerald-500 hover:bg-emerald-600 text-white font-bold gap-2 shadow-lg shadow-emerald-900/20"
                 onClick={handleSendWhatsApp}
               >

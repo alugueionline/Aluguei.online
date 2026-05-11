@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MessageSquare, Clock, Loader2, ChevronRight } from 'lucide-react';
+import { MessageSquare, Clock, Loader2, ChevronRight, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { BillingSummaryModal } from './BillingSummaryModal';
 import { cn } from '@/lib/utils';
@@ -43,12 +43,12 @@ export const TenantCollectionList = () => {
         const activeContract = t.contracts?.find((c: any) => c.status === 'ativo');
         const rentValue = Number(activeContract?.rent_value || 0);
 
-        // 1. Somar todas as faturas que já estão no sistema como PENDENTES
-        const pendingBillsValue = (bills || [])
-          .filter(b => b.tenant_id === t.id && b.status === 'pendente')
+        // 1. Somar todas as faturas que já estão no sistema como PENDENTES ou ATRASADAS
+        const existingBillsValue = (bills || [])
+          .filter(b => b.tenant_id === t.id && (b.status === 'pendente' || b.status === 'atrasado'))
           .reduce((acc, b) => acc + Number(b.calculated_value || b.total_value || 0), 0);
 
-        // 2. Verificar se o aluguel do mês atual já foi lançado (pago ou pendente)
+        // 2. Verificar se o aluguel do mês atual já foi lançado
         const rentAlreadyBilled = (bills || []).some(b => 
           b.tenant_id === t.id && 
           b.type === 'aluguel' && 
@@ -61,7 +61,8 @@ export const TenantCollectionList = () => {
 
         return {
           ...t,
-          totalDebt: pendingBillsValue + projectedRent
+          totalDebt: existingBillsValue + projectedRent,
+          hasOverdue: (bills || []).some(b => b.tenant_id === t.id && b.status === 'atrasado')
         };
       }).sort((a, b) => b.totalDebt - a.totalDebt);
 
@@ -83,15 +84,11 @@ export const TenantCollectionList = () => {
     setIsModalOpen(true);
   };
 
-  const handleNavigateToProfile = (id: string) => {
-    navigate(`/tenants/${id}`);
-  };
-
   if (loading) {
     return (
       <div className="py-20 text-center">
         <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600" />
-        <p className="text-gray-400 mt-4 font-medium">Calculando pendências reais...</p>
+        <p className="text-gray-400 mt-4 font-medium">Calculando débitos totais...</p>
       </div>
     );
   }
@@ -102,7 +99,7 @@ export const TenantCollectionList = () => {
         <Card 
           key={tenant.id} 
           className="border-none shadow-sm hover:shadow-md transition-all rounded-[2rem] overflow-hidden bg-white group cursor-pointer"
-          onClick={() => handleNavigateToProfile(tenant.id)}
+          onClick={() => navigate(`/tenants/${tenant.id}`)}
         >
           <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-4 w-full md:w-auto">
@@ -122,10 +119,13 @@ export const TenantCollectionList = () => {
 
             <div className="flex items-center justify-between md:justify-end gap-8 w-full md:w-auto border-t md:border-none pt-4 md:pt-0">
               <div className="text-left md:text-right">
-                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Total Pendente (Aluguel + Contas)</p>
+                <div className="flex items-center gap-2 md:justify-end">
+                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Débito Consolidado</p>
+                  {tenant.hasOverdue && <AlertCircle className="w-3 h-3 text-rose-500" />}
+                </div>
                 <p className={cn(
                   "text-xl font-black tracking-tight",
-                  tenant.totalDebt > 0 ? "text-rose-600" : "text-emerald-600"
+                  tenant.totalDebt > 0 ? (tenant.hasOverdue ? "text-rose-600" : "text-amber-600") : "text-emerald-600"
                 )}>
                   R$ {tenant.totalDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
@@ -138,7 +138,7 @@ export const TenantCollectionList = () => {
                     "h-12 px-6 rounded-2xl font-black gap-2 transition-all active:scale-95 shadow-lg",
                     tenant.totalDebt > 0 
                       ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-100" 
-                      : "bg-slate-100 text-slate-400 hover:bg-slate-200 shadow-none"
+                      : "bg-slate-100 text-slate-400 shadow-none"
                   )}
                 >
                   <MessageSquare className="w-4 h-4" />
@@ -150,12 +150,6 @@ export const TenantCollectionList = () => {
           </CardContent>
         </Card>
       ))}
-
-      {tenantDebts.length === 0 && (
-        <div className="py-20 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-200">
-          <p className="text-slate-400 font-medium">Nenhum inquilino ativo encontrado.</p>
-        </div>
-      )}
 
       <BillingSummaryModal 
         isOpen={isModalOpen} 
