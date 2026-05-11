@@ -15,7 +15,12 @@ import {
   Wallet,
   History,
   MessageSquare,
-  Users
+  Users,
+  CheckCircle2,
+  Clock,
+  Building2,
+  User,
+  Loader2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TransactionModal } from '@/components/modals/TransactionModal';
@@ -23,40 +28,63 @@ import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal'
 import { TenantCollectionList } from '@/components/financial/TenantCollectionList';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { showSuccess, showError } from '@/utils/toast';
 
 const Financial = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);
   const [bills, setBills] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
+  const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0, pending: 0 });
 
   const fetchBills = async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('bills')
-        .select('*')
+        .select('*, properties(name), tenants(name)')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        if (error.code !== '42P01') console.error(error);
-        setBills([]);
-      } else {
-        const list = data || [];
-        setBills(list);
+      if (error) throw error;
+      
+      const list = data || [];
+      setBills(list);
+      
+      const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet'];
+      
+      let inc = 0, exp = 0, pen = 0;
+      list.forEach(b => {
+        const val = Number(b.total_value || b.calculated_value || 0);
+        const isIncome = incomeTypes.includes(b.type?.toLowerCase());
         
-        const income = list.filter(b => (b.type === 'receita' || b.type === 'aluguel') && b.status === 'pago')
-          .reduce((acc, curr) => acc + Number(curr.total_value || curr.calculated_value), 0);
-        const expense = list.filter(b => b.type === 'despesa' && b.status === 'pago')
-          .reduce((acc, curr) => acc + Number(curr.total_value || curr.calculated_value), 0);
-        
-        setStats({ income, expense, balance: income - expense });
-      }
-    } catch (err) {
-      setBills([]);
+        if (b.status === 'pago') {
+          if (isIncome) inc += val;
+          else exp += val;
+        } else {
+          if (isIncome) pen += val;
+        }
+      });
+      
+      setStats({ income: inc, expense: exp, balance: inc - exp, pending: pen });
+    } catch (err: any) {
+      showError('Erro ao carregar finanças: ' + err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleMarkAsPaid = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('bills')
+        .update({ status: 'pago' })
+        .eq('id', id);
+      
+      if (error) throw error;
+      showSuccess('Pagamento confirmado!');
+      fetchBills();
+    } catch (err: any) {
+      showError('Erro ao baixar conta: ' + err.message);
     }
   };
 
@@ -66,10 +94,11 @@ const Financial = () => {
 
   return (
     <DashboardLayout title="Gestão Financeira">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <StatCard label="Receitas (Pago)" value={`R$ ${stats.income.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<ArrowUpCircle className="text-emerald-500" />} />
-        <StatCard label="Despesas (Pago)" value={`R$ ${stats.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<ArrowDownCircle className="text-rose-500" />} />
-        <StatCard label="Saldo Atual" value={`R$ ${stats.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Wallet className="text-blue-500" />} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+        <StatCard label="Receitas (Pago)" value={`R$ ${stats.income.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<CheckCircle2 className="text-emerald-500" />} color="emerald" />
+        <StatCard label="Despesas (Pago)" value={`R$ ${stats.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<ArrowDownCircle className="text-rose-500" />} color="rose" />
+        <StatCard label="Lucro Líquido" value={`R$ ${stats.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Wallet className="text-blue-500" />} color="blue" />
+        <StatCard label="A Receber" value={`R$ ${stats.pending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Clock className="text-amber-500" />} color="amber" />
       </div>
 
       <Tabs defaultValue="transactions" className="space-y-8">
@@ -105,16 +134,21 @@ const Financial = () => {
           <Card className="premium-card border-none rounded-[2.5rem] overflow-hidden">
             <CardContent className="p-0">
               {loading ? (
-                <div className="p-20 text-center text-gray-400">Carregando finanças...</div>
+                <div className="p-20 text-center flex flex-col items-center gap-4">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                  <p className="text-gray-400 font-medium">Sincronizando extrato...</p>
+                </div>
               ) : bills.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr className="bg-gray-50/50 border-b border-gray-50">
-                        <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Descrição</th>
+                        <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Tipo / Origem</th>
+                        <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Imóvel / Inquilino</th>
                         <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Referência</th>
                         <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Valor</th>
                         <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
+                        <th className="text-right p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -126,9 +160,21 @@ const Financial = () => {
                                 "w-10 h-10 rounded-xl flex items-center justify-center",
                                 bill.type === 'despesa' ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
                               )}>
-                                {bill.type === 'despesa' ? <ArrowDownCircle className="w-5 h-5" /> : <ArrowUpCircle className="w-5 h-5" />}
+                                {bill.type === 'despesa' ? <ArrowDownCircle className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />}
                               </div>
                               <span className="font-bold text-gray-900 capitalize">{bill.type}</span>
+                            </div>
+                          </td>
+                          <td className="p-6">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700">
+                                <Building2 className="w-3 h-3 text-blue-500" /> {bill.properties?.name || 'N/A'}
+                              </div>
+                              {bill.tenants?.name && (
+                                <div className="flex items-center gap-1.5 text-[10px] font-medium text-gray-400">
+                                  <User className="w-3 h-3" /> {bill.tenants.name}
+                                </div>
+                              )}
                             </div>
                           </td>
                           <td className="p-6 text-sm text-gray-500 font-medium">
@@ -144,6 +190,18 @@ const Financial = () => {
                             )}>
                               {bill.status}
                             </Badge>
+                          </td>
+                          <td className="p-6 text-right">
+                            {bill.status !== 'pago' && (
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => handleMarkAsPaid(bill.id)}
+                                className="h-9 rounded-xl border-emerald-100 text-emerald-600 hover:bg-emerald-50 font-bold text-xs"
+                              >
+                                Baixar Pagamento
+                              </Button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -182,13 +240,18 @@ const Financial = () => {
   );
 };
 
-const StatCard = ({ label, value, icon }: any) => (
-  <Card className="premium-card border-none p-8 rounded-[2rem]">
-    <div className="flex justify-between items-start mb-4">
-      <div className="p-3 bg-gray-50 rounded-2xl">{icon}</div>
+const StatCard = ({ label, value, icon, color }: any) => (
+  <Card className="premium-card border-none p-8 rounded-[2rem] bg-white">
+    <div className={cn(
+      "w-12 h-12 rounded-2xl flex items-center justify-center mb-6",
+      color === 'emerald' ? 'bg-emerald-50' : 
+      color === 'rose' ? 'bg-rose-50' : 
+      color === 'blue' ? 'bg-blue-50' : 'bg-amber-50'
+    )}>
+      {icon}
     </div>
     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{label}</p>
-    <h3 className="text-2xl font-black text-gray-900 mt-1">{value}</h3>
+    <h3 className="text-2xl font-black text-gray-900 mt-1 tracking-tight">{value}</h3>
   </Card>
 );
 
