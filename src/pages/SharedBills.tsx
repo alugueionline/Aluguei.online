@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/ui/card';
@@ -43,7 +45,7 @@ const SharedBills = () => {
             <p className="text-slate-400 font-medium leading-relaxed">
               As contas geradas aqui aparecem instantaneamente no módulo Financeiro e nos resumos de cobrança do WhatsApp para cada inquilino.
             </p>
-          </div>
+          </Card>
         </div>
 
         <div className="p-8 bg-blue-50 rounded-[2.5rem] border border-blue-100 flex items-start gap-4">
