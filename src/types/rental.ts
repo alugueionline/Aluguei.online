@@ -58,5 +58,6 @@ export interface Bill {
   current_reading?: number;
   kwh_price?: number;
   residents?: number;
+  payment_date?: string;
   created_at?: string;
 }
