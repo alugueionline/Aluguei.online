@@ -14,7 +14,8 @@ import {
   LogOut,
   ChevronLeft,
   User as UserIcon,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Settings
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,6 @@ export const Sidebar = () => {
   const [user, setUser] = useState<any>(null);
   const logoUrl = "https://i.ibb.co/8nFsGk01/LOGO.png";
   const ICON_LOGO = "https://i.ibb.co/cKz69Xd3/ICONE-CLARO.png";
-  const DEFAULT_ICON = "https://i.ibb.co/cKz69Xd3/ICONE-CLARO.png";
 
   useEffect(() => {
     const getUser = async () => {
@@ -62,83 +62,76 @@ export const Sidebar = () => {
   };
 
   const userName = user?.user_metadata?.full_name || "Usuário";
-  const userEmail = user?.email || "";
-  const avatarUrl = user?.user_metadata?.avatar_url || DEFAULT_ICON;
+  const avatarUrl = user?.user_metadata?.avatar_url;
 
   return (
     <aside className={cn(
-      "hidden lg:flex flex-col h-screen bg-white border-r border-gray-100 transition-all duration-300 sticky top-0 z-50",
-      collapsed ? "w-24" : "w-72"
+      "hidden lg:flex flex-col h-screen bg-white border-r border-slate-100 transition-all duration-500 sticky top-0 z-50",
+      collapsed ? "w-20" : "w-64"
     )}>
-      <div className="p-8 flex items-center justify-between">
+      <div className="p-6 flex items-center justify-between mb-4">
         {!collapsed ? (
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/dashboard')}>
-            <img src={logoUrl} alt="Aluguei.Online" className="h-10 w-auto object-contain" />
+            <img src={logoUrl} alt="Aluguei.Online" className="h-8 w-auto object-contain" />
           </div>
         ) : (
-          <div className="w-10 h-10 flex items-center justify-center cursor-pointer" onClick={() => navigate('/dashboard')}>
-            <img src={ICON_LOGO} alt="Logo" className="h-10 w-10 object-contain rounded-xl" />
+          <div className="w-8 h-8 flex items-center justify-center cursor-pointer mx-auto" onClick={() => navigate('/dashboard')}>
+            <img src={ICON_LOGO} alt="Logo" className="h-8 w-8 object-contain" />
           </div>
         )}
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={() => setCollapsed(!collapsed)}
-          className="rounded-xl hover:bg-gray-50 text-gray-400"
-        >
-          <ChevronLeft className={cn("w-5 h-5 transition-transform", collapsed && "rotate-180")} />
-        </Button>
       </div>
 
-      <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto">
+      <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
             <Link key={item.path} to={item.path}>
               <div className={cn(
-                "flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 group relative",
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
                 isActive 
-                  ? "bg-blue-50 text-[#2563FF]" 
-                  : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+                  ? "bg-slate-900 text-white shadow-md shadow-slate-200" 
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
               )}>
-                <item.icon className={cn("w-5 h-5", isActive ? "text-[#2563FF]" : "text-gray-400 group-hover:text-gray-600")} />
-                {!collapsed && <span className="font-bold text-sm">{item.label}</span>}
-                {isActive && !collapsed && <div className="absolute right-4 w-1.5 h-1.5 rounded-full bg-[#2563FF]" />}
+                <item.icon className={cn("w-4 h-4 shrink-0", isActive ? "text-white" : "text-slate-400 group-hover:text-slate-900")} />
+                {!collapsed && <span className="font-semibold text-sm tracking-tight">{item.label}</span>}
+                {isActive && !collapsed && <div className="absolute right-2 w-1 h-1 rounded-full bg-white/40" />}
               </div>
             </Link>
           );
         })}
       </nav>
 
-      <div className="p-6 mt-auto border-t border-gray-50">
-        <div 
-          className={cn("flex items-center gap-4 mb-6 cursor-pointer hover:opacity-80 transition-opacity", collapsed && "justify-center")}
-          onClick={() => navigate('/settings')}
-        >
-          <Avatar className="w-10 h-10 rounded-xl border-2 border-white shadow-sm bg-white">
-            <AvatarImage src={avatarUrl} className="object-cover" />
-            <AvatarFallback className="bg-blue-600 text-white">
-              <UserIcon className="w-5 h-5" />
-            </AvatarFallback>
-          </Avatar>
-          {!collapsed && (
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-black text-slate-900 truncate">{userName}</p>
-              <p className="text-[10px] font-bold text-slate-400 truncate uppercase tracking-wider">{userEmail}</p>
-            </div>
-          )}
-        </div>
+      <div className="p-4 mt-auto border-t border-slate-50 space-y-2">
+        <Link to="/settings">
+          <div className={cn(
+            "flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-all group",
+            collapsed && "justify-center"
+          )}>
+            <Avatar className="w-8 h-8 rounded-lg border border-slate-100 shadow-sm">
+              <AvatarImage src={avatarUrl} className="object-cover" />
+              <AvatarFallback className="bg-slate-100 text-slate-600 text-xs font-bold">
+                {userName.substring(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            {!collapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-slate-900 truncate">{userName}</p>
+                <p className="text-[10px] font-medium text-slate-400 truncate">Configurações</p>
+              </div>
+            )}
+          </div>
+        </Link>
         
         <Button 
           variant="ghost" 
           className={cn(
-            "w-full justify-start gap-4 h-12 rounded-2xl text-rose-500 hover:bg-rose-50 hover:text-rose-600 font-bold",
+            "w-full justify-start gap-3 h-10 rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 font-semibold text-xs",
             collapsed && "justify-center px-0"
           )}
           onClick={handleLogout}
         >
-          <LogOut className="w-5 h-5" />
-          {!collapsed && <span>Sair da Conta</span>}
+          <LogOut className="w-4 h-4" />
+          {!collapsed && <span>Sair</span>}
         </Button>
       </div>
     </aside>
