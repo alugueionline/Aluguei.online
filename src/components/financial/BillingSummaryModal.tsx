@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Copy, Send, Calculator, Landmark, Trash2, Plus, Search, Loader2 } from 'lucide-react';
+import { MessageSquare, Copy, Send, Calculator, Landmark, Trash2, Plus, Search, Loader2, AlertCircle } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -22,6 +22,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [pixKey, setPixKey] = useState('seu-pix@email.com');
   const [rentValue, setRentValue] = useState('0');
+  const [interestFineValue, setInterestFineValue] = useState('0');
   const [extraValues, setExtraValues] = useState<any[]>([]);
 
   useEffect(() => {
@@ -49,14 +50,12 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
     try {
       setLoading(true);
-      // 1. Buscar TODAS as faturas PENDENTES ou ATRASADAS do inquilino (incluindo rateios)
       const { data: bills } = await supabase
         .from('bills')
         .select('*')
         .eq('tenant_id', id)
         .in('status', ['pendente', 'atrasado']);
 
-      // 2. Buscar contratos ativos para projeção de aluguel (caso não tenha fatura gerada)
       const { data: contracts } = await supabase
         .from('contracts')
         .select('rent_value, property_id, properties(condo_fee)')
@@ -69,15 +68,11 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       let totalRent = 0;
       const extras: any[] = [];
 
-      // Processar faturas que já existem no banco (Rateios, Aluguéis atrasados, etc)
       bills?.forEach(b => {
         const val = Number(b.calculated_value || b.total_value || 0);
-        
-        // Se for o aluguel do mês atual, somamos no campo principal
         if (b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear) {
           totalRent += val;
         } else {
-          // Qualquer outra coisa (Água, Internet, Aluguel de outro mês) vai para Extras
           extras.push({
             label: `${b.type.charAt(0).toUpperCase() + b.type.slice(1)} (${b.month}/${b.year})`,
             value: val.toString()
@@ -85,7 +80,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         }
       });
 
-      // Adicionar projeções de aluguel para contratos que ainda não tiveram fatura gerada este mês
       contracts?.forEach(c => {
         const hasRentBillThisMonth = bills?.some(b => 
           b.type === 'aluguel' && 
@@ -100,6 +94,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       });
 
       setRentValue(totalRent.toString());
+      setInterestFineValue('0'); // Resetar juros ao trocar de inquilino
       setExtraValues(extras);
     } catch (err) {
       console.error('Erro ao carregar dados financeiros:', err);
@@ -111,17 +106,20 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
   const total = useMemo(() => {
     const rent = parseFloat(rentValue) || 0;
+    const interest = parseFloat(interestFineValue) || 0;
     const extras = extraValues.reduce((acc, curr) => acc + (parseFloat(curr.value) || 0), 0);
-    return rent + extras;
-  }, [rentValue, extraValues]);
+    return rent + interest + extras;
+  }, [rentValue, interestFineValue, extraValues]);
 
   const generatedMessage = useMemo(() => {
     const tenantObj = tenants.find(t => t.id === selectedTenantId);
     const tenantName = tenantObj?.name || 'Inquilino';
     const rent = parseFloat(rentValue) || 0;
+    const interest = parseFloat(interestFineValue) || 0;
     
     let details = '';
     if (rent > 0) details += `• *Aluguel:* R$ ${rent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+    if (interest > 0) details += `• *Juros e Multa:* R$ ${interest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
 
     extraValues.forEach(e => {
       const val = parseFloat(e.value) || 0;
@@ -131,7 +129,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     });
 
     return `Olá ${tenantName}! 👋\n\nEstou enviando o resumo do aluguel e demais valores pendentes:\n\n${details}\n💰 *Total a pagar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n\n🔑 *Chave PIX:* ${pixKey}\n\nQualquer dúvida, estou à disposição!`;
-  }, [selectedTenantId, rentValue, extraValues, pixKey, total, tenants]);
+  }, [selectedTenantId, rentValue, interestFineValue, extraValues, pixKey, total, tenants]);
 
   const handleSendWhatsApp = () => {
     const tenantObj = tenants.find(t => t.id === selectedTenantId);
@@ -175,14 +173,27 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluguel Consolidado (R$)</Label>
-                <Input 
-                  type="number" 
-                  className="h-11 rounded-xl bg-slate-50 border-none font-bold"
-                  value={rentValue}
-                  onChange={(e) => setRentValue(e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluguel (R$)</Label>
+                  <Input 
+                    type="number" 
+                    className="h-11 rounded-xl bg-slate-50 border-none font-bold"
+                    value={rentValue}
+                    onChange={(e) => setRentValue(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" /> Juros e Multa (R$)
+                  </Label>
+                  <Input 
+                    type="number" 
+                    className="h-11 rounded-xl bg-rose-50/50 border-none font-bold text-rose-700"
+                    value={interestFineValue}
+                    onChange={(e) => setInterestFineValue(e.target.value)}
+                  />
+                </div>
               </div>
 
               <div className="space-y-3">
