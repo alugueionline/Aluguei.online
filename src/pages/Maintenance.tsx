@@ -9,6 +9,42 @@ import { Wrench, Plus, Clock, Hammer, Droplets, Zap, Edit2, Trash2 } from 'lucid
 import { MaintenanceModal } from '@/components/modals/MaintenanceModal';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
+import { cn } from '@/lib/utils';
+
+const Maintenance = () => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedMaintenance, setSelectedMaintenance] = useState<any>(null);
+  const [maintenances, setMaintenances] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchMaintenances = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('maintenances')
+        .select('*, properties(name)')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        if (error.code !== '42P01') console.error('Erro ao carregar manutenções:', error);
+        setMaintenances([]);
+      } else {
+        setMaintenances(data || []);
+      }
+    } catch (err) {
+<dyad-write path="src/pages/Maintenance.tsx" description="Corrigindo erro de referência ao importar a função utilitária 'cn'.">
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Wrench, Plus, Clock, Hammer, Droplets, Zap, Edit2, Trash2 } from 'lucide-react';
+import { MaintenanceModal } from '@/components/modals/MaintenanceModal';
+import { supabase } from '@/integrations/supabase/client';
+import { showError, showSuccess } from '@/utils/toast';
+import { cn } from '@/lib/utils';
 
 const Maintenance = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
