@@ -22,7 +22,8 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [pixKey, setPixKey] = useState('seu-pix@email.com');
   const [rentValue, setRentValue] = useState('0');
-  const [interestFineValue, setInterestFineValue] = useState('0');
+  const [fineValue, setFineValue] = useState('0');
+  const [interestValue, setInterestValue] = useState('0');
   const [extraValues, setExtraValues] = useState<any[]>([]);
 
   useEffect(() => {
@@ -94,7 +95,8 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       });
 
       setRentValue(totalRent.toString());
-      setInterestFineValue('0'); // Resetar juros ao trocar de inquilino
+      setFineValue('0');
+      setInterestValue('0');
       setExtraValues(extras);
     } catch (err) {
       console.error('Erro ao carregar dados financeiros:', err);
@@ -106,20 +108,23 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
   const total = useMemo(() => {
     const rent = parseFloat(rentValue) || 0;
-    const interest = parseFloat(interestFineValue) || 0;
+    const fine = parseFloat(fineValue) || 0;
+    const interest = parseFloat(interestValue) || 0;
     const extras = extraValues.reduce((acc, curr) => acc + (parseFloat(curr.value) || 0), 0);
-    return rent + interest + extras;
-  }, [rentValue, interestFineValue, extraValues]);
+    return rent + fine + interest + extras;
+  }, [rentValue, fineValue, interestValue, extraValues]);
 
   const generatedMessage = useMemo(() => {
     const tenantObj = tenants.find(t => t.id === selectedTenantId);
     const tenantName = tenantObj?.name || 'Inquilino';
     const rent = parseFloat(rentValue) || 0;
-    const interest = parseFloat(interestFineValue) || 0;
+    const fine = parseFloat(fineValue) || 0;
+    const interest = parseFloat(interestValue) || 0;
     
     let details = '';
     if (rent > 0) details += `• *Aluguel:* R$ ${rent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
-    if (interest > 0) details += `• *Juros e Multa:* R$ ${interest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+    if (fine > 0) details += `• *Multa:* R$ ${fine.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+    if (interest > 0) details += `• *Juros:* R$ ${interest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
 
     extraValues.forEach(e => {
       const val = parseFloat(e.value) || 0;
@@ -129,7 +134,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     });
 
     return `Olá ${tenantName}! 👋\n\nEstou enviando o resumo do aluguel e demais valores pendentes:\n\n${details}\n💰 *Total a pagar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n\n🔑 *Chave PIX:* ${pixKey}\n\nQualquer dúvida, estou à disposição!`;
-  }, [selectedTenantId, rentValue, interestFineValue, extraValues, pixKey, total, tenants]);
+  }, [selectedTenantId, rentValue, fineValue, interestValue, extraValues, pixKey, total, tenants]);
 
   const handleSendWhatsApp = () => {
     const tenantObj = tenants.find(t => t.id === selectedTenantId);
@@ -173,25 +178,37 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
                 </Select>
               </div>
 
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluguel Base (R$)</Label>
+                <Input 
+                  type="number" 
+                  className="h-11 rounded-xl bg-slate-50 border-none font-bold"
+                  value={rentValue}
+                  onChange={(e) => setRentValue(e.target.value)}
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluguel (R$)</Label>
-                  <Input 
-                    type="number" 
-                    className="h-11 rounded-xl bg-slate-50 border-none font-bold"
-                    value={rentValue}
-                    onChange={(e) => setRentValue(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
                   <Label className="text-[10px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" /> Juros e Multa (R$)
+                    <AlertCircle className="w-3 h-3" /> Multa (R$)
                   </Label>
                   <Input 
                     type="number" 
                     className="h-11 rounded-xl bg-rose-50/50 border-none font-bold text-rose-700"
-                    value={interestFineValue}
-                    onChange={(e) => setInterestFineValue(e.target.value)}
+                    value={fineValue}
+                    onChange={(e) => setFineValue(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" /> Juros (R$)
+                  </Label>
+                  <Input 
+                    type="number" 
+                    className="h-11 rounded-xl bg-rose-50/50 border-none font-bold text-rose-700"
+                    value={interestValue}
+                    onChange={(e) => setInterestValue(e.target.value)}
                   />
                 </div>
               </div>
@@ -243,7 +260,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
               <div className="space-y-2">
                 <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chave PIX</Label>
                 <div className="relative">
-                  <Landmark className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                  < Landmark className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                   <Input 
                     className="pl-10 h-11 rounded-xl bg-slate-50 border-none font-bold text-xs"
                     value={pixKey}
