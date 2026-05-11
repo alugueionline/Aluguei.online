@@ -48,14 +48,15 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     if (!tenant) return;
 
     try {
-      // 1. Buscar TODAS as faturas PENDENTES ou ATRASADAS do inquilino
+      setLoading(true);
+      // 1. Buscar TODAS as faturas PENDENTES ou ATRASADAS do inquilino (incluindo rateios)
       const { data: bills } = await supabase
         .from('bills')
-        .select('type, calculated_value, total_value, month, year, property_id')
+        .select('*')
         .eq('tenant_id', id)
         .in('status', ['pendente', 'atrasado']);
 
-      // 2. Buscar contratos ativos para projeção de aluguel
+      // 2. Buscar contratos ativos para projeção de aluguel (caso não tenha fatura gerada)
       const { data: contracts } = await supabase
         .from('contracts')
         .select('rent_value, property_id, properties(condo_fee)')
@@ -65,16 +66,18 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
-      // Lógica de Agregação
       let totalRent = 0;
       const extras: any[] = [];
 
-      // Processar faturas existentes
+      // Processar faturas que já existem no banco (Rateios, Aluguéis atrasados, etc)
       bills?.forEach(b => {
         const val = Number(b.calculated_value || b.total_value || 0);
+        
+        // Se for o aluguel do mês atual, somamos no campo principal
         if (b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear) {
           totalRent += val;
         } else {
+          // Qualquer outra coisa (Água, Internet, Aluguel de outro mês) vai para Extras
           extras.push({
             label: `${b.type.charAt(0).toUpperCase() + b.type.slice(1)} (${b.month}/${b.year})`,
             value: val.toString()
@@ -82,32 +85,17 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         }
       });
 
-      // Adicionar projeções de aluguel e condomínio para contratos que não têm fatura este mês
+      // Adicionar projeções de aluguel para contratos que ainda não tiveram fatura gerada este mês
       contracts?.forEach(c => {
-        const hasRentBill = bills?.some(b => 
+        const hasRentBillThisMonth = bills?.some(b => 
           b.type === 'aluguel' && 
           b.property_id === c.property_id && 
           b.month === currentMonth && 
           b.year === currentYear
         );
 
-        if (!hasRentBill) {
+        if (!hasRentBillThisMonth) {
           totalRent += Number(c.rent_value || 0);
-        }
-
-        // Condomínio (se houver taxa e não houver fatura pendente já listada)
-        const hasCondoBill = bills?.some(b => 
-          b.type === 'condominio' && 
-          b.property_id === c.property_id && 
-          b.month === currentMonth && 
-          b.year === currentYear
-        );
-
-        if (c.properties?.condo_fee > 0 && !hasCondoBill) {
-          extras.push({
-            label: `Condomínio (${currentMonth}/${currentYear})`,
-            value: c.properties.condo_fee.toString()
-          });
         }
       });
 
@@ -116,6 +104,8 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     } catch (err) {
       console.error('Erro ao carregar dados financeiros:', err);
       showError('Erro ao carregar débitos do inquilino.');
+    } finally {
+      setLoading(false);
     }
   };
 
