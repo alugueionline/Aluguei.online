@@ -41,6 +41,9 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
     };
   }, []);
 
+  // Usamos contract?.id como dependência para evitar loops se o objeto contract mudar de referência mas não de conteúdo
+  const contractId = contract?.id;
+
   useEffect(() => {
     const fetchData = async () => {
       const [propsRes, tenantsRes] = await Promise.all([
@@ -76,7 +79,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
         });
       }
     }
-  }, [isOpen, contract]);
+  }, [isOpen, contractId]); // Dependência estável
 
   const handlePropertyChange = (id: string) => {
     const prop = properties.find(p => p.id === id);
@@ -112,7 +115,6 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
         const { error } = await supabase.from('contracts').insert([payload]);
         if (error) throw error;
         
-        // Atualiza status do imóvel para alugado
         await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
       }
 
@@ -140,7 +142,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
             <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Inquilino</Label>
             <Select 
               value={formData.tenant_id} 
-              onValueChange={v => setFormData({...formData, tenant_id: v})}
+              onValueChange={v => setFormData(prev => ({...prev, tenant_id: v}))}
             >
               <SelectTrigger className="rounded-xl h-12 bg-gray-50 border-none font-bold">
                 <div className="flex items-center gap-2">
@@ -185,7 +187,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
                   type="number" 
                   step="0.01"
                   value={formData.rent_value}
-                  onChange={e => setFormData({...formData, rent_value: e.target.value})}
+                  onChange={e => setFormData(prev => ({...prev, rent_value: e.target.value}))}
                   className="rounded-xl h-12 bg-gray-50 border-none font-bold pl-10"
                   required
                 />
@@ -195,7 +197,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
               <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Status</Label>
               <Select 
                 value={formData.status} 
-                onValueChange={v => setFormData({...formData, status: v})}
+                onValueChange={v => setFormData(prev => ({...prev, status: v}))}
               >
                 <SelectTrigger className="rounded-xl h-12 bg-gray-50 border-none font-bold">
                   <SelectValue />
@@ -217,7 +219,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
                 <Input 
                   type="date"
                   value={formData.start_date}
-                  onChange={e => setFormData({...formData, start_date: e.target.value})}
+                  onChange={e => setFormData(prev => ({...prev, start_date: e.target.value}))}
                   className="rounded-xl h-12 bg-gray-50 border-none font-bold pl-10"
                   required
                 />
@@ -230,7 +232,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
                 <Input 
                   type="number"
                   value={formData.duration_months}
-                  onChange={e => setFormData({...formData, duration_months: e.target.value})}
+                  onChange={e => setFormData(prev => ({...prev, duration_months: e.target.value}))}
                   className="rounded-xl h-12 bg-gray-50 border-none font-bold pl-10"
                   required
                 />

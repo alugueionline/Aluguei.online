@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useSyncExternalStore } from "react";
 
 const TOAST_LIMIT = 1;
 const TOAST_REMOVE_DELAY = 1000000;
@@ -14,13 +13,6 @@ type ToasterToast = {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 };
-
-const actionTypes = {
-  ADD_TOAST: "ADD_TOAST",
-  UPDATE_TOAST: "UPDATE_TOAST",
-  DISMISS_TOAST: "DISMISS_TOAST",
-  REMOVE_TOAST: "REMOVE_TOAST",
-} as const;
 
 let count = 0;
 
@@ -147,8 +139,8 @@ const subscribe = (callback: () => void) => {
 
 const getSnapshot = () => memoryState;
 
-function useToast() {
-  const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+export function useToast() {
+  const state = React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   return React.useMemo(
     () => ({
@@ -159,5 +151,3 @@ function useToast() {
     [state]
   );
 }
-
-export { useToast, toast };

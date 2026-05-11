@@ -52,51 +52,54 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
     status: 'disponivel'
   });
 
+  const propertyId = property?.id;
+
   useEffect(() => {
-    if (property && isOpen) {
-      setFormData({
-        name: property.name || '',
-        type: property.type || 'apartamento',
-        description: property.description || '',
-        bedrooms: (property.bedrooms || 0).toString(),
-        bathrooms: (property.bathrooms || 0).toString(),
-        parking_spots: (property.parking_spots || 0).toString(),
-        size_sqm: (property.size_sqm || 0).toString(),
-        address: property.address || '',
-        condo_name: property.condo_name || '',
-        condo_fee: (property.condo_fee || 0).toString(),
-        block: property.block || '',
-        tower: property.tower || '',
-        unit_number: property.unit_number || '',
-        floor: property.floor || '',
-        base_rent: (property.base_rent || 0).toString(),
-        image_url: property.image_url || '',
-        status: property.status || 'disponivel'
-      });
-      setStep('photo');
-    } else if (isOpen) {
-      setFormData({
-        name: '',
-        type: 'apartamento',
-        description: '',
-        bedrooms: '0',
-        bathrooms: '0',
-        parking_spots: '0',
-        size_sqm: '0',
-        address: '',
-        condo_name: '',
-        condo_fee: '0',
-        block: '',
-        tower: '',
-        unit_number: '',
-        floor: '',
-        base_rent: '',
-        image_url: '',
-        status: 'disponivel'
-      });
+    if (isOpen) {
+      if (property) {
+        setFormData({
+          name: property.name || '',
+          type: property.type || 'apartamento',
+          description: property.description || '',
+          bedrooms: (property.bedrooms || 0).toString(),
+          bathrooms: (property.bathrooms || 0).toString(),
+          parking_spots: (property.parking_spots || 0).toString(),
+          size_sqm: (property.size_sqm || 0).toString(),
+          address: property.address || '',
+          condo_name: property.condo_name || '',
+          condo_fee: (property.condo_fee || 0).toString(),
+          block: property.block || '',
+          tower: property.tower || '',
+          unit_number: property.unit_number || '',
+          floor: property.floor || '',
+          base_rent: (property.base_rent || 0).toString(),
+          image_url: property.image_url || '',
+          status: property.status || 'disponivel'
+        });
+      } else {
+        setFormData({
+          name: '',
+          type: 'apartamento',
+          description: '',
+          bedrooms: '0',
+          bathrooms: '0',
+          parking_spots: '0',
+          size_sqm: '0',
+          address: '',
+          condo_name: '',
+          condo_fee: '0',
+          block: '',
+          tower: '',
+          unit_number: '',
+          floor: '',
+          base_rent: '',
+          image_url: '',
+          status: 'disponivel'
+        });
+      }
       setStep('photo');
     }
-  }, [property, isOpen]);
+  }, [isOpen, propertyId]); // Dependência estável
 
   const handleSave = async () => {
     setLoading(true);
@@ -186,7 +189,7 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
                 imageUrl={formData.image_url} 
                 isUploading={isUploading} 
                 setIsUploading={setIsUploading} 
-                onChange={(url) => setFormData({...formData, image_url: url})} 
+                onChange={(url) => setFormData(prev => ({...prev, image_url: url}))} 
               />
             )}
 
