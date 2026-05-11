@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Copy, Send, Calculator, Landmark, Trash2, Plus, Search, Loader2, AlertCircle, Save } from 'lucide-react';
+import { MessageSquare, Copy, Send, Calculator, Landmark, Trash2, Plus, Search, Loader2, AlertCircle, Save, X } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -29,20 +29,28 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
   const [currentRentBillId, setCurrentRentBillId] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchTenants = async () => {
+    const fetchInitialData = async () => {
       setLoading(true);
-      const { data } = await supabase
-        .from('tenants')
-        .select('id, name, phone, property_id, properties(name, condo_fee)')
-        .eq('status', 'ativo');
-      setTenants(data || []);
+      
+      // Buscar inquilinos e dados do usuário logado (Chave PIX)
+      const [tenantsRes, userRes] = await Promise.all([
+        supabase.from('tenants').select('id, name, phone, property_id, properties(name, condo_fee)').eq('status', 'ativo'),
+        supabase.auth.getUser()
+      ]);
+
+      setTenants(tenantsRes.data || []);
+      
+      if (userRes.data.user?.user_metadata?.pix_key) {
+        setPixKey(userRes.data.user.user_metadata.pix_key);
+      }
+
       setLoading(false);
       
       if (tenantId) {
-        handleSelectTenant(tenantId, data || []);
+        handleSelectTenant(tenantId, tenantsRes.data || []);
       }
     };
-    if (isOpen) fetchTenants();
+    if (isOpen) fetchInitialData();
   }, [isOpen, tenantId]);
 
   const handleSelectTenant = async (id: string, currentTenants?: any[]) => {
@@ -114,56 +122,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     return rent + fine + interest + extras;
   }, [rentValue, fineValue, interestValue, extraValues]);
 
-  const handleSavePenalties = async () => {
-    if (!selectedTenantId) return;
-    setSaving(true);
-
-    try {
-      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
-      const currentYear = new Date().getFullYear();
-      const fine = parseFloat(fineValue) || 0;
-      const interest = parseFloat(interestValue) || 0;
-
-      if (currentRentBillId) {
-        const { error } = await supabase
-          .from('bills')
-          .update({
-            fine_value: fine,
-            interest_value: interest,
-            total_value: parseFloat(rentValue) + fine + interest
-          })
-          .eq('id', currentRentBillId);
-        
-        if (error) throw error;
-      } else {
-        const tenant = tenants.find(t => t.id === selectedTenantId);
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        const { error } = await supabase.from('bills').insert([{
-          user_id: user?.id,
-          tenant_id: selectedTenantId,
-          property_id: tenant?.property_id,
-          type: 'aluguel',
-          month: currentMonth,
-          year: currentYear,
-          total_value: parseFloat(rentValue) + fine + interest,
-          calculated_value: parseFloat(rentValue),
-          fine_value: fine,
-          interest_value: interest,
-          status: 'pendente'
-        }]);
-
-        if (error) throw error;
-      }
-
-      showSuccess('Encargos salvos no financeiro!');
-    } catch (err: any) {
-      showError('Erro ao salvar encargos: ' + err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const generatedMessage = useMemo(() => {
     const tenantObj = tenants.find(t => t.id === selectedTenantId);
     const tenantName = tenantObj?.name || 'Inquilino';
@@ -201,16 +159,20 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[800px] rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
-        <div className="grid grid-cols-1 md:grid-cols-2 h-[700px]">
-          <div className="p-8 space-y-6 bg-white overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">Detalhamento de Débitos</DialogTitle>
-            </DialogHeader>
+      <DialogContent className="max-w-[95vw] md:max-w-[850px] rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl">
+        <div className="flex flex-col md:grid md:grid-cols-2 h-[90vh] md:h-[700px]">
+          {/* Lado Esquerdo: Configuração */}
+          <div className="p-6 md:p-8 space-y-6 bg-white overflow-y-auto">
+            <div className="flex justify-between items-center">
+              <DialogTitle className="text-xl md:text-2xl font-black tracking-tight text-slate-900">Cobrança</DialogTitle>
+              <Button variant="ghost" size="icon" onClick={onClose} className="md:hidden">
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
             
             <div className="space-y-5">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Inquilino Selecionado</Label>
+                <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Inquilino</Label>
                 <Select onValueChange={(v) => handleSelectTenant(v)} value={selectedTenantId}>
                   <SelectTrigger className="h-12 rounded-xl bg-blue-50/50 border-blue-100 font-bold text-blue-900">
                     <div className="flex items-center gap-2">
@@ -221,68 +183,55 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
                   <SelectContent>
                     {tenants.map(t => (
                       <SelectItem key={t.id} value={t.id}>
-                        {t.name} ({t.properties?.name})
+                        {t.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluguel Base (R$)</Label>
-                <Input 
-                  type="number" 
-                  className="h-11 rounded-xl bg-slate-50 border-none font-bold"
-                  value={rentValue}
-                  onChange={(e) => setRentValue(e.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" /> Multa (R$)
-                  </Label>
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluguel (R$)</Label>
                   <Input 
                     type="number" 
-                    className="h-11 rounded-xl bg-rose-50/50 border-none font-bold text-rose-700"
-                    value={fineValue}
-                    onChange={(e) => setFineValue(e.target.value)}
+                    className="h-11 rounded-xl bg-slate-50 border-none font-bold"
+                    value={rentValue}
+                    onChange={(e) => setRentValue(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" /> Juros (R$)
-                  </Label>
-                  <Input 
-                    type="number" 
-                    className="h-11 rounded-xl bg-rose-50/50 border-none font-bold text-rose-700"
-                    value={interestValue}
-                    onChange={(e) => setInterestValue(e.target.value)}
-                  />
+                  <Label className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Multa/Juros (R$)</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      type="number" 
+                      className="h-11 rounded-xl bg-rose-50/50 border-none font-bold text-rose-700"
+                      value={fineValue}
+                      onChange={(e) => setFineValue(e.target.value)}
+                      placeholder="Multa"
+                    />
+                    <Input 
+                      type="number" 
+                      className="h-11 rounded-xl bg-rose-50/50 border-none font-bold text-rose-700"
+                      value={interestValue}
+                      onChange={(e) => setInterestValue(e.target.value)}
+                      placeholder="Juros"
+                    />
+                  </div>
                 </div>
               </div>
-
-              <Button 
-                onClick={handleSavePenalties} 
-                disabled={saving || !selectedTenantId}
-                className="w-full h-11 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold gap-2 text-xs"
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Salvar Encargos no Financeiro
-              </Button>
 
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contas Pendentes / Atrasadas</Label>
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Outros Débitos</Label>
                   <Button variant="ghost" size="sm" onClick={() => setExtraValues([...extraValues, { label: '', value: '0' }])} className="h-6 px-2 text-blue-600 font-bold text-[10px]">
                     <Plus className="w-3 h-3 mr-1" /> ADICIONAR
                   </Button>
                 </div>
                 
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1">
                   {extraValues.map((extra, index) => (
-                    <div key={index} className="flex gap-2 group">
+                    <div key={index} className="flex gap-2">
                       <Input 
                         placeholder="Ex: Água" 
                         className="h-10 rounded-xl bg-slate-50 border-none text-xs font-bold flex-1"
@@ -295,7 +244,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
                       />
                       <Input 
                         type="number" 
-                        className="h-10 rounded-xl bg-slate-50 border-none text-xs font-bold w-24"
+                        className="h-10 rounded-xl bg-slate-50 border-none text-xs font-bold w-20"
                         value={extra.value}
                         onChange={(e) => {
                           const newExtras = [...extraValues];
@@ -329,28 +278,29 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-50 sticky bottom-0 bg-white">
+            <div className="pt-4 border-t border-slate-50">
               <div className="flex justify-between items-center p-4 bg-blue-50 rounded-2xl">
                 <div className="flex items-center gap-2 text-blue-600">
                   <Calculator className="w-5 h-5" />
-                  <span className="text-xs font-black uppercase tracking-widest">Total Consolidado</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">Total</span>
                 </div>
                 <span className="text-xl font-black text-blue-900">R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-slate-900 p-8 flex flex-col">
-            <div className="flex items-center gap-2 mb-6 text-blue-400">
+          {/* Lado Direito: Preview Mensagem */}
+          <div className="bg-slate-900 p-6 md:p-8 flex flex-col h-full">
+            <div className="flex items-center gap-2 mb-4 text-blue-400">
               <MessageSquare className="w-5 h-5" />
-              <span className="text-xs font-black uppercase tracking-widest">Mensagem de Cobrança</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">Preview WhatsApp</span>
             </div>
             
-            <div className="flex-1 bg-slate-800/50 rounded-3xl p-6 text-slate-300 text-sm font-medium whitespace-pre-wrap leading-relaxed border border-slate-700/50 overflow-y-auto font-sans">
+            <div className="flex-1 bg-slate-800/50 rounded-3xl p-5 text-slate-300 text-sm font-medium whitespace-pre-wrap leading-relaxed border border-slate-700/50 overflow-y-auto mb-6">
               {generatedMessage}
             </div>
 
-            <div className="mt-8 grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 mt-auto">
               <Button 
                 variant="ghost" 
                 className="rounded-xl h-12 font-bold text-slate-400 hover:bg-slate-800 hover:text-white gap-2"
@@ -359,10 +309,10 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
                 <Copy className="w-4 h-4" /> Copiar
               </Button>
               <Button 
-                className="rounded-xl h-12 bg-emerald-500 hover:bg-emerald-600 text-white font-bold gap-2 shadow-lg shadow-emerald-900/20"
+                className="rounded-xl h-12 bg-emerald-500 hover:bg-emerald-600 text-white font-bold gap-2 shadow-lg"
                 onClick={handleSendWhatsApp}
               >
-                <Send className="w-4 h-4" /> WhatsApp
+                <Send className="w-4 h-4" /> Enviar
               </Button>
             </div>
           </div>

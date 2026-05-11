@@ -23,7 +23,8 @@ import {
   CheckCircle2,
   Edit2,
   Building2,
-  MessageSquare
+  MessageSquare,
+  AlertCircle
 } from 'lucide-react';
 import { 
   Table, 
@@ -85,13 +86,16 @@ const TenantDetails = () => {
         .order('month', { ascending: false });
 
       const history = bills || [];
-      const totalProfit = history
-        .filter(b => b.status === 'pago' && (b.type === 'aluguel' || b.type === 'receita'))
+      
+      // Cálculo da Dívida Total (Pendente + Atrasado)
+      const totalDebt = history
+        .filter(b => b.status !== 'pago')
         .reduce((acc, curr) => acc + Number(curr.total_value || curr.calculated_value), 0);
 
       const pendingCount = history.filter(b => b.status === 'pendente').length;
+      const overdueCount = history.filter(b => b.status === 'atrasado').length;
 
-      return { history, totalProfit, pendingCount };
+      return { history, totalDebt, pendingCount, overdueCount };
     },
     enabled: !!tenant
   });
@@ -182,16 +186,25 @@ const TenantDetails = () => {
           </Card>
 
           <div className="grid grid-cols-1 gap-4">
-            <Card className="border-none shadow-sm bg-emerald-50 border-emerald-100 rounded-[2rem]">
+            <Card className={cn(
+              "border-none shadow-sm rounded-[2rem]",
+              financialData?.totalDebt && financialData.totalDebt > 0 ? "bg-rose-50 border-rose-100" : "bg-emerald-50 border-emerald-100"
+            )}>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-black text-emerald-800 flex items-center gap-2 uppercase tracking-widest">
-                  <TrendingUp className="w-4 h-4" />
-                  Lucro Acumulado
+                <CardTitle className={cn(
+                  "text-sm font-black flex items-center gap-2 uppercase tracking-widest",
+                  financialData?.totalDebt && financialData.totalDebt > 0 ? "text-rose-800" : "text-emerald-800"
+                )}>
+                  {financialData?.totalDebt && financialData.totalDebt > 0 ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                  Dívida Total Pendente
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-black text-emerald-900">
-                  R$ {financialData?.totalProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                <p className={cn(
+                  "text-2xl font-black",
+                  financialData?.totalDebt && financialData.totalDebt > 0 ? "text-rose-900" : "text-emerald-900"
+                )}>
+                  R$ {financialData?.totalDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
               </CardContent>
             </Card>
@@ -200,7 +213,7 @@ const TenantDetails = () => {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-black text-amber-800 flex items-center gap-2 uppercase tracking-widest">
                   <Clock className="w-4 h-4" />
-                  Contas Pendentes
+                  Contas em Aberto
                 </CardTitle>
               </CardHeader>
               <CardContent>

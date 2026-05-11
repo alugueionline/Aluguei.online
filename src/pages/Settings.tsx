@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { User, Bell, Globe, Save, Camera, Loader2, Upload } from 'lucide-react';
+import { User, Bell, Globe, Save, Camera, Loader2, Upload, Landmark } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -20,6 +20,7 @@ const Settings = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [fullName, setFullName] = useState('');
+  const [pixKey, setPixKey] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -32,6 +33,7 @@ const Settings = () => {
       if (user) {
         setUser(user);
         setFullName(user.user_metadata?.full_name || '');
+        setPixKey(user.user_metadata?.pix_key || '');
         setAvatarUrl(user.user_metadata?.avatar_url || DEFAULT_ICON);
       }
       setIsLoading(false);
@@ -45,19 +47,15 @@ const Settings = () => {
 
     try {
       setIsUploading(true);
-      
       const fileExt = file.name.split('.').pop();
       const filePath = `${user.id}/${Math.random()}.${fileExt}`;
 
-      // Upload para o bucket 'avatars'
-      // Nota: Certifique-se de que o bucket 'avatars' existe no seu console do Supabase e é público
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      // Pegar URL pública
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
@@ -79,6 +77,7 @@ const Settings = () => {
       const { error } = await supabase.auth.updateUser({
         data: { 
           full_name: fullName,
+          pix_key: pixKey,
           avatar_url: avatarUrl
         }
       });
@@ -125,7 +124,7 @@ const Settings = () => {
             <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
               <CardHeader className="bg-slate-50/50 p-8 border-b border-slate-100">
                 <CardTitle className="text-2xl font-black tracking-tight">Informações do Perfil</CardTitle>
-                <CardDescription className="font-medium">Gerencie como você aparece no sistema.</CardDescription>
+                <CardDescription className="font-medium">Gerencie seus dados e sua chave de recebimento.</CardDescription>
               </CardHeader>
               <CardContent className="p-8">
                 <form onSubmit={handleSaveProfile} className="space-y-8">
@@ -167,18 +166,7 @@ const Settings = () => {
                             <Upload className="w-4 h-4" />
                             {isUploading ? 'Enviando...' : 'Fazer Upload da Foto'}
                           </Button>
-                          {avatarUrl !== DEFAULT_ICON && (
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              className="h-12 rounded-xl text-rose-500 hover:bg-rose-50 font-bold"
-                              onClick={() => setAvatarUrl(DEFAULT_ICON)}
-                            >
-                              Remover
-                            </Button>
-                          )}
                         </div>
-                        <p className="text-[10px] text-slate-400 font-medium italic">Formatos aceitos: JPG, PNG ou GIF. Tamanho máx: 2MB.</p>
                       </div>
                     </div>
                   </div>
@@ -194,6 +182,18 @@ const Settings = () => {
                       />
                     </div>
                     <div className="space-y-2">
+                      <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Chave PIX para Cobranças</Label>
+                      <div className="relative">
+                        <Landmark className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400" />
+                        <Input 
+                          value={pixKey}
+                          onChange={(e) => setPixKey(e.target.value)}
+                          placeholder="E-mail, CPF ou Celular"
+                          className="h-12 pl-12 rounded-xl bg-blue-50/30 border-none font-bold text-blue-900"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
                       <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">E-mail (Apenas Leitura)</Label>
                       <Input 
                         value={user?.email || ''} 
@@ -228,7 +228,6 @@ const Settings = () => {
                 <div className="space-y-4">
                   <NotificationToggle title="Pagamentos Recebidos" desc="Receba um alerta quando um inquilino confirmar o pagamento." defaultChecked />
                   <NotificationToggle title="Alertas de Atraso" desc="Notificar quando um aluguel ultrapassar a data de vencimento." defaultChecked />
-                  <NotificationToggle title="Novos Chamados" desc="Avisar quando um novo problema for relatado." defaultChecked />
                 </div>
               </CardContent>
             </Card>
@@ -250,19 +249,6 @@ const Settings = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="brl">Real (R$)</SelectItem>
-                        <SelectItem value="usd">Dólar (US$)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fuso Horário</Label>
-                    <Select defaultValue="sp">
-                      <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="sp">Brasília (GMT-3)</SelectItem>
-                        <SelectItem value="ny">New York (GMT-5)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
