@@ -399,9 +399,12 @@ const Dashboard = () => {
                     )}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
+                      <div 
+                        className="flex items-center gap-4 cursor-pointer group/tenant"
+                        onClick={() => navigate(`/tenants/${t.id}`)}
+                      >
                         <div className="relative">
-                          <Avatar className="w-12 h-12 rounded-xl border-2 border-white shadow-sm">
+                          <Avatar className="w-12 h-12 rounded-xl border-2 border-white shadow-sm group-hover/tenant:border-blue-200 transition-all">
                             <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${t.name}`} />
                             <AvatarFallback className="bg-blue-50 text-blue-600 font-black">
                               {t.name.substring(0, 2).toUpperCase()}
@@ -414,7 +417,7 @@ const Dashboard = () => {
                           )}
                         </div>
                         <div>
-                          <h4 className="font-black text-slate-900 tracking-tight">{t.name}</h4>
+                          <h4 className="font-black text-slate-900 tracking-tight group-hover/tenant:text-blue-600 transition-colors">{t.name}</h4>
                           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5">
                             <Home className="w-3 h-3" /> {t.properties?.name || 'Sem imóvel'}
                           </p>
