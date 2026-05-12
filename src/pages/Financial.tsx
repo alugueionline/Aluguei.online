@@ -6,10 +6,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Search, 
   Plus, 
-  ArrowUpCircle, 
   ArrowDownCircle, 
   DollarSign,
   Wallet,
@@ -22,9 +22,9 @@ import {
   User,
   Loader2,
   Trash2,
-  AlertCircle,
   Percent,
-  RotateCcw
+  RotateCcw,
+  AlertTriangle
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TransactionModal } from '@/components/modals/TransactionModal';
@@ -41,6 +41,7 @@ const Financial = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0, pending: 0 });
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const fetchBills = async () => {
     try {
@@ -81,7 +82,6 @@ const Financial = () => {
         }
       });
 
-      // Projeção de aluguéis que ainda não tem fatura (nem paga, nem pendente)
       contracts.forEach(c => {
         const rentVal = Number(c.rent_value || 0);
         const hasBillThisMonth = list.some(b => 
@@ -229,6 +229,50 @@ const Financial = () => {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    
+    if (!window.confirm(`Tem certeza que deseja excluir as ${selectedIds.length} faturas selecionadas? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // Extraímos os IDs reais (removendo sufixos de multa/juros se houver)
+      const realIds = Array.from(new Set(selectedIds.map(id => id.split('-')[0])));
+      
+      const { error } = await supabase
+        .from('bills')
+        .delete()
+        .in('id', realIds);
+
+      if (error) throw error;
+
+      showSuccess(`${realIds.length} faturas excluídas com sucesso.`);
+      setSelectedIds([]);
+      fetchBills();
+    } catch (err: any) {
+      showError('Erro na exclusão em massa: ' + err.message);
+      setLoading(false);
+    }
+  };
+
+  const toggleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(displayItems.map(item => item.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const toggleSelectItem = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds(prev => [...prev, id]);
+    } else {
+      setSelectedIds(prev => prev.filter(i => i !== id));
+    }
+  };
+
   useEffect(() => {
     fetchBills();
   }, []);
@@ -267,14 +311,41 @@ const Financial = () => {
         </div>
 
         <TabsContent value="transactions" className="space-y-6">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input 
-              placeholder="Buscar transação..." 
-              className="pl-12 h-12 rounded-2xl border-none premium-shadow bg-white" 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="relative w-full md:w-96">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input 
+                placeholder="Buscar transação..." 
+                className="pl-12 h-12 rounded-2xl border-none premium-shadow bg-white" 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            {selectedIds.length > 0 && (
+              <div className="flex items-center gap-4 p-2 px-4 bg-rose-50 border border-rose-100 rounded-2xl animate-in fade-in slide-in-from-right-4">
+                <div className="flex items-center gap-2 text-rose-700 font-bold text-sm">
+                  <AlertTriangle className="w-4 h-4" />
+                  {selectedIds.length} selecionados
+                </div>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  onClick={handleBulkDelete}
+                  className="h-9 rounded-xl font-black text-xs gap-2 shadow-lg shadow-rose-100"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Excluir em Massa
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setSelectedIds([])}
+                  className="h-9 rounded-xl text-slate-400 font-bold text-xs"
+                >
+                  Cancelar
+                </Button>
+              </div>
+            )}
           </div>
 
           <Card className="premium-card border-none rounded-[2.5rem] overflow-hidden">
@@ -289,6 +360,12 @@ const Financial = () => {
                   <table className="w-full">
                     <thead>
                       <tr className="bg-gray-50/50 border-b border-gray-50">
+                        <th className="p-6 w-10">
+                          <Checkbox 
+                            checked={selectedIds.length === displayItems.length && displayItems.length > 0}
+                            onCheckedChange={(checked) => toggleSelectAll(!!checked)}
+                          />
+                        </th>
                         <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Tipo / Origem</th>
                         <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Imóvel / Inquilino</th>
                         <th className="text-left p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Referência</th>
@@ -301,8 +378,15 @@ const Financial = () => {
                       {displayItems.map((item) => (
                         <tr key={item.id} className={cn(
                           "border-b border-gray-50 hover:bg-gray-50/30 transition-colors",
-                          item.isCharge && "bg-slate-50/30"
+                          item.isCharge && "bg-slate-50/30",
+                          selectedIds.includes(item.id) && "bg-blue-50/30"
                         )}>
+                          <td className="p-6">
+                            <Checkbox 
+                              checked={selectedIds.includes(item.id)}
+                              onCheckedChange={(checked) => toggleSelectItem(item.id, !!checked)}
+                            />
+                          </td>
                           <td className="p-6">
                             <div className="flex items-center gap-3">
                               <div className={cn(
