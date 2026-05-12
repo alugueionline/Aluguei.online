@@ -13,18 +13,19 @@ import {
   CalendarDays,
   Bell,
   Plus,
-  Loader2
+  Loader2,
+  Zap,
+  Droplets
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ptBR } from 'date-fns/locale';
-import { addMonths, subMonths, format, isSameDay, startOfMonth, endOfMonth, getDate } from 'date-fns';
+import { addMonths, subMonths, format, isSameDay, startOfMonth, endOfMonth, getDate, parseISO } from 'date-fns';
 import { EventModal } from '@/components/modals/EventModal';
 import { supabase } from '@/integrations/supabase/client';
 
 const Calendar = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
-  // Normalizamos para o primeiro dia do mês para evitar bugs de navegação
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
@@ -37,49 +38,59 @@ const Calendar = () => {
       const monthStr = (currentMonth.getMonth() + 1).toString().padStart(2, '0');
       const yearNum = currentMonth.getFullYear();
 
-      // 1. Buscar eventos manuais e contratos em paralelo
-      const [eventsRes, contractsRes, billsRes] = await Promise.all([
+      // Buscamos Inquilinos (para o dia de vencimento), Eventos Manuais e Contas do mês
+      const [tenantsRes, eventsRes, billsRes] = await Promise.all([
+        supabase.from('tenants').select('*, properties(name)').eq('status', 'ativo'),
         supabase.from('events').select('*'),
-        supabase.from('contracts').select('*, tenants(name), properties(name)').eq('status', 'ativo'),
         supabase.from('bills').select('*').eq('month', monthStr).eq('year', yearNum)
       ]);
 
       const manualEvents = (eventsRes.data || []).map(e => ({
         ...e,
-        date: new Date(e.date)
+        date: parseISO(e.date.split('T')[0]) // Garante que a data seja tratada sem timezone shift
       }));
 
+      const tenants = tenantsRes.data || [];
       const bills = billsRes.data || [];
-      const contracts = contractsRes.data || [];
 
-      // 2. Gerar eventos de vencimento baseados no contrato para o mês visualizado
-      const rentEvents: any[] = [];
+      const generatedEvents: any[] = [];
       const lastDayOfMonth = getDate(endOfMonth(currentMonth));
 
-      contracts.forEach(c => {
-        // Ajusta o dia de vencimento se ele for maior que o último dia do mês atual
-        const dueDay = Math.min(c.due_day || 5, lastDayOfMonth);
+      tenants.forEach(tenant => {
+        // O Dia do Vencimento vem do cadastro do Inquilino
+        const dueDay = Math.min(tenant.due_day || 5, lastDayOfMonth);
         const eventDate = new Date(yearNum, currentMonth.getMonth(), dueDay);
         
-        const isPaid = bills.some(b => 
-          b.tenant_id === c.tenant_id && 
-          b.property_id === c.property_id && 
-          b.type === 'aluguel' && 
-          b.status === 'pago'
-        );
+        // 1. Evento de Aluguel
+        const rentBill = bills.find(b => b.tenant_id === tenant.id && b.type === 'aluguel');
+        const isRentPaid = rentBill?.status === 'pago';
 
-        rentEvents.push({
-          id: `rent-${c.id}-${monthStr}-${yearNum}`,
-          title: `Aluguel: ${c.tenants?.name || 'Inquilino'}`,
-          description: isPaid ? 'Pagamento Confirmado ✅' : `Vencimento aluguel ${c.properties?.name || 'Imóvel'}`,
+        generatedEvents.push({
+          id: `rent-${tenant.id}-${monthStr}`,
+          title: `Aluguel: ${tenant.name}`,
+          description: isRentPaid ? 'Pagamento Confirmado ✅' : `Vencimento do aluguel - ${tenant.properties?.name || 'Imóvel'}`,
           type: 'payment',
-          status: isPaid ? 'paid' : 'pending',
+          status: isRentPaid ? 'paid' : 'pending',
           date: eventDate,
           time: '08:00'
         });
+
+        // 2. Outras Contas (Energia, Água, etc.) vinculadas a este inquilino no mês
+        const otherBills = bills.filter(b => b.tenant_id === tenant.id && b.type !== 'aluguel');
+        otherBills.forEach(bill => {
+          generatedEvents.push({
+            id: `bill-${bill.id}`,
+            title: `${bill.type.charAt(0).toUpperCase() + bill.type.slice(1)}: ${tenant.name}`,
+            description: bill.status === 'pago' ? 'Pago ✅' : `Valor: R$ ${Number(bill.total_value).toLocaleString('pt-BR')}`,
+            type: bill.type === 'energia' ? 'maintenance' : 'visit', // Usamos tipos existentes para cores
+            status: bill.status,
+            date: eventDate,
+            time: '09:00'
+          });
+        });
       });
 
-      setEvents([...manualEvents, ...rentEvents]);
+      setEvents([...manualEvents, ...generatedEvents]);
     } catch (err) {
       console.error("Erro ao carregar agenda:", err);
     } finally {
@@ -102,24 +113,20 @@ const Calendar = () => {
   const eventDays = {
     payment: events.filter(e => e.type === 'payment' && e.status !== 'paid').map(e => e.date),
     paid: events.filter(e => e.type === 'payment' && e.status === 'paid').map(e => e.date),
-    maintenance: events.filter(e => e.type === 'maintenance').map(e => e.date),
+    maintenance: events.filter(e => e.type === 'maintenance' || e.type === 'energia').map(e => e.date),
     contract: events.filter(e => e.type === 'contract').map(e => e.date),
-    visit: events.filter(e => e.type === 'visit').map(e => e.date),
+    visit: events.filter(e => e.type === 'visit' || e.type === 'agua').map(e => e.date),
   };
 
   const selectedDayEvents = events.filter(e => date && isSameDay(e.date, date));
-  const upcomingEvents = [...events]
-    .filter(e => e.date >= new Date())
-    .sort((a, b) => a.date.getTime() - b.date.getTime())
-    .slice(0, 5);
-
+  
   return (
     <DashboardLayout title="Agenda de Gestão">
       <div className="max-w-7xl mx-auto space-y-8 pb-20">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
           <div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">Calendário Imobiliário</h2>
-            <p className="text-slate-500 font-medium">Visualize compromissos e prazos importantes</p>
+            <p className="text-slate-500 font-medium">Visualize todos os vencimentos baseados no dia acordado com o inquilino.</p>
           </div>
           <div className="flex items-center gap-3">
             <Button variant="outline" onClick={handleToday} className="h-12 px-6 rounded-2xl border-slate-200 bg-white font-bold text-slate-600 shadow-sm">Hoje</Button>
@@ -175,17 +182,17 @@ const Calendar = () => {
               />
               
               <div className="mt-8 flex flex-wrap gap-6 pt-6 border-t border-slate-50">
-                <LegendItem color="bg-amber-400" label="Aluguel Pendente" />
-                <LegendItem color="bg-emerald-400" label="Aluguel Pago" />
-                <LegendItem color="bg-blue-400" label="Manutenção" />
-                <LegendItem color="bg-rose-400" label="Contratos" />
+                <LegendItem color="bg-amber-400" label="Vencimento Pendente" />
+                <LegendItem color="bg-emerald-400" label="Pagamento Confirmado" />
+                <LegendItem color="bg-blue-400" label="Contas de Consumo" />
+                <LegendItem color="bg-rose-400" label="Contratos/Vistorias" />
               </div>
             </Card>
 
             <div className="space-y-4">
               <div className="flex items-center gap-2 px-2">
                 <CalendarDays className="w-4 h-4 text-slate-400" />
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Eventos de {date ? format(date, "dd 'de' MMMM", { locale: ptBR }) : 'hoje'}</h3>
+                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Compromissos de {date ? format(date, "dd 'de' MMMM", { locale: ptBR }) : 'hoje'}</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {selectedDayEvents.length > 0 ? (
@@ -194,11 +201,12 @@ const Calendar = () => {
                       <div className={cn(
                         "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0",
                         event.type === 'payment' ? (event.status === 'paid' ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600") :
-                        event.type === 'maintenance' ? "bg-blue-50 text-blue-600" : 
+                        event.type === 'maintenance' || event.type === 'energia' ? "bg-blue-50 text-blue-600" : 
                         event.type === 'contract' ? "bg-rose-50 text-rose-700" : "bg-slate-50 text-slate-600"
                       )}>
                         {event.type === 'payment' ? <DollarSign className="w-5 h-5" /> :
-                         event.type === 'maintenance' ? <Wrench className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                         event.type === 'energia' ? <Zap className="w-5 h-5" /> :
+                         event.type === 'agua' ? <Droplets className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start">
@@ -211,7 +219,7 @@ const Calendar = () => {
                   ))
                 ) : (
                   <div className="col-span-2 p-12 bg-slate-50/50 rounded-[2rem] border border-dashed border-slate-200 text-center">
-                    <p className="text-sm font-bold text-slate-400">Nenhum compromisso agendado para este dia.</p>
+                    <p className="text-sm font-bold text-slate-400">Nenhum vencimento ou evento para este dia.</p>
                   </div>
                 )}
               </div>
@@ -219,38 +227,24 @@ const Calendar = () => {
           </div>
 
           <div className="xl:col-span-4 space-y-8">
-            <Card className="premium-card rounded-[2.5rem] border-none p-8">
-              <h3 className="text-lg font-black text-slate-900 tracking-tight mb-8 flex items-center gap-2">
-                <Bell className="w-5 h-5 text-blue-600" />
-                Próximos Vencimentos
-              </h3>
-              <div className="space-y-6">
-                {upcomingEvents.length > 0 ? upcomingEvents.map((event) => (
-                  <div key={event.id} className="flex gap-4 items-center group cursor-pointer">
-                    <div className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110",
-                      event.type === 'payment' ? (event.status === 'paid' ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600") :
-                      event.type === 'maintenance' ? "bg-blue-50 text-blue-600" : 
-                      event.type === 'contract' ? "bg-rose-50 text-rose-700" : "bg-slate-50 text-slate-600"
-                    )}>
-                      {event.type === 'payment' ? <DollarSign className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-900 truncate">{event.title}</p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">{format(event.date, 'dd MMM', { locale: ptBR })} • {event.time}</p>
-                    </div>
-                  </div>
-                )) : (
-                  <p className="text-xs text-slate-400 font-medium">Nenhum evento futuro.</p>
-                )}
-              </div>
-            </Card>
-
             <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-xl">
-              <h4 className="text-lg font-black tracking-tight mb-4">Dica de Gestão</h4>
+              <h4 className="text-lg font-black tracking-tight mb-4">Visão de Vencimentos</h4>
               <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                O calendário agora diferencia aluguéis pagos (verde) de pendentes (amarelo). As datas são geradas automaticamente com base no dia de vencimento de cada contrato.
+                O calendário projeta automaticamente os vencimentos de aluguel e contas de consumo no dia acordado com cada inquilino.
               </p>
+              <div className="mt-6 p-4 bg-white/5 rounded-2xl border border-white/10">
+                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Legenda de Status</p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs">
+                    <div className="w-2 h-2 rounded-full bg-amber-400" />
+                    <span>Aguardando Pagamento</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <span>Recebido / Confirmado</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
