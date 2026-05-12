@@ -9,19 +9,16 @@ import {
   TrendingUp, 
   FileDown,
   Calendar,
-  Activity,
   CheckCircle2,
-  AlertCircle,
   ArrowUpRight,
   ArrowDownRight,
-  MoreHorizontal,
   DollarSign,
   Zap,
   Droplets,
   Globe,
-  ShieldCheck,
   Wallet,
-  Home
+  Home,
+  Loader2
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -37,6 +34,8 @@ import {
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const COLORS = ['#2563FF', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4'];
 
@@ -54,27 +53,34 @@ const Reports = () => {
   const fetchReportData = async () => {
     try {
       setLoading(true);
-      const { data: bills } = await supabase.from('bills').select('*');
-      const { data: properties } = await supabase.from('properties').select('*');
+      
+      // Buscar todas as contas pagas para processar histórico e categorias
+      const { data: bills, error } = await supabase
+        .from('bills')
+        .select('*')
+        .eq('status', 'pago');
+
+      if (error) throw error;
+
+      const { data: properties } = await supabase.from('properties').select('status');
 
       if (bills) {
+        const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio'];
+        
+        // 1. Processar Totais Gerais
         let totalRec = 0;
         let totalExp = 0;
         const categories: Record<string, number> = {};
-
-        const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio'];
 
         bills.forEach(b => {
           const val = Number(b.total_value || b.calculated_value || 0);
           const type = b.type?.toLowerCase() || 'outros';
 
-          if (b.status === 'pago') {
-            if (incomeTypes.includes(type)) {
-              totalRec += val;
-              categories[type] = (categories[type] || 0) + val;
-            } else {
-              totalExp += val;
-            }
+          if (incomeTypes.includes(type)) {
+            totalRec += val;
+            categories[type] = (categories[type] || 0) + val;
+          } else {
+            totalExp += val;
           }
         });
 
@@ -85,6 +91,7 @@ const Reports = () => {
           lucro: totalRec - totalExp 
         }));
 
+        // 2. Processar Mix de Receitas (Categorias)
         const formattedCategories = Object.entries(categories).map(([name, value]) => ({
           name: name.charAt(0).toUpperCase() + name.slice(1),
           value: Math.round((value / (totalRec || 1)) * 100),
@@ -92,6 +99,36 @@ const Reports = () => {
         })).sort((a, b) => b.amount - a.amount);
 
         setCategoryData(formattedCategories);
+
+        // 3. Processar Evolução de Receita (Últimos 6 meses)
+        const last6Months = Array.from({ length: 6 }).map((_, i) => {
+          const date = subMonths(new Date(), i);
+          return {
+            monthName: format(date, 'MMM', { locale: ptBR }),
+            monthNum: format(date, 'MM'),
+            year: format(date, 'yyyy'),
+            fullDate: date,
+            value: 0
+          };
+        }).reverse();
+
+        last6Months.forEach(monthData => {
+          const monthBills = bills.filter(b => {
+            const isIncome = incomeTypes.includes(b.type?.toLowerCase());
+            // Se tiver payment_date, usa ele, senão usa a referência de mês/ano da conta
+            if (b.payment_date) {
+              const pDate = parseISO(b.payment_date);
+              return isIncome && 
+                     format(pDate, 'MM') === monthData.monthNum && 
+                     format(pDate, 'yyyy') === monthData.year;
+            }
+            return isIncome && b.month === monthData.monthNum && b.year === monthData.year;
+          });
+
+          monthData.value = monthBills.reduce((acc, curr) => acc + Number(curr.total_value || curr.calculated_value || 0), 0);
+        });
+
+        setRevenueHistory(last6Months.map(m => ({ month: m.monthName, value: m.value })));
       }
 
       if (properties) {
@@ -100,17 +137,8 @@ const Reports = () => {
         setStats(prev => ({ ...prev, ocupacao: rate }));
       }
 
-      setRevenueHistory([
-        { month: 'Jan', value: 4200 },
-        { month: 'Fev', value: 5800 },
-        { month: 'Mar', value: 5100 },
-        { month: 'Abr', value: 7200 },
-        { month: 'Mai', value: 8400 },
-        { month: 'Jun', value: 9100 },
-      ]);
-
     } catch (err) {
-      console.error('Erro ao carregar relatórios');
+      console.error('Erro ao carregar relatórios:', err);
     } finally {
       setLoading(false);
     }
@@ -129,6 +157,17 @@ const Reports = () => {
     return <DollarSign className="w-4 h-4" />;
   };
 
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
+          <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+          <p className="text-slate-400 font-medium">Gerando inteligência financeira...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout title="Análise de Performance">
       <div className="max-w-7xl mx-auto space-y-8 pb-12">
@@ -139,7 +178,7 @@ const Reports = () => {
           </div>
           <div className="flex items-center gap-3 w-full lg:w-auto">
             <Button variant="outline" className="h-10 px-4 rounded-xl border-slate-200 bg-white font-semibold text-slate-600 shadow-sm gap-2">
-              <Calendar className="w-4 h-4" /> Este Ano
+              <Calendar className="w-4 h-4" /> Últimos 6 Meses
             </Button>
             <Button variant="outline" className="h-10 px-4 rounded-xl border-slate-200 bg-white font-semibold text-slate-600 shadow-sm gap-2">
               <FileDown className="w-4 h-4" /> Exportar PDF
@@ -149,25 +188,25 @@ const Reports = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <MetricCard 
-            label="Receita Bruta" 
-            value={`R$ ${stats.receita.toLocaleString('pt-BR')}`} 
-            trend="+12.5%" 
+            label="Receita Total (Paga)" 
+            value={`R$ ${stats.receita.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} 
+            trend="Realizado" 
             type="up" 
             icon={<TrendingUp className="w-5 h-5" />}
             iconBg="bg-emerald-50 text-emerald-600"
           />
           <MetricCard 
-            label="Despesas Totais" 
-            value={`R$ ${stats.despesas.toLocaleString('pt-BR')}`} 
-            trend="-2.1%" 
+            label="Despesas Pagas" 
+            value={`R$ ${stats.despesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} 
+            trend="Saídas" 
             type="down" 
             icon={<ArrowDownRight className="w-5 h-5" />}
             iconBg="bg-rose-50 text-rose-600"
           />
           <MetricCard 
             label="Lucro Líquido" 
-            value={`R$ ${stats.lucro.toLocaleString('pt-BR')}`} 
-            trend="+8.4%" 
+            value={`R$ ${stats.lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} 
+            trend="Saldo" 
             type="up" 
             icon={<Wallet className="w-5 h-5" />}
             iconBg="bg-blue-50 text-blue-600"
@@ -175,7 +214,7 @@ const Reports = () => {
           <MetricCard 
             label="Taxa de Ocupação" 
             value={`${stats.ocupacao.toFixed(1)}%`} 
-            trend="Estável" 
+            trend="Imóveis" 
             type="up" 
             icon={<CheckCircle2 className="w-5 h-5" />}
             iconBg="bg-amber-50 text-amber-600"
@@ -186,7 +225,7 @@ const Reports = () => {
           <Card className="xl:col-span-8 border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
             <CardHeader className="p-8 pb-4">
               <CardTitle className="text-xl font-black text-slate-900 tracking-tight">Evolução de Receita</CardTitle>
-              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Histórico mensal consolidado</p>
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Histórico de recebimentos reais (últimos 6 meses)</p>
             </CardHeader>
             <CardContent className="px-4 pb-8">
               <div className="h-[350px] w-full">
@@ -200,8 +239,11 @@ const Reports = () => {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 700}} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 700}} tickFormatter={(v) => `R$ ${v/1000}k`} />
-                    <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', padding: '12px' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 700}} tickFormatter={(v) => `R$ ${v >= 1000 ? (v/1000).toFixed(1) + 'k' : v}`} />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', padding: '12px' }}
+                      formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Receita']}
+                    />
                     <Area type="monotone" dataKey="value" stroke="#2563FF" strokeWidth={4} fillOpacity={1} fill="url(#colorValue)" />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -218,12 +260,15 @@ const Reports = () => {
               <div className="h-[200px] flex items-center justify-center relative mb-8">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={categoryData} innerRadius="70%" outerRadius="90%" paddingAngle={5} dataKey="value" stroke="none">
+                    <Pie data={categoryData} innerRadius="70%" outerRadius="90%" paddingAngle={5} dataKey="amount" stroke="none">
                       {categoryData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.08)' }} />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.08)' }}
+                      formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -232,7 +277,7 @@ const Reports = () => {
                 </div>
               </div>
               
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                 {categoryData.map((item, index) => (
                   <div key={item.name} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/50">
                     <div className="flex items-center gap-3">
@@ -247,6 +292,9 @@ const Reports = () => {
                     <span className="text-xs font-black text-slate-900">R$ {item.amount.toLocaleString('pt-BR')}</span>
                   </div>
                 ))}
+                {categoryData.length === 0 && (
+                  <p className="text-center text-slate-400 text-xs font-medium py-4">Nenhum dado de recebimento.</p>
+                )}
               </div>
             </CardContent>
           </Card>
