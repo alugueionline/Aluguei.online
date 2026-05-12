@@ -55,8 +55,17 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
-      const { data: bills } = await supabase.from('bills').select('*').eq('tenant_id', id);
-      const { data: contracts } = await supabase.from('contracts').select('rent_value').eq('tenant_id', id).eq('status', 'ativo');
+      // Buscamos as contas incluindo campos de consumo que podem ter sido preenchidos no "Dividir Conta"
+      const { data: bills } = await supabase
+        .from('bills')
+        .select('*')
+        .eq('tenant_id', id);
+        
+      const { data: contracts } = await supabase
+        .from('contracts')
+        .select('rent_value')
+        .eq('tenant_id', id)
+        .eq('status', 'ativo');
 
       let totalRent = 0;
       const extras: ExtraValue[] = [];
@@ -69,9 +78,12 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
           setFineValue((b.fine_value || 0).toString());
           setInterestValue((b.interest_value || 0).toString());
         } else {
+          // Aqui puxamos os valores de consumo (kWh) e preço unitário se existirem no banco
           extras.push({
             label: `${b.type.charAt(0).toUpperCase() + b.type.slice(1)} (${b.month}/${b.year})`,
-            value: val.toString()
+            value: val.toString(),
+            quantity: b.consumption?.toString() || '', // Puxa do banco
+            unitPrice: b.unit_price?.toString() || ''  // Puxa do banco
           });
         }
       });
@@ -95,7 +107,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     const newExtras = [...extraValues];
     newExtras[index] = { ...newExtras[index], [field]: val };
     
-    // Se preencher quantidade e preço unitário, calcula o total automaticamente
     if (field === 'quantity' || field === 'unitPrice') {
       const q = parseFloat(newExtras[index].quantity || '0');
       const p = parseFloat(newExtras[index].unitPrice || '0');
