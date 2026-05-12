@@ -39,6 +39,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { format, subMonths, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { showSuccess, showError } from '@/utils/toast';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const COLORS = ['#2563FF', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#64748B'];
 
@@ -161,53 +163,104 @@ const Reports = () => {
     fetchReportData();
   }, []);
 
-  const handleExportCSV = () => {
+  const handleExportPDF = () => {
     if (categoryData.length === 0) {
       showError("Não há dados para exportar.");
       return;
     }
 
     try {
-      const headers = ["Categoria", "Faturas", "Percentual (%)", "Valor Anual (R$)", "Valor Total (R$)"];
-      const rows = categoryData.map(cat => [
-        cat.name,
-        cat.count,
-        `${cat.value}%`,
-        cat.annualAmount.toFixed(2).replace('.', ','),
-        cat.amount.toFixed(2).replace('.', ',')
-      ]);
-
-      const summaryHeaders = ["", "", "", "", ""];
-      const summaryRows = [
-        ["RESUMO GERAL", "", "", "", ""],
-        ["Receita Total", "", "", "", stats.receita.toFixed(2).replace('.', ',')],
-        ["Despesas Totais", "", "", "", stats.despesas.toFixed(2).replace('.', ',')],
-        ["Lucro Líquido", "", "", "", stats.lucro.toFixed(2).replace('.', ',')],
-        ["Taxa de Ocupação", "", "", "", `${stats.ocupacao.toFixed(1)}%`]
-      ];
-
-      const csvContent = [
-        headers.join(";"),
-        ...rows.map(r => r.join(";")),
-        summaryHeaders.join(";"),
-        ...summaryRows.map(r => r.join(";"))
-      ].join("\n");
-
-      const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      const timestamp = format(new Date(), 'dd-MM-yyyy');
+      const doc = new jsPDF();
+      const timestamp = format(new Date(), 'dd/MM/yyyy HH:mm');
       
-      link.setAttribute("href", url);
-      link.setAttribute("download", `relatorio-financeiro-${timestamp}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Configurações de Cores
+      const primaryColor = [37, 99, 255]; // #2563FF
+      const secondaryColor = [15, 23, 42]; // #0F172A
+      const lightGray = [248, 250, 252];
+
+      // Cabeçalho Premium
+      doc.setFillColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+      doc.rect(0, 0, 210, 40, 'F');
       
-      showSuccess("Relatório exportado com sucesso!");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.text('ALUGUEI.ONLINE', 15, 20);
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('RELATÓRIO DE PERFORMANCE FINANCEIRA', 15, 28);
+      doc.text(`Gerado em: ${timestamp}`, 150, 20);
+
+      // Seção de Métricas (Cards)
+      doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Resumo Executivo', 15, 55);
+
+      // Desenhar "Cards" de métricas
+      const drawMetric = (label: string, value: string, x: number, y: number) => {
+        doc.setFillColor(lightGray[0], lightGray[1], lightGray[2]);
+        doc.roundedRect(x, y, 45, 25, 3, 3, 'F');
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text(label.toUpperCase(), x + 5, y + 8);
+        doc.setFontSize(11);
+        doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+        doc.setFont('helvetica', 'bold');
+        doc.text(value, x + 5, y + 18);
+      };
+
+      drawMetric('Receita Anual', `R$ ${stats.receitaAnual.toLocaleString('pt-BR')}`, 15, 62);
+      drawMetric('Despesas Totais', `R$ ${stats.despesas.toLocaleString('pt-BR')}`, 65, 62);
+      drawMetric('Lucro Líquido', `R$ ${stats.lucro.toLocaleString('pt-BR')}`, 115, 62);
+      drawMetric('Taxa Ocupação', `${stats.ocupacao.toFixed(1)}%`, 165, 62);
+
+      // Tabela de Categorias
+      doc.setFontSize(14);
+      doc.text('Detalhamento por Categoria (12 meses)', 15, 105);
+
+      autoTable(doc, {
+        startY: 112,
+        head: [['Categoria', 'Faturas', 'Participação', 'Valor Anual (R$)']],
+        body: categoryData.map(cat => [
+          cat.name,
+          cat.count.toString(),
+          `${cat.value}%`,
+          `R$ ${cat.annualAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        ]),
+        headStyles: {
+          fillColor: primaryColor,
+          textColor: [255, 255, 255],
+          fontSize: 10,
+          fontStyle: 'bold',
+          halign: 'left'
+        },
+        bodyStyles: {
+          fontSize: 9,
+          textColor: [51, 65, 85]
+        },
+        alternateRowStyles: {
+          fillColor: [252, 253, 255]
+        },
+        margin: { left: 15, right: 15 }
+      });
+
+      // Rodapé
+      const pageCount = (doc as any).internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184);
+        doc.text('Este documento é para fins informativos e de gestão interna.', 15, 285);
+        doc.text(`Página ${i} de ${pageCount}`, 180, 285);
+      }
+
+      doc.save(`Relatorio-AlugueiOnline-${format(new Date(), 'dd-MM-yyyy')}.pdf`);
+      showSuccess("Relatório PDF gerado com sucesso!");
     } catch (err) {
-      showError("Erro ao exportar relatório.");
+      console.error(err);
+      showError("Erro ao gerar PDF.");
     }
   };
 
@@ -246,10 +299,10 @@ const Reports = () => {
               <Calendar className="w-4 h-4" /> Últimos 12 Meses
             </Button>
             <Button 
-              onClick={handleExportCSV}
+              onClick={handleExportPDF}
               className="h-10 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg gap-2"
             >
-              <FileDown className="w-4 h-4" /> Exportar Relatório
+              <FileDown className="w-4 h-4" /> Exportar PDF Premium
             </Button>
           </div>
         </div>
