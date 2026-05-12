@@ -81,12 +81,14 @@ const Financial = () => {
         }
       });
 
+      // Projeção de aluguéis que ainda não tem fatura (nem paga, nem pendente)
       contracts.forEach(c => {
         const rentVal = Number(c.rent_value || 0);
         const hasBillThisMonth = list.some(b => 
           b.tenant_id === c.tenant_id && 
+          b.property_id === c.property_id &&
           b.type === 'aluguel' && 
-          b.month === currentMonth &&
+          b.month === currentMonth && 
           b.year === currentYear
         );
 

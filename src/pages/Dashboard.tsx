@@ -88,6 +88,7 @@ const Dashboard = () => {
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
+      // Busca a fatura de aluguel paga deste mês para este inquilino
       const billToRevert = tenant.bills?.find((b: any) => 
         b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear && b.status === 'pago'
       );
@@ -146,12 +147,14 @@ const Dashboard = () => {
         }
       });
 
+      // Projeção de aluguéis pendentes (que ainda não tem fatura gerada)
       contracts.forEach(c => {
         const rentVal = Number(c.rent_value || 0);
         const hasBillThisMonth = bills.some(b => 
           b.tenant_id === c.tenant_id && 
+          b.property_id === c.property_id &&
           b.type === 'aluguel' && 
-          b.month === currentMonth &&
+          b.month === currentMonth && 
           b.year === currentYear
         );
 
