@@ -14,7 +14,13 @@ import {
   AlertCircle,
   ArrowUpRight,
   ArrowDownRight,
-  MoreHorizontal
+  MoreHorizontal,
+  DollarSign,
+  Zap,
+  Droplets,
+  Globe,
+  ShieldCheck,
+  Wallet
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -31,16 +37,16 @@ import {
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
-const COLORS = ['#2563FF', '#10B981', '#F59E0B', '#8B5CF6'];
+const COLORS = ['#2563FF', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4'];
 
 const Reports = () => {
   const [revenueHistory, setRevenueHistory] = useState<any[]>([]);
-  const [profitData, setProfitData] = useState<any[]>([]);
+  const [categoryData, setCategoryData] = useState<any[]>([]);
   const [stats, setStats] = useState({
     receita: 0,
-    ocupacao: 0,
-    inadimplencia: 0,
-    crescimento: 0
+    despesas: 0,
+    lucro: 0,
+    ocupacao: 0
   });
   const [loading, setLoading] = useState(true);
 
@@ -52,12 +58,39 @@ const Reports = () => {
 
       if (bills) {
         let totalRec = 0;
+        let totalExp = 0;
+        const categories: Record<string, number> = {};
+
+        const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio'];
+
         bills.forEach(b => {
-          if (b.status === 'pago' && (b.type === 'receita' || b.type === 'aluguel')) {
-            totalRec += Number(b.total_value);
+          const val = Number(b.total_value || b.calculated_value || 0);
+          const type = b.type?.toLowerCase() || 'outros';
+
+          if (b.status === 'pago') {
+            if (incomeTypes.includes(type)) {
+              totalRec += val;
+              categories[type] = (categories[type] || 0) + val;
+            } else {
+              totalExp += val;
+            }
           }
         });
-        setStats(prev => ({ ...prev, receita: totalRec }));
+
+        setStats(prev => ({ 
+          ...prev, 
+          receita: totalRec, 
+          despesas: totalExp, 
+          lucro: totalRec - totalExp 
+        }));
+
+        const formattedCategories = Object.entries(categories).map(([name, value]) => ({
+          name: name.charAt(0).toUpperCase() + name.slice(1),
+          value: Math.round((value / totalRec) * 100),
+          amount: value
+        })).sort((a, b) => b.amount - a.amount);
+
+        setCategoryData(formattedCategories);
       }
 
       if (properties) {
@@ -76,14 +109,6 @@ const Reports = () => {
         { month: 'Jun', value: 9100 },
       ]);
 
-      // Dados para o gráfico de rosca
-      setProfitData([
-        { name: 'Aluguel', value: 70 },
-        { name: 'Taxas', value: 15 },
-        { name: 'Serviços', value: 10 },
-        { name: 'Outros', value: 5 },
-      ]);
-
     } catch (err) {
       console.error('Erro ao carregar relatórios');
     } finally {
@@ -95,18 +120,26 @@ const Reports = () => {
     fetchReportData();
   }, []);
 
+  const getCategoryIcon = (name: string) => {
+    const n = name.toLowerCase();
+    if (n.includes('aluguel')) return <Home className="w-4 h-4" />;
+    if (n.includes('energia')) return <Zap className="w-4 h-4" />;
+    if (n.includes('agua')) return <Droplets className="w-4 h-4" />;
+    if (n.includes('internet')) return <Globe className="w-4 h-4" />;
+    return <DollarSign className="w-4 h-4" />;
+  };
+
   return (
     <DashboardLayout title="Análise de Performance">
       <div className="max-w-7xl mx-auto space-y-8 pb-12">
-        {/* Header Section */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Relatórios Inteligentes</h2>
-            <p className="text-slate-500 text-sm font-medium">Acompanhe o crescimento do seu patrimônio em tempo real.</p>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Inteligência Financeira</h2>
+            <p className="text-slate-500 text-sm font-medium">Detalhamento real de receitas e despesas do seu portfólio.</p>
           </div>
           <div className="flex items-center gap-3 w-full lg:w-auto">
             <Button variant="outline" className="h-10 px-4 rounded-xl border-slate-200 bg-white font-semibold text-slate-600 shadow-sm gap-2">
-              <Calendar className="w-4 h-4" /> Últimos 6 meses
+              <Calendar className="w-4 h-4" /> Este Ano
             </Button>
             <Button variant="outline" className="h-10 px-4 rounded-xl border-slate-200 bg-white font-semibold text-slate-600 shadow-sm gap-2">
               <FileDown className="w-4 h-4" /> Exportar PDF
@@ -114,7 +147,6 @@ const Reports = () => {
           </div>
         </div>
 
-        {/* KPI Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <MetricCard 
             label="Receita Bruta" 
@@ -125,43 +157,36 @@ const Reports = () => {
             iconBg="bg-emerald-50 text-emerald-600"
           />
           <MetricCard 
-            label="Taxa de Ocupação" 
-            value={`${stats.ocupacao.toFixed(1)}%`} 
-            trend="+2.1%" 
-            type="up" 
-            icon={<CheckCircle2 className="w-5 h-5" />}
-            iconBg="bg-blue-50 text-blue-600"
-          />
-          <MetricCard 
-            label="Inadimplência" 
-            value={`R$ ${stats.inadimplencia}`} 
-            trend="-0.5%" 
+            label="Despesas Totais" 
+            value={`R$ ${stats.despesas.toLocaleString('pt-BR')}`} 
+            trend="-2.1%" 
             type="down" 
-            icon={<AlertCircle className="w-5 h-5" />}
+            icon={<ArrowDownRight className="w-5 h-5" />}
             iconBg="bg-rose-50 text-rose-600"
           />
           <MetricCard 
-            label="Crescimento" 
-            value={`R$ ${stats.crescimento}`} 
-            trend="+5.4%" 
+            label="Lucro Líquido" 
+            value={`R$ ${stats.lucro.toLocaleString('pt-BR')}`} 
+            trend="+8.4%" 
             type="up" 
-            icon={<Activity className="w-5 h-5" />}
+            icon={<Wallet className="w-5 h-5" />}
+            iconBg="bg-blue-50 text-blue-600"
+          />
+          <MetricCard 
+            label="Taxa de Ocupação" 
+            value={`${stats.ocupacao.toFixed(1)}%`} 
+            trend="Estável" 
+            type="up" 
+            icon={<CheckCircle2 className="w-5 h-5" />}
             iconBg="bg-amber-50 text-amber-600"
           />
         </div>
 
-        {/* Charts Section */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-          {/* Main Area Chart */}
-          <Card className="xl:col-span-8 border-slate-100 shadow-sm rounded-xl overflow-hidden bg-white">
-            <CardHeader className="flex flex-row items-center justify-between px-8 pt-8 pb-4">
-              <div>
-                <CardTitle className="text-lg font-bold text-slate-900">Evolução Financeira</CardTitle>
-                <p className="text-xs text-slate-400 font-medium">Receita mensal consolidada</p>
-              </div>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <MoreHorizontal className="w-5 h-5 text-slate-400" />
-              </Button>
+          <Card className="xl:col-span-8 border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
+            <CardHeader className="p-8 pb-4">
+              <CardTitle className="text-xl font-black text-slate-900 tracking-tight">Evolução de Receita</CardTitle>
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Histórico mensal consolidado</p>
             </CardHeader>
             <CardContent className="px-4 pb-8">
               <div className="h-[350px] w-full">
@@ -174,86 +199,52 @@ const Reports = () => {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                    <XAxis 
-                      dataKey="month" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 500}} 
-                      dy={10}
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 500}} 
-                      tickFormatter={(v) => `R$ ${v/1000}k`}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        borderRadius: '12px', 
-                        border: 'none', 
-                        boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
-                        padding: '12px'
-                      }} 
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="#2563FF" 
-                      strokeWidth={3} 
-                      fillOpacity={1} 
-                      fill="url(#colorValue)" 
-                    />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 700}} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 700}} tickFormatter={(v) => `R$ ${v/1000}k`} />
+                    <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', padding: '12px' }} />
+                    <Area type="monotone" dataKey="value" stroke="#2563FF" strokeWidth={4} fillOpacity={1} fill="url(#colorValue)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
 
-          {/* Donut Chart */}
-          <Card className="xl:col-span-4 border-slate-100 shadow-sm rounded-xl overflow-hidden bg-white">
-            <CardHeader className="px-8 pt-8 pb-4">
-              <CardTitle className="text-lg font-bold text-slate-900">Performance Mix</CardTitle>
-              <p className="text-xs text-slate-400 font-medium">Distribuição de receita por categoria</p>
+          <Card className="xl:col-span-4 border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
+            <CardHeader className="p-8 pb-4">
+              <CardTitle className="text-xl font-black text-slate-900 tracking-tight">Mix de Receitas</CardTitle>
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Distribuição por categoria</p>
             </CardHeader>
-            <CardContent className="px-8 pb-8">
-              <div className="h-[250px] flex items-center justify-center relative">
+            <CardContent className="p-8">
+              <div className="h-[200px] flex items-center justify-center relative mb-8">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie 
-                      data={profitData} 
-                      innerRadius="70%" 
-                      outerRadius="90%" 
-                      paddingAngle={5} 
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {profitData.map((entry, index) => (
+                    <Pie data={categoryData} innerRadius="70%" outerRadius="90%" paddingAngle={5} dataKey="value" stroke="none">
+                      {categoryData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip 
-                      contentStyle={{ 
-                        borderRadius: '12px', 
-                        border: 'none', 
-                        boxShadow: '0 10px 30px rgba(0,0,0,0.08)' 
-                      }} 
-                    />
+                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.08)' }} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-2xl font-bold text-slate-900">100%</span>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total</span>
+                  <span className="text-2xl font-black text-slate-900">100%</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</span>
                 </div>
               </div>
               
-              <div className="mt-6 space-y-3">
-                {profitData.map((item, index) => (
-                  <div key={item.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                      <span className="text-xs font-semibold text-slate-600">{item.name}</span>
+              <div className="space-y-4">
+                {categoryData.map((item, index) => (
+                  <div key={item.name} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-sm" style={{ backgroundColor: COLORS[index % COLORS.length] }}>
+                        {getCategoryIcon(item.name)}
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-900">{item.name}</p>
+                        <p className="text-[10px] font-bold text-slate-400">{item.value}% do total</p>
+                      </div>
                     </div>
-                    <span className="text-xs font-bold text-slate-900">{item.value}%</span>
+                    <span className="text-xs font-black text-slate-900">R$ {item.amount.toLocaleString('pt-BR')}</span>
                   </div>
                 ))}
               </div>
@@ -266,13 +257,13 @@ const Reports = () => {
 };
 
 const MetricCard = ({ label, value, trend, type, icon, iconBg }: any) => (
-  <Card className="border-slate-100 shadow-sm bg-white p-6 rounded-xl group hover:shadow-md transition-all duration-300">
+  <Card className="premium-card border-none shadow-sm bg-white p-6 rounded-[2rem] group hover:shadow-md transition-all duration-300">
     <div className="flex justify-between items-start mb-4">
-      <div className={cn("w-12 h-12 rounded-full flex items-center justify-center transition-transform group-hover:scale-110", iconBg)}>
+      <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm", iconBg)}>
         {icon}
       </div>
       <Badge className={cn(
-        "rounded-full px-2 py-0.5 text-[10px] font-bold border-none",
+        "rounded-full px-2 py-0.5 text-[10px] font-black border-none",
         type === 'up' ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
       )}>
         {type === 'up' ? <ArrowUpRight className="w-3 h-3 mr-1 inline" /> : <ArrowDownRight className="w-3 h-3 mr-1 inline" />}
@@ -280,8 +271,8 @@ const MetricCard = ({ label, value, trend, type, icon, iconBg }: any) => (
       </Badge>
     </div>
     <div>
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-      <h4 className="text-2xl font-bold text-slate-900 tracking-tight">{value}</h4>
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+      <h4 className="text-2xl font-black text-slate-900 tracking-tight">{value}</h4>
     </div>
   </Card>
 );
