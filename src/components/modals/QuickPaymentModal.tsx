@@ -49,7 +49,7 @@ export const QuickPaymentModal = ({ isOpen, onClose, tenant, onSuccess }: QuickP
         );
 
         if (!hasRentBill) {
-          // CORREÇÃO: ID único incluindo o property_id para evitar conflitos em múltiplos contratos
+          // ID único incluindo o property_id para evitar conflitos em múltiplos contratos
           formattedItems.unshift({
             id: `projected-rent-${tenant.id}-${contract.property_id}`,
             label: `Aluguel (${currentMonth}/${currentYear}) - ${contract.properties?.name || 'Imóvel'}`,

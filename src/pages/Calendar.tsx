@@ -19,7 +19,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ptBR } from 'date-fns/locale';
-import { addMonths, subMonths, format, isSameDay, setDate as setDayOfMonth, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
+import { addMonths, subMonths, format, isSameDay } from 'date-fns';
 import { EventModal } from '@/components/modals/EventModal';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -52,9 +52,8 @@ const Calendar = () => {
       const rentEvents: any[] = [];
       if (contracts) {
         contracts.forEach(c => {
-          // Prioriza o due_day do contrato, se não houver, usa o do inquilino (fallback)
+          // Usa o due_day do contrato
           const dueDay = c.due_day || 5;
-          
           const eventDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), dueDay);
           
           rentEvents.push({
