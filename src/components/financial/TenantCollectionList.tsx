@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { MessageSquare, Clock, Loader2, ChevronRight, AlertCircle, Info, Check } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { BillingSummaryModal } from './BillingSummaryModal';
 import { QuickPaymentModal } from '@/components/modals/QuickPaymentModal';
@@ -14,21 +15,19 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 export const TenantCollectionList = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [tenantDebts, setTenantDebts] = useState<any[]>([]);
+  const queryClient = useQueryClient();
   const [selectedTenantId, setSelectedTenantId] = useState<string | undefined>(undefined);
   const [selectedTenantForPayment, setSelectedTenantForPayment] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      
+  const { data: tenantDebts = [], isLoading } = useQuery({
+    queryKey: ['tenant-collection-list'],
+    queryFn: async () => {
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
-      // Buscamos inquilinos e seus contratos/propriedades
+      // Buscamos inquilinos e seus contratos
       const { data: tenants } = await supabase
         .from('tenants')
         .select(`
@@ -40,17 +39,16 @@ export const TenantCollectionList = () => {
         `)
         .eq('status', 'ativo');
 
-      // Buscamos todas as faturas pendentes
+      // Buscamos TODAS as faturas do mês atual e faturas pendentes de meses anteriores
       const { data: bills } = await supabase
         .from('bills')
-        .select('*')
-        .in('status', ['pendente', 'atrasado']);
+        .select('*');
 
-      const finalData = (tenants || []).map(t => {
+      return (tenants || []).map(t => {
         const activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
         
-        // 1. Faturas que já existem no banco (Rateios, Aluguéis gerados, etc)
-        const pendingBills = (bills || []).filter(b => b.tenant_id === t.id);
+        // 1. Faturas que já existem no banco e não estão pagas
+        const pendingBills = (bills || []).filter(b => b.tenant_id === t.id && b.status !== 'pago');
         const existingBillsTotal = pendingBills.reduce((acc, b) => 
           acc + Number(b.calculated_value || b.total_value || 0), 0
         );
@@ -60,8 +58,8 @@ export const TenantCollectionList = () => {
         let projectedItems: any[] = [];
 
         activeContracts.forEach((contract: any) => {
-          // Verificar se já existe fatura de aluguel para este imóvel este mês
-          const hasRentBill = (bills || []).some(b => 
+          // IMPORTANTE: Verifica se existe QUALQUER fatura de aluguel (paga ou não) para este mês
+          const hasAnyRentBill = (bills || []).some(b => 
             b.tenant_id === t.id && 
             b.property_id === contract.property_id &&
             b.type === 'aluguel' && 
@@ -69,14 +67,13 @@ export const TenantCollectionList = () => {
             b.year === currentYear
           );
 
-          if (!hasRentBill) {
+          if (!hasAnyRentBill) {
             const rentVal = Number(contract.rent_value || 0);
             projectedTotal += rentVal;
             projectedItems.push({ type: 'Aluguel (Projetado)', value: rentVal });
           }
 
-          // Verificar se já existe fatura de condomínio
-          const hasCondoBill = (bills || []).some(b => 
+          const hasAnyCondoBill = (bills || []).some(b => 
             b.tenant_id === t.id && 
             b.property_id === contract.property_id &&
             b.type === 'condominio' && 
@@ -85,7 +82,7 @@ export const TenantCollectionList = () => {
           );
 
           const condoFee = Number(contract.properties?.condo_fee || 0);
-          if (condoFee > 0 && !hasCondoBill) {
+          if (condoFee > 0 && !hasAnyCondoBill) {
             projectedTotal += condoFee;
             projectedItems.push({ type: 'Condomínio (Projetado)', value: condoFee });
           }
@@ -98,25 +95,15 @@ export const TenantCollectionList = () => {
           totalDebt,
           pendingCount: pendingBills.length + projectedItems.length,
           hasOverdue: pendingBills.some(b => b.status === 'atrasado'),
-          bills: pendingBills, // Passamos as bills para o modal de pagamento
+          bills: pendingBills,
           breakdown: {
             projectedItems,
             pendingBills: pendingBills
           }
         };
       }).sort((a, b) => b.totalDebt - a.totalDebt);
-
-      setTenantDebts(finalData);
-    } catch (err) {
-      console.error('Erro ao calcular cobranças:', err);
-    } finally {
-      setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+  });
 
   const handleCollect = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -130,7 +117,7 @@ export const TenantCollectionList = () => {
     setIsPaymentModalOpen(true);
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="py-20 text-center">
         <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600" />
@@ -210,7 +197,7 @@ export const TenantCollectionList = () => {
                 </div>
                 
                 <div className="flex items-center gap-3">
-                  {tenant.totalDebt > 0 && (
+                  {tenant.totalDebt > 0 ? (
                     <Button 
                       onClick={(e) => handleOpenPayment(e, tenant)}
                       className="h-12 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black gap-2 shadow-lg shadow-emerald-100 active:scale-95 transition-all"
@@ -218,6 +205,10 @@ export const TenantCollectionList = () => {
                       <Check className="w-4 h-4" />
                       Dar Baixa
                     </Button>
+                  ) : (
+                    <Badge className="bg-emerald-50 text-emerald-600 border-none px-4 py-2 rounded-xl font-black text-[10px] uppercase">
+                      Tudo Pago
+                    </Badge>
                   )}
                   <Button 
                     onClick={(e) => handleCollect(e, tenant.id)}
@@ -242,15 +233,15 @@ export const TenantCollectionList = () => {
 
       <BillingSummaryModal 
         isOpen={isModalOpen} 
-        onClose={() => { setIsModalOpen(false); fetchData(); }} 
+        onClose={() => { setIsModalOpen(false); queryClient.invalidateQueries({ queryKey: ['tenant-collection-list'] }); }} 
         tenantId={selectedTenantId}
       />
 
       <QuickPaymentModal 
         isOpen={isPaymentModalOpen}
-        onClose={() => { setIsPaymentModalOpen(false); fetchData(); }}
+        onClose={() => { setIsPaymentModalOpen(false); queryClient.invalidateQueries({ queryKey: ['tenant-collection-list'] }); }}
         tenant={selectedTenantForPayment}
-        onSuccess={fetchData}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['tenant-collection-list'] })}
       />
     </div>
   );
