@@ -77,7 +77,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
           setFineValue((b.fine_value || 0).toString());
           setInterestValue((b.interest_value || 0).toString());
         } else {
-          // Calculamos o consumo baseado nas leituras se existirem
           let consumption = '';
           if (b.current_reading !== null && b.previous_reading !== null) {
             consumption = (Number(b.current_reading) - Number(b.previous_reading)).toString();
@@ -150,7 +149,14 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       }
     });
 
-    return `Olá ${tenantObj?.name || 'Inquilino'}! 👋\n\nEstou enviando o resumo do aluguel e demais valores pendentes:\n\n${details}\n💰 *Total a pagar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n\n🔑 *Chave PIX:* ${pixKey}\n\nQualquer dúvida, estou à disposição!`;
+    // Usando strings limpas para evitar bugs de codificação
+    const saudacao = `Olá ${tenantObj?.name || 'Inquilino'}! 👋`;
+    const intro = `Estou enviando o resumo do aluguel e demais valores pendentes:`;
+    const totalStr = `💰 *Total a pagar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*`;
+    const pixStr = `🔑 *Chave PIX:* ${pixKey}`;
+    const despedida = `Qualquer dúvida, estou à disposição!`;
+
+    return `${saudacao}\n\n${intro}\n\n${details}\n${totalStr}\n\n${pixStr}\n\n${despedida}`;
   }, [selectedTenantId, rentValue, fineValue, interestValue, extraValues, pixKey, total, tenants]);
 
   return (
@@ -248,7 +254,9 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
               </Button>
               <Button className="rounded-xl h-12 bg-emerald-500 hover:bg-emerald-600 text-white font-bold gap-2 shadow-lg" onClick={() => {
                 const phone = tenants.find(t => t.id === selectedTenantId)?.phone?.replace(/\D/g, '');
-                window.open(`https://wa.me/${phone || ''}?text=${encodeURIComponent(generatedMessage)}`, '_blank');
+                // Usando encodeURIComponent para garantir que emojis e acentos funcionem
+                const encodedText = encodeURIComponent(generatedMessage);
+                window.open(`https://wa.me/${phone || ''}?text=${encodedText}`, '_blank');
               }}>
                 <Send className="w-4 h-4" /> Enviar
               </Button>
