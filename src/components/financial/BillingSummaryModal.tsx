@@ -32,7 +32,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     const fetchInitialData = async () => {
       setLoading(true);
       
-      // Buscar inquilinos e dados do usuário logado (Chave PIX)
       const [tenantsRes, userRes] = await Promise.all([
         supabase.from('tenants').select('id, name, phone, property_id, properties(name, condo_fee)').eq('status', 'ativo'),
         supabase.auth.getUser()
@@ -64,11 +63,11 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
+      // Buscamos TODAS as faturas do inquilino para verificar se o aluguel do mês já foi pago
       const { data: bills } = await supabase
         .from('bills')
         .select('*')
-        .eq('tenant_id', id)
-        .in('status', ['pendente', 'atrasado']);
+        .eq('tenant_id', id);
 
       const { data: contracts } = await supabase
         .from('contracts')
@@ -80,7 +79,13 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       const extras: any[] = [];
       let rentBillId = null;
 
-      bills?.forEach(b => {
+      // 1. Verificar se já existe uma fatura de aluguel para este mês (paga ou não)
+      const hasRentBillThisMonth = bills?.some(b => 
+        b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear
+      );
+
+      // 2. Processar faturas existentes que NÃO estão pagas
+      bills?.filter(b => b.status !== 'pago').forEach(b => {
         const val = Number(b.calculated_value || b.total_value || 0);
         if (b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear) {
           totalRent += val;
@@ -95,7 +100,8 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         }
       });
 
-      if (!rentBillId) {
+      // 3. Se NÃO existe fatura de aluguel (nem paga nem pendente), projetamos do contrato
+      if (!hasRentBillThisMonth) {
         contracts?.forEach(c => {
           totalRent += Number(c.rent_value || 0);
         });
@@ -161,7 +167,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-[95vw] md:max-w-[850px] rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl">
         <div className="flex flex-col md:grid md:grid-cols-2 h-[90vh] md:h-[700px]">
-          {/* Lado Esquerdo: Configuração */}
           <div className="p-6 md:p-8 space-y-6 bg-white overflow-y-auto">
             <div className="flex justify-between items-center">
               <DialogTitle className="text-xl md:text-2xl font-black tracking-tight text-slate-900">Cobrança</DialogTitle>
@@ -289,7 +294,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
             </div>
           </div>
 
-          {/* Lado Direito: Preview Mensagem */}
           <div className="bg-slate-900 p-6 md:p-8 flex flex-col h-full">
             <div className="flex items-center gap-2 mb-4 text-blue-400">
               <MessageSquare className="w-5 h-5" />
