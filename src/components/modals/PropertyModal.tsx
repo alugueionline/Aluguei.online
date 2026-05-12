@@ -99,13 +99,15 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
       }
       setStep('photo');
     }
-  }, [isOpen, propertyId]); // Dependência estável
+  }, [isOpen, propertyId]);
 
   const handleSave = async () => {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
+
+      const newBaseRent = parseFloat(formData.base_rent) || 0;
 
       const payload = {
         ...formData,
@@ -114,7 +116,7 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
         bathrooms: parseInt(formData.bathrooms) || 0,
         parking_spots: parseInt(formData.parking_spots) || 0,
         size_sqm: parseFloat(formData.size_sqm) || 0,
-        base_rent: parseFloat(formData.base_rent) || 0,
+        base_rent: newBaseRent,
         condo_fee: parseFloat(formData.condo_fee) || 0
       };
 
@@ -124,7 +126,19 @@ export const PropertyModal = ({ isOpen, onClose, property }: PropertyModalProps)
           .update(payload)
           .eq('id', property.id);
         if (error) throw error;
-        showSuccess('Imóvel atualizado com sucesso!');
+
+        // SINCRONIZAÇÃO: Se o aluguel mudou, atualiza contratos ativos
+        if (property.base_rent !== newBaseRent) {
+          await supabase
+            .from('contracts')
+            .update({ rent_value: newBaseRent })
+            .eq('property_id', property.id)
+            .eq('status', 'ativo');
+          
+          showSuccess('Imóvel e contratos ativos atualizados!');
+        } else {
+          showSuccess('Imóvel atualizado com sucesso!');
+        }
       } else {
         const { error } = await supabase
           .from('properties')

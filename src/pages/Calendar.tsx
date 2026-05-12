@@ -37,10 +37,10 @@ const Calendar = () => {
       // 1. Buscar eventos manuais
       const { data: manualEvents } = await supabase.from('events').select('*');
       
-      // 2. Buscar inquilinos ativos para gerar vencimentos baseados no due_day
-      const { data: tenants } = await supabase
-        .from('tenants')
-        .select('*, properties(name)')
+      // 2. Buscar CONTRATOS ativos para gerar vencimentos individuais
+      const { data: contracts } = await supabase
+        .from('contracts')
+        .select('*, tenants(name), properties(name)')
         .eq('status', 'ativo');
 
       const formattedManual = (manualEvents || []).map(e => ({
@@ -48,19 +48,19 @@ const Calendar = () => {
         date: new Date(e.date)
       }));
 
-      // 3. Gerar eventos de vencimento para o mês atual visualizado
+      // 3. Gerar eventos de vencimento baseados no contrato
       const rentEvents: any[] = [];
-      if (tenants) {
-        tenants.forEach(t => {
-          const dueDay = t.due_day || 5;
+      if (contracts) {
+        contracts.forEach(c => {
+          // Prioriza o due_day do contrato, se não houver, usa o do inquilino (fallback)
+          const dueDay = c.due_day || 5;
           
-          // Gerar para o mês atual visualizado
           const eventDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), dueDay);
           
           rentEvents.push({
-            id: `rent-${t.id}`,
-            title: `Aluguel: ${t.name}`,
-            description: `Vencimento aluguel ${t.properties?.name || 'Imóvel'}`,
+            id: `rent-${c.id}`,
+            title: `Aluguel: ${c.tenants?.name || 'Inquilino'}`,
+            description: `Vencimento aluguel ${c.properties?.name || 'Imóvel'}`,
             type: 'payment',
             date: eventDate,
             time: '08:00'
@@ -237,7 +237,7 @@ const Calendar = () => {
             <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-xl">
               <h4 className="text-lg font-black tracking-tight mb-4">Dica de Gestão</h4>
               <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                Os vencimentos de aluguel são gerados automaticamente com base no dia de vencimento definido no perfil do inquilino.
+                Os vencimentos de aluguel agora são baseados em cada contrato individual. Se um inquilino tem dois imóveis, você verá duas datas de vencimento.
               </p>
             </div>
           </div>

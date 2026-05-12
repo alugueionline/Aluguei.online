@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { showSuccess, showError } from "@/utils/toast";
-import { DollarSign, Calendar, Building2, User, Loader2, Hash } from "lucide-react";
+import { DollarSign, Calendar, Building2, User, Loader2, Hash, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -31,7 +31,8 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
     start_date: '',
     duration_months: '12',
     rent_value: '',
-    status: 'ativo'
+    status: 'ativo',
+    due_day: '5'
   });
 
   useEffect(() => {
@@ -41,14 +42,13 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
     };
   }, []);
 
-  // Usamos contract?.id como dependência para evitar loops se o objeto contract mudar de referência mas não de conteúdo
   const contractId = contract?.id;
 
   useEffect(() => {
     const fetchData = async () => {
       const [propsRes, tenantsRes] = await Promise.all([
         supabase.from('properties').select('id, name, base_rent'),
-        supabase.from('tenants').select('id, name')
+        supabase.from('tenants').select('id, name, due_day')
       ]);
       
       if (isMounted.current) {
@@ -66,7 +66,8 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
           start_date: contract.start_date || '',
           duration_months: (contract.duration_months || 12).toString(),
           rent_value: (contract.rent_value || 0).toString(),
-          status: contract.status || 'ativo'
+          status: contract.status || 'ativo',
+          due_day: (contract.due_day || 5).toString()
         });
       } else {
         setFormData({
@@ -75,11 +76,12 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
           start_date: new Date().toISOString().split('T')[0],
           duration_months: '12',
           rent_value: '',
-          status: 'ativo'
+          status: 'ativo',
+          due_day: '5'
         });
       }
     }
-  }, [isOpen, contractId]); // Dependência estável
+  }, [isOpen, contractId]);
 
   const handlePropertyChange = (id: string) => {
     const prop = properties.find(p => p.id === id);
@@ -87,6 +89,15 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
       ...prev,
       property_id: id,
       rent_value: prop?.base_rent?.toString() || prev.rent_value
+    }));
+  };
+
+  const handleTenantChange = (id: string) => {
+    const tenant = tenants.find(t => t.id === id);
+    setFormData(prev => ({
+      ...prev,
+      tenant_id: id,
+      due_day: tenant?.due_day?.toString() || prev.due_day
     }));
   };
 
@@ -105,7 +116,8 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
         start_date: formData.start_date,
         duration_months: parseInt(formData.duration_months),
         rent_value: parseFloat(formData.rent_value),
-        status: formData.status
+        status: formData.status,
+        due_day: parseInt(formData.due_day)
       };
 
       if (isEdit) {
@@ -142,7 +154,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
             <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Inquilino</Label>
             <Select 
               value={formData.tenant_id} 
-              onValueChange={v => setFormData(prev => ({...prev, tenant_id: v}))}
+              onValueChange={handleTenantChange}
             >
               <SelectTrigger className="rounded-xl h-12 bg-gray-50 border-none font-bold">
                 <div className="flex items-center gap-2">
@@ -194,20 +206,19 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Status</Label>
-              <Select 
-                value={formData.status} 
-                onValueChange={v => setFormData(prev => ({...prev, status: v}))}
-              >
-                <SelectTrigger className="rounded-xl h-12 bg-gray-50 border-none font-bold">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ativo">Ativo</SelectItem>
-                  <SelectItem value="pendente">Pendente</SelectItem>
-                  <SelectItem value="encerrado">Encerrado</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Dia de Vencimento</Label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400" />
+                <Input 
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={formData.due_day}
+                  onChange={e => setFormData(prev => ({...prev, due_day: e.target.value}))}
+                  className="rounded-xl h-12 bg-blue-50/50 border-none font-bold pl-10 text-blue-900"
+                  required
+                />
+              </div>
             </div>
           </div>
 

@@ -37,26 +37,31 @@ export const QuickPaymentModal = ({ isOpen, onClose, tenant, onSuccess }: QuickP
         year: b.year
       }));
 
-      // Verificar se o aluguel do mês atual precisa ser projetado
-      const hasRentBill = tenant.bills?.some((b: any) => 
-        b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear
-      );
+      // Verificar se o aluguel do mês atual precisa ser projetado para cada contrato ativo
+      const activeContracts = tenant.contracts?.filter((c: any) => c.status === 'ativo') || [];
+      
+      activeContracts.forEach((contract: any) => {
+        const hasRentBill = tenant.bills?.some((b: any) => 
+          b.type === 'aluguel' && 
+          b.month === currentMonth && 
+          b.year === currentYear && 
+          b.property_id === contract.property_id
+        );
 
-      if (!hasRentBill) {
-        const activeContract = tenant.contracts?.find((c: any) => c.status === 'ativo');
-        if (activeContract) {
+        if (!hasRentBill) {
+          // CORREÇÃO: ID único incluindo o property_id para evitar conflitos em múltiplos contratos
           formattedItems.unshift({
-            id: `projected-rent-${tenant.id}`,
-            label: `Aluguel (${currentMonth}/${currentYear})`,
-            value: Number(activeContract.rent_value),
+            id: `projected-rent-${tenant.id}-${contract.property_id}`,
+            label: `Aluguel (${currentMonth}/${currentYear}) - ${contract.properties?.name || 'Imóvel'}`,
+            value: Number(contract.rent_value),
             isExisting: false,
             type: 'aluguel',
             month: currentMonth,
             year: currentYear,
-            property_id: activeContract.property_id
+            property_id: contract.property_id
           });
         }
-      }
+      });
 
       setItems(formattedItems);
       setSelectedSelectedIds(formattedItems.map(i => i.id));
@@ -84,7 +89,7 @@ export const QuickPaymentModal = ({ isOpen, onClose, tenant, onSuccess }: QuickP
         if (error) throw error;
       }
 
-      // 2. Criar e pagar contas projetadas (que ainda não existiam no banco)
+      // 2. Criar e pagar contas projetadas
       const projectedItems = selectedItems.filter(i => !i.isExisting);
       if (projectedItems.length > 0) {
         const billsToInsert = projectedItems.map(i => ({
