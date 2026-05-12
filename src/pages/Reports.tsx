@@ -173,12 +173,10 @@ const Reports = () => {
       const doc = new jsPDF();
       const timestamp = format(new Date(), 'dd/MM/yyyy HH:mm');
       
-      // Configurações de Cores
-      const primaryColor = [37, 99, 255]; // #2563FF
-      const secondaryColor = [15, 23, 42]; // #0F172A
+      const primaryColor = [37, 99, 255]; 
+      const secondaryColor = [15, 23, 42]; 
       const lightGray = [248, 250, 252];
 
-      // Cabeçalho Premium
       doc.setFillColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
       doc.rect(0, 0, 210, 40, 'F');
       
@@ -192,13 +190,11 @@ const Reports = () => {
       doc.text('RELATÓRIO DE PERFORMANCE FINANCEIRA', 15, 28);
       doc.text(`Gerado em: ${timestamp}`, 150, 20);
 
-      // Seção de Métricas (Cards)
       doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.text('Resumo Executivo', 15, 55);
 
-      // Desenhar "Cards" de métricas
       const drawMetric = (label: string, value: string, x: number, y: number) => {
         doc.setFillColor(lightGray[0], lightGray[1], lightGray[2]);
         doc.roundedRect(x, y, 45, 25, 3, 3, 'F');
@@ -216,7 +212,6 @@ const Reports = () => {
       drawMetric('Lucro Líquido', `R$ ${stats.lucro.toLocaleString('pt-BR')}`, 115, 62);
       drawMetric('Taxa Ocupação', `${stats.ocupacao.toFixed(1)}%`, 165, 62);
 
-      // Tabela de Categorias
       doc.setFontSize(14);
       doc.text('Detalhamento por Categoria (12 meses)', 15, 105);
 
@@ -246,7 +241,6 @@ const Reports = () => {
         margin: { left: 15, right: 15 }
       });
 
-      // Rodapé
       const pageCount = (doc as any).internal.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
