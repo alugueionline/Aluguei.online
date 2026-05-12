@@ -6,24 +6,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   DollarSign, 
   Clock,
-  ChevronRight,
   AlertCircle,
   CheckCircle2,
   Loader2,
   Users,
   Home,
-  Wallet,
-  Plus,
   MessageSquare,
   TrendingUp,
   Check,
   PartyPopper,
   ArrowRight,
-  RotateCcw,
   AlertTriangle
 } from 'lucide-react';
 import { 
@@ -36,26 +32,16 @@ import {
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { toast } from "sonner";
 import { QuickPaymentModal } from '@/components/modals/QuickPaymentModal';
 import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedTenantForPayment, setSelectedTenantForPayment] = useState<any>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedTenantForCollection, setSelectedTenantForCollection] = useState<string | undefined>(undefined);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
-
-  const { data: user } = useQuery({
-    queryKey: ['user'],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      return user;
-    }
-  });
 
   const { data: tenants = [], isLoading: loadingTenants } = useQuery({
     queryKey: ['tenants-dashboard-active'],
@@ -104,23 +90,12 @@ const Dashboard = () => {
         return { ...t, totalDebt, hasOverdue, dashboardStatus: status };
       });
 
-      // Ordenação: Atrasados primeiro, depois Pendentes, depois Pagos
       return processed.sort((a, b) => {
         const order = { atrasado: 0, pendente: 1, pago: 2 };
         return order[a.dashboardStatus] - order[b.dashboardStatus];
       });
     }
   });
-
-  const handleOpenPayment = (tenant: any) => {
-    setSelectedTenantForPayment(tenant);
-    setIsPaymentModalOpen(true);
-  };
-
-  const handleOpenCollection = (tenantId: string) => {
-    setSelectedTenantForCollection(tenantId);
-    setIsCollectionModalOpen(true);
-  };
 
   const { data: financialData, isLoading: loadingBills } = useQuery({
     queryKey: ['dashboard-stats-v2'],
@@ -212,7 +187,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
         <KPIContainer 
           label="Total Previsto" 
           value={`R$ ${stats.totalExpected.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} 
@@ -244,111 +219,29 @@ const Dashboard = () => {
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        <div className="xl:col-span-8 space-y-8">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center px-2">
-              <h3 className="text-xl font-black text-slate-900 tracking-tight">Status de Pagamento</h3>
-              <Badge className="bg-slate-100 text-slate-500 border-none font-bold">{tenants.length} Inquilinos Ativos</Badge>
-            </div>
-            
-            <div className="grid grid-cols-1 gap-4">
-              {tenants.map((t) => (
-                <Card 
-                  key={t.id} 
-                  className={cn(
-                    "premium-card rounded-[2rem] p-6 group transition-all border-none",
-                    t.dashboardStatus === 'atrasado' ? "bg-rose-50/50 ring-1 ring-rose-100" : 
-                    t.dashboardStatus === 'pago' ? "bg-white opacity-80" : "bg-white"
-                  )}
-                >
-                  <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                    <div 
-                      className="flex items-center gap-4 cursor-pointer group/tenant w-full md:w-auto"
-                      onClick={() => navigate(`/tenants/${t.id}`)}
-                    >
-                      <div className="relative">
-                        <Avatar className="w-14 h-14 rounded-2xl border-2 border-white shadow-sm group-hover/tenant:border-blue-200 transition-all">
-                          <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${t.name}`} />
-                          <AvatarFallback className="bg-blue-50 text-blue-600 font-black">
-                            {t.name.substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        {t.dashboardStatus === 'pago' && (
-                          <div className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border-2 border-white">
-                            <Check className="w-3 h-3" />
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <h4 className="font-black text-slate-900 tracking-tight group-hover/tenant:text-blue-600 transition-colors">{t.name}</h4>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5">
-                          <Home className="w-3 h-3" /> {t.properties?.name || 'Sem imóvel'}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between md:justify-end gap-8 w-full md:w-auto">
-                      <div className="text-left md:text-right">
-                        <p className="text-[10px] text-slate-400 font-black uppercase">Dívida Atual</p>
-                        <p className={cn(
-                          "text-lg font-black",
-                          t.dashboardStatus === 'atrasado' ? "text-rose-600" : 
-                          t.dashboardStatus === 'pendente' ? "text-amber-600" : "text-emerald-600"
-                        )}>
-                          R$ {t.totalDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        {t.dashboardStatus !== 'pago' ? (
-                          <>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              className="h-11 px-4 rounded-xl border-blue-200 text-blue-600 font-bold gap-2 hover:bg-blue-50"
-                              onClick={() => handleOpenCollection(t.id)}
-                            >
-                              <MessageSquare className="w-4 h-4" /> Cobrar
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black px-5 h-11 gap-2 shadow-lg shadow-emerald-100"
-                              onClick={() => handleOpenPayment(t)}
-                            >
-                              <Check className="w-4 h-4" /> Baixar
-                            </Button>
-                          </>
-                        ) : (
-                          <Badge className="bg-emerald-50 text-emerald-600 border-none px-4 py-2 rounded-xl font-black text-[10px] uppercase">
-                            Tudo Pago
-                          </Badge>
-                        )}
-                        <Button variant="ghost" size="icon" className="rounded-xl text-slate-300 hover:text-blue-600" onClick={() => navigate(`/tenants/${t.id}`)}>
-                          <ArrowRight className="w-5 h-5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="xl:col-span-4 space-y-8">
-          <Card className="premium-card rounded-[2rem] overflow-hidden border-none">
-            <CardHeader className="p-8 border-b border-slate-50">
-              <CardTitle className="text-xl font-black tracking-tight">Resumo do Mês</CardTitle>
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 mb-12">
+        <div className="xl:col-span-7">
+          <Card className="premium-card rounded-[2.5rem] overflow-hidden border-none h-full">
+            <CardHeader className="p-8 border-b border-slate-50 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-xl font-black tracking-tight">Resumo de Recebimento</CardTitle>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Performance do mês atual</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black text-slate-400 uppercase">Taxa de Sucesso</p>
+                <p className="text-xl font-black text-emerald-600">
+                  {((stats.receitas / (stats.totalExpected || 1)) * 100).toFixed(0)}%
+                </p>
+              </div>
             </CardHeader>
-            <CardContent className="p-8">
-              <div className="h-[220px] relative mb-8">
+            <CardContent className="p-8 flex flex-col md:flex-row items-center gap-12">
+              <div className="h-[220px] w-[220px] relative shrink-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={collectionData}
-                      innerRadius={60}
-                      outerRadius={80}
+                      innerRadius={65}
+                      outerRadius={85}
                       paddingAngle={8}
                       dataKey="value"
                     >
@@ -363,21 +256,19 @@ const Dashboard = () => {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <p className="text-[10px] font-black text-slate-400 uppercase">Recebido</p>
-                  <p className="text-xl font-black text-emerald-600">
-                    {((stats.receitas / (stats.totalExpected || 1)) * 100).toFixed(0)}%
-                  </p>
+                  <DollarSign className="w-6 h-6 text-slate-200 mb-1" />
+                  <p className="text-[10px] font-black text-slate-400 uppercase">Total</p>
                 </div>
               </div>
               
-              <div className="space-y-4">
+              <div className="flex-1 space-y-4 w-full">
                 {collectionData.map((item) => (
-                  <div key={item.name} className="flex justify-between items-center p-3 rounded-2xl bg-slate-50/50">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                      <span className="text-xs font-bold text-slate-600">{item.name}</span>
+                  <div key={item.name} className="flex justify-between items-center p-4 rounded-2xl bg-slate-50/50 border border-slate-100/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-sm font-bold text-slate-600">{item.name}</span>
                     </div>
-                    <span className="text-xs font-black text-slate-900">
+                    <span className="text-sm font-black text-slate-900">
                       R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -385,54 +276,161 @@ const Dashboard = () => {
               </div>
             </CardContent>
           </Card>
+        </div>
 
+        <div className="xl:col-span-5">
           <Card className={cn(
-            "premium-card rounded-[2rem] p-8 border-none relative overflow-hidden transition-all duration-500",
+            "premium-card rounded-[2.5rem] p-8 border-none relative overflow-hidden h-full transition-all duration-500",
             isAllPaid ? "bg-emerald-600 text-white" : "bg-slate-900 text-white"
           )}>
-            <div className="relative z-10">
+            <div className="relative z-10 flex flex-col h-full">
               <div className="flex items-center gap-3 mb-8">
                 <div className={cn(
-                  "p-2.5 rounded-xl shadow-lg",
+                  "p-3 rounded-2xl shadow-lg",
                   isAllPaid ? "bg-white text-emerald-600" : "bg-blue-600 text-white"
                 )}>
-                  {isAllPaid ? <PartyPopper className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                  {isAllPaid ? <PartyPopper className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
                 </div>
-                <h3 className="text-lg font-black tracking-tight">
-                  {isAllPaid ? "Tudo em Dia!" : "Ações Urgentes"}
-                </h3>
+                <div>
+                  <h3 className="text-xl font-black tracking-tight">
+                    {isAllPaid ? "Tudo em Dia!" : "Ações Urgentes"}
+                  </h3>
+                  <p className={cn("text-xs font-bold uppercase tracking-widest mt-1", isAllPaid ? "text-emerald-100" : "text-slate-400")}>
+                    {isAllPaid ? "Parabéns pela gestão" : "Atenção aos recebimentos"}
+                  </p>
+                </div>
               </div>
               
-              <div className="space-y-4">
+              <div className="space-y-4 flex-1">
                 <div className={cn(
-                  "p-5 rounded-2xl border transition-colors",
+                  "p-6 rounded-3xl border transition-colors",
                   isAllPaid ? "bg-white/10 border-white/20" : "bg-white/5 border-white/10"
                 )}>
                   {isAllPaid ? (
-                    <p className="text-sm font-medium text-emerald-50">
-                      Parabéns! Todos os aluguéis deste mês foram recebidos com sucesso.
+                    <p className="text-sm font-medium text-emerald-50 leading-relaxed">
+                      Todos os aluguéis e contas deste mês foram recebidos. Seu fluxo de caixa está saudável!
                     </p>
                   ) : (
                     <>
-                      <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Inadimplência</p>
-                      <p className="text-sm font-medium text-slate-300">
-                        Existem R$ {stats.atrasado.toLocaleString('pt-BR')} em atraso real.
+                      <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Inadimplência Real</p>
+                      <p className="text-2xl font-black text-white">
+                        R$ {stats.atrasado.toLocaleString('pt-BR')}
+                      </p>
+                      <p className="text-xs font-medium text-slate-400 mt-2">
+                        Valor total acumulado em faturas que já venceram.
                       </p>
                     </>
                   )}
                 </div>
-                
-                {!isAllPaid && (
-                  <Button 
-                    className="w-full bg-white text-slate-900 hover:bg-blue-50 rounded-xl font-black text-xs h-12 shadow-xl"
-                    onClick={() => navigate('/financial')}
-                  >
-                    Abrir Central de Cobrança
-                  </Button>
-                )}
               </div>
+              
+              {!isAllPaid && (
+                <Button 
+                  className="w-full bg-white text-slate-900 hover:bg-blue-50 rounded-2xl font-black text-sm h-14 shadow-xl mt-6"
+                  onClick={() => navigate('/financial')}
+                >
+                  Abrir Central de Cobrança <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              )}
             </div>
           </Card>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <div className="flex justify-between items-center px-2">
+          <h3 className="text-2xl font-black text-slate-900 tracking-tight">Status de Pagamento por Inquilino</h3>
+          <Badge className="bg-slate-100 text-slate-500 border-none font-bold px-4 py-1.5 rounded-full">
+            {tenants.length} Inquilinos Ativos
+          </Badge>
+        </div>
+        
+        <div className="grid grid-cols-1 gap-4">
+          {tenants.map((t) => (
+            <Card 
+              key={t.id} 
+              className={cn(
+                "premium-card rounded-[2rem] p-6 group transition-all border-none",
+                t.dashboardStatus === 'atrasado' ? "bg-rose-50/50 ring-1 ring-rose-100" : 
+                t.dashboardStatus === 'pago' ? "bg-white opacity-80" : "bg-white"
+              )}
+            >
+              <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                <div 
+                  className="flex items-center gap-4 cursor-pointer group/tenant w-full md:w-auto"
+                  onClick={() => navigate(`/tenants/${t.id}`)}
+                >
+                  <div className="relative">
+                    <Avatar className="w-14 h-14 rounded-2xl border-2 border-white shadow-sm group-hover/tenant:border-blue-200 transition-all">
+                      <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${t.name}`} />
+                      <AvatarFallback className="bg-blue-50 text-blue-600 font-black">
+                        {t.name.substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    {t.dashboardStatus === 'pago' && (
+                      <div className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border-2 border-white">
+                        <Check className="w-3 h-3" />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <h4 className="font-black text-slate-900 tracking-tight group-hover/tenant:text-blue-600 transition-colors">{t.name}</h4>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5">
+                      <Home className="w-3 h-3" /> {t.properties?.name || 'Sem imóvel'}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between md:justify-end gap-8 w-full md:w-auto">
+                  <div className="text-left md:text-right">
+                    <p className="text-[10px] text-slate-400 font-black uppercase">Dívida Atual</p>
+                    <p className={cn(
+                      "text-lg font-black",
+                      t.dashboardStatus === 'atrasado' ? "text-rose-600" : 
+                      t.dashboardStatus === 'pendente' ? "text-amber-600" : "text-emerald-600"
+                    )}>
+                      R$ {t.totalDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    {t.dashboardStatus !== 'pago' ? (
+                      <>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="h-11 px-4 rounded-xl border-blue-200 text-blue-600 font-bold gap-2 hover:bg-blue-50"
+                          onClick={() => {
+                            setSelectedTenantForCollection(t.id);
+                            setIsCollectionModalOpen(true);
+                          }}
+                        >
+                          <MessageSquare className="w-4 h-4" /> Cobrar
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black px-5 h-11 gap-2 shadow-lg shadow-emerald-100"
+                          onClick={() => {
+                            setSelectedTenantForPayment(t);
+                            setIsPaymentModalOpen(true);
+                          }}
+                        >
+                          <Check className="w-4 h-4" /> Baixar
+                        </Button>
+                      </>
+                    ) : (
+                      <Badge className="bg-emerald-50 text-emerald-600 border-none px-4 py-2 rounded-xl font-black text-[10px] uppercase">
+                        Tudo Pago
+                      </Badge>
+                    )}
+                    <Button variant="ghost" size="icon" className="rounded-xl text-slate-300 hover:text-blue-600" onClick={() => navigate(`/tenants/${t.id}`)}>
+                      <ArrowRight className="w-5 h-5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ))}
         </div>
       </div>
 

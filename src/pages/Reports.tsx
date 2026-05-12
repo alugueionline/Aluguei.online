@@ -20,7 +20,8 @@ import {
   Droplets,
   Globe,
   ShieldCheck,
-  Wallet
+  Wallet,
+  Home
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -86,7 +87,7 @@ const Reports = () => {
 
         const formattedCategories = Object.entries(categories).map(([name, value]) => ({
           name: name.charAt(0).toUpperCase() + name.slice(1),
-          value: Math.round((value / totalRec) * 100),
+          value: Math.round((value / (totalRec || 1)) * 100),
           amount: value
         })).sort((a, b) => b.amount - a.amount);
 
@@ -99,7 +100,6 @@ const Reports = () => {
         setStats(prev => ({ ...prev, ocupacao: rate }));
       }
 
-      // Dados para o gráfico de área (Mockados para visualização premium)
       setRevenueHistory([
         { month: 'Jan', value: 4200 },
         { month: 'Fev', value: 5800 },
