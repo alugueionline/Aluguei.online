@@ -10,19 +10,6 @@ import {
   FileDown,
   Calendar,
   CheckCircle2,
-<dyad-write path="src/pages/Reports.tsx" description="Implementando a funcionalidade de exportação de relatório para CSV.">
-"use client";
-
-import React, { useState, useEffect } from 'react';
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { 
-  TrendingUp, 
-  FileDown,
-  Calendar,
-  CheckCircle2,
   ArrowUpRight,
   ArrowDownRight,
   DollarSign,
@@ -234,6 +221,17 @@ const Reports = () => {
   };
 
   const getCategoryColor = (index: number) => COLORS[index % COLORS.length];
+
+  if (loading) {
+    return (
+      <DashboardLayout title="Análise de Performance">
+        <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
+          <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+          <p className="text-slate-400 font-medium">Gerando inteligência financeira...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="Análise de Performance">
