@@ -21,6 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { cn } from '@/lib/utils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getTenantAvatar } from '@/utils/avatar';
 
 const Tenants = () => {
   const navigate = useNavigate();
@@ -98,11 +99,8 @@ const Tenants = () => {
                 </TableHeader>
                 <TableBody>
                   {tenants.map((tenant) => {
-                    // Pegamos os contratos ativos para mostrar o imóvel correto
                     const activeContracts = tenant.contracts?.filter((c: any) => c.status === 'ativo') || [];
                     const contractCount = activeContracts.length;
-                    
-                    // Priorizamos o nome do imóvel vindo do contrato ativo
                     const propertyName = contractCount > 0 
                       ? activeContracts[0].properties?.name 
                       : tenant.properties?.name;
@@ -115,7 +113,7 @@ const Tenants = () => {
                             onClick={() => navigate(`/tenants/${tenant.id}`)}
                           >
                             <Avatar className="w-10 h-10 rounded-xl border-2 border-white shadow-sm group-hover:border-blue-200 transition-all">
-                              <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${tenant.name}`} />
+                              <AvatarImage src={getTenantAvatar(tenant.name)} />
                               <AvatarFallback>{tenant.name.substring(0, 2)}</AvatarFallback>
                             </Avatar>
                             <div>

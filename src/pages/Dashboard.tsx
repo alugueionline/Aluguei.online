@@ -34,6 +34,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { QuickPaymentModal } from '@/components/modals/QuickPaymentModal';
 import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
+import { getTenantAvatar } from '@/utils/avatar';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -362,7 +363,7 @@ const Dashboard = () => {
                 >
                   <div className="relative">
                     <Avatar className="w-14 h-14 rounded-2xl border-2 border-white shadow-sm group-hover/tenant:border-blue-200 transition-all">
-                      <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${t.name}`} />
+                      <AvatarImage src={getTenantAvatar(t.name)} />
                       <AvatarFallback className="bg-blue-50 text-blue-600 font-black">
                         {t.name.substring(0, 2).toUpperCase()}
                       </AvatarFallback>

@@ -13,6 +13,7 @@ import { BillingSummaryModal } from './BillingSummaryModal';
 import { QuickPaymentModal } from '@/components/modals/QuickPaymentModal';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { getTenantAvatar } from '@/utils/avatar';
 
 export const TenantCollectionList = () => {
   const navigate = useNavigate();
@@ -28,7 +29,6 @@ export const TenantCollectionList = () => {
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
-      // Buscamos inquilinos e seus contratos
       const { data: tenants } = await supabase
         .from('tenants')
         .select(`
@@ -40,26 +40,21 @@ export const TenantCollectionList = () => {
         `)
         .eq('status', 'ativo');
 
-      // Buscamos TODAS as faturas do mês atual e faturas pendentes de meses anteriores
       const { data: bills } = await supabase
         .from('bills')
         .select('*');
 
       return (tenants || []).map(t => {
         const activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
-        
-        // 1. Faturas que já existem no banco e não estão pagas
         const pendingBills = (bills || []).filter(b => b.tenant_id === t.id && b.status !== 'pago');
         const existingBillsTotal = pendingBills.reduce((acc, b) => 
           acc + Number(b.calculated_value || b.total_value || 0), 0
         );
 
-        // 2. Projeções (Aluguel e Condomínio que ainda não foram faturados este mês)
         let projectedTotal = 0;
         let projectedItems: any[] = [];
 
         activeContracts.forEach((contract: any) => {
-          // IMPORTANTE: Verifica se existe QUALQUER fatura de aluguel (paga ou não) para este mês
           const hasAnyRentBill = (bills || []).some(b => 
             b.tenant_id === t.id && 
             b.property_id === contract.property_id &&
@@ -139,7 +134,7 @@ export const TenantCollectionList = () => {
             <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-4 w-full md:w-auto">
                 <Avatar className="w-14 h-14 rounded-2xl border-2 border-white shadow-sm group-hover:border-blue-200 transition-all">
-                  <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${tenant.name}`} />
+                  <AvatarImage src={getTenantAvatar(tenant.name)} />
                   <AvatarFallback className="bg-blue-50 text-blue-600 font-black">
                     {tenant.name.substring(0, 2).toUpperCase()}
                   </AvatarFallback>
