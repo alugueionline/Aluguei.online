@@ -286,14 +286,14 @@ const Financial = () => {
         <StatCard label="A Receber Total" value={`R$ ${stats.pending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Clock className="text-amber-500" />} color="amber" />
       </div>
 
-      <Tabs defaultValue="transactions" className="space-y-8">
+      <Tabs defaultValue="collections" className="space-y-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <TabsList className="bg-white p-1 shadow-sm border-none h-14 rounded-[1.5rem]">
-            <TabsTrigger value="transactions" className="gap-2 px-8 rounded-2xl h-12 data-[state=active]:bg-blue-600 data-[state=active]:text-white font-bold">
-              <History className="w-4 h-4" /> Transações
-            </TabsTrigger>
             <TabsTrigger value="collections" className="gap-2 px-8 rounded-2xl h-12 data-[state=active]:bg-blue-600 data-[state=active]:text-white font-bold">
               <Users className="w-4 h-4" /> Cobranças por Inquilino
+            </TabsTrigger>
+            <TabsTrigger value="transactions" className="gap-2 px-8 rounded-2xl h-12 data-[state=active]:bg-blue-600 data-[state=active]:text-white font-bold">
+              <History className="w-4 h-4" /> Transações
             </TabsTrigger>
           </TabsList>
 
@@ -309,6 +309,10 @@ const Financial = () => {
             </Button>
           </div>
         </div>
+
+        <TabsContent value="collections">
+          <TenantCollectionList />
+        </TabsContent>
 
         <TabsContent value="transactions" className="space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -487,10 +491,6 @@ const Financial = () => {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="collections">
-          <TenantCollectionList />
         </TabsContent>
       </Tabs>
 
