@@ -29,7 +29,7 @@ const Contracts = () => {
   const [selectedContract, setSelectedContract] = useState<any>(null);
   const queryClient = useQueryClient();
 
-  // Busca Contratos
+  // Busca Contratos - Agora incluindo due_day na relação com tenants
   const { data: contracts = [], isLoading: loadingContracts } = useQuery({
     queryKey: ['contracts'],
     queryFn: async () => {
@@ -37,7 +37,7 @@ const Contracts = () => {
       if (!user) return [];
       const { data, error } = await supabase
         .from('contracts')
-        .select('*, properties(id, name), tenants(id, name)')
+        .select('*, properties(id, name), tenants(id, name, due_day)')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -58,7 +58,6 @@ const Contracts = () => {
   const activeCount = contracts.filter(c => c.status === 'ativo').length;
   const pendingCount = contracts.filter(c => c.status === 'pendente').length;
   
-  // Inquilinos que não possuem NENHUM contrato registrado
   const tenantsWithoutContract = tenants.filter(t => 
     !contracts.some(c => c.tenant_id === t.id)
   );
@@ -87,7 +86,6 @@ const Contracts = () => {
 
   return (
     <DashboardLayout title="Gestão de Contratos">
-      {/* Header com Estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         <StatCard 
           label="Contratos Ativos" 
@@ -120,7 +118,6 @@ const Contracts = () => {
         </Button>
       </div>
 
-      {/* Alerta Crítico de Inquilinos sem Contrato */}
       {tenantsWithoutContract.length > 0 && (
         <div className="mb-10 p-6 bg-rose-50 border border-rose-100 rounded-[2rem] flex flex-col md:flex-row items-center gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
           <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-rose-500 shadow-sm shrink-0">
@@ -181,6 +178,10 @@ const Contracts = () => {
                 <div className="flex justify-between text-xs font-bold">
                   <span className="text-slate-400 uppercase tracking-widest">Aluguel</span>
                   <span className="text-blue-600 font-black">R$ {Number(c.rent_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between text-xs font-bold">
+                  <span className="text-slate-400 uppercase tracking-widest">Vencimento</span>
+                  <span className="text-slate-900">Dia {c.tenants?.due_day || '5'}</span>
                 </div>
               </div>
 
