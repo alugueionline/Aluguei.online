@@ -238,8 +238,11 @@ const Financial = () => {
 
     try {
       setLoading(true);
-      // Extraímos os IDs reais (removendo sufixos de multa/juros se houver)
-      const realIds = Array.from(new Set(selectedIds.map(id => id.split('-')[0])));
+      // Extraímos os IDs reais removendo apenas os sufixos de multa/juros
+      // Não usamos split('-') pois o UUID contém hífens
+      const realIds = Array.from(new Set(selectedIds.map(id => 
+        id.replace('-fine', '').replace('-interest', '')
+      )));
       
       const { error } = await supabase
         .from('bills')
