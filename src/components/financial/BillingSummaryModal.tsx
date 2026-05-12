@@ -6,9 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Copy, Send, Calculator, Landmark, Trash2, Plus, Search, Loader2, AlertCircle, Save, X } from 'lucide-react';
+import { MessageSquare, Copy, Send, Calculator, Landmark, Trash2, Plus, Search, Loader2, X, Zap } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
+
+interface ExtraValue {
+  label: string;
+  value: string;
+  quantity?: string;
+  unitPrice?: string;
+}
 
 interface BillingSummaryModalProps {
   isOpen: boolean;
@@ -18,78 +25,47 @@ interface BillingSummaryModalProps {
 
 export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummaryModalProps) => {
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [tenants, setTenants] = useState<any[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [pixKey, setPixKey] = useState('seu-pix@email.com');
   const [rentValue, setRentValue] = useState('0');
   const [fineValue, setFineValue] = useState('0');
   const [interestValue, setInterestValue] = useState('0');
-  const [extraValues, setExtraValues] = useState<any[]>([]);
-  const [currentRentBillId, setCurrentRentBillId] = useState<string | null>(null);
+  const [extraValues, setExtraValues] = useState<ExtraValue[]>([]);
 
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true);
-      
       const [tenantsRes, userRes] = await Promise.all([
-        supabase.from('tenants').select('id, name, phone, property_id, properties(name, condo_fee)').eq('status', 'ativo'),
+        supabase.from('tenants').select('id, name, phone').eq('status', 'ativo'),
         supabase.auth.getUser()
       ]);
-
       setTenants(tenantsRes.data || []);
-      
-      if (userRes.data.user?.user_metadata?.pix_key) {
-        setPixKey(userRes.data.user.user_metadata.pix_key);
-      }
-
+      if (userRes.data.user?.user_metadata?.pix_key) setPixKey(userRes.data.user.user_metadata.pix_key);
       setLoading(false);
-      
-      if (tenantId) {
-        handleSelectTenant(tenantId, tenantsRes.data || []);
-      }
+      if (tenantId) handleSelectTenant(tenantId, tenantsRes.data || []);
     };
     if (isOpen) fetchInitialData();
   }, [isOpen, tenantId]);
 
   const handleSelectTenant = async (id: string, currentTenants?: any[]) => {
     setSelectedTenantId(id);
-    const list = currentTenants || tenants;
-    const tenant = list.find(t => t.id === id);
-    if (!tenant) return;
-
     try {
       setLoading(true);
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
-      // Buscamos TODAS as faturas do inquilino para verificar se o aluguel do mês já foi pago
-      const { data: bills } = await supabase
-        .from('bills')
-        .select('*')
-        .eq('tenant_id', id);
-
-      const { data: contracts } = await supabase
-        .from('contracts')
-        .select('rent_value, property_id, properties(condo_fee)')
-        .eq('tenant_id', id)
-        .eq('status', 'ativo');
+      const { data: bills } = await supabase.from('bills').select('*').eq('tenant_id', id);
+      const { data: contracts } = await supabase.from('contracts').select('rent_value').eq('tenant_id', id).eq('status', 'ativo');
 
       let totalRent = 0;
-      const extras: any[] = [];
-      let rentBillId = null;
+      const extras: ExtraValue[] = [];
+      const hasRentBillThisMonth = bills?.some(b => b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear);
 
-      // 1. Verificar se já existe uma fatura de aluguel para este mês (paga ou não)
-      const hasRentBillThisMonth = bills?.some(b => 
-        b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear
-      );
-
-      // 2. Processar faturas existentes que NÃO estão pagas
       bills?.filter(b => b.status !== 'pago').forEach(b => {
         const val = Number(b.calculated_value || b.total_value || 0);
         if (b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear) {
           totalRent += val;
-          rentBillId = b.id;
           setFineValue((b.fine_value || 0).toString());
           setInterestValue((b.interest_value || 0).toString());
         } else {
@@ -100,24 +76,34 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         }
       });
 
-      // 3. Se NÃO existe fatura de aluguel (nem paga nem pendente), projetamos do contrato
       if (!hasRentBillThisMonth) {
-        contracts?.forEach(c => {
-          totalRent += Number(c.rent_value || 0);
-        });
+        contracts?.forEach(c => totalRent += Number(c.rent_value || 0));
         setFineValue('0');
         setInterestValue('0');
       }
 
-      setCurrentRentBillId(rentBillId);
       setRentValue(totalRent.toString());
       setExtraValues(extras);
     } catch (err) {
-      console.error('Erro ao carregar dados financeiros:', err);
-      showError('Erro ao carregar débitos do inquilino.');
+      showError('Erro ao carregar débitos.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const updateExtra = (index: number, field: keyof ExtraValue, val: string) => {
+    const newExtras = [...extraValues];
+    newExtras[index] = { ...newExtras[index], [field]: val };
+    
+    // Se preencher quantidade e preço unitário, calcula o total automaticamente
+    if (field === 'quantity' || field === 'unitPrice') {
+      const q = parseFloat(newExtras[index].quantity || '0');
+      const p = parseFloat(newExtras[index].unitPrice || '0');
+      if (q > 0 && p > 0) {
+        newExtras[index].value = (q * p).toFixed(2);
+      }
+    }
+    setExtraValues(newExtras);
   };
 
   const total = useMemo(() => {
@@ -130,7 +116,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
   const generatedMessage = useMemo(() => {
     const tenantObj = tenants.find(t => t.id === selectedTenantId);
-    const tenantName = tenantObj?.name || 'Inquilino';
     const rent = parseFloat(rentValue) || 0;
     const fine = parseFloat(fineValue) || 0;
     const interest = parseFloat(interestValue) || 0;
@@ -142,38 +127,21 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
     extraValues.forEach(e => {
       const val = parseFloat(e.value) || 0;
-      if (val > 0 && e.label) {
-        details += `• *${e.label}:* R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+      if (val > 0) {
+        const consumptionInfo = (e.quantity && e.unitPrice) ? ` (${e.quantity} kWh x R$ ${e.unitPrice})` : '';
+        details += `• *${e.label}:* R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}${consumptionInfo}\n`;
       }
     });
 
-    return `Olá ${tenantName}! 👋\n\nEstou enviando o resumo do aluguel e demais valores pendentes:\n\n${details}\n💰 *Total a pagar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n\n🔑 *Chave PIX:* ${pixKey}\n\nQualquer dúvida, estou à disposição!`;
+    return `Olá ${tenantObj?.name || 'Inquilino'}! 👋\n\nEstou enviando o resumo do aluguel e demais valores pendentes:\n\n${details}\n💰 *Total a pagar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*\n\n🔑 *Chave PIX:* ${pixKey}\n\nQualquer dúvida, estou à disposição!`;
   }, [selectedTenantId, rentValue, fineValue, interestValue, extraValues, pixKey, total, tenants]);
-
-  const handleSendWhatsApp = () => {
-    const tenantObj = tenants.find(t => t.id === selectedTenantId);
-    const phone = tenantObj?.phone?.replace(/\D/g, '');
-    const encodedMessage = encodeURIComponent(generatedMessage);
-    window.open(`https://wa.me/${phone ? phone : ''}?text=${encodedMessage}`, '_blank');
-    showSuccess('Redirecionando para o WhatsApp...');
-  };
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(generatedMessage);
-    showSuccess('Mensagem copiada!');
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95vw] md:max-w-[850px] rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl">
-        <div className="flex flex-col md:grid md:grid-cols-2 h-[90vh] md:h-[700px]">
+      <DialogContent className="max-w-[95vw] md:max-w-[900px] rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl">
+        <div className="flex flex-col md:grid md:grid-cols-2 h-[90vh] md:h-[750px]">
           <div className="p-6 md:p-8 space-y-6 bg-white overflow-y-auto">
-            <div className="flex justify-between items-center">
-              <DialogTitle className="text-xl md:text-2xl font-black tracking-tight text-slate-900">Cobrança</DialogTitle>
-              <Button variant="ghost" size="icon" onClick={onClose} className="md:hidden">
-                <X className="w-5 h-5" />
-              </Button>
-            </div>
+            <DialogTitle className="text-xl md:text-2xl font-black tracking-tight text-slate-900">Cobrança Detalhada</DialogTitle>
             
             <div className="space-y-5">
               <div className="space-y-2">
@@ -185,111 +153,66 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
                       <SelectValue placeholder="Escolha um inquilino..." />
                     </div>
                   </SelectTrigger>
-                  <SelectContent>
-                    {tenants.map(t => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                  <SelectContent>{tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluguel (R$)</Label>
-                  <Input 
-                    type="number" 
-                    className="h-11 rounded-xl bg-slate-50 border-none font-bold"
-                    value={rentValue}
-                    onChange={(e) => setRentValue(e.target.value)}
-                  />
+                  <Input type="number" className="h-11 rounded-xl bg-slate-50 border-none font-bold" value={rentValue} onChange={(e) => setRentValue(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Multa/Juros (R$)</Label>
                   <div className="flex gap-2">
-                    <Input 
-                      type="number" 
-                      className="h-11 rounded-xl bg-rose-50/50 border-none font-bold text-rose-700"
-                      value={fineValue}
-                      onChange={(e) => setFineValue(e.target.value)}
-                      placeholder="Multa"
-                    />
-                    <Input 
-                      type="number" 
-                      className="h-11 rounded-xl bg-rose-50/50 border-none font-bold text-rose-700"
-                      value={interestValue}
-                      onChange={(e) => setInterestValue(e.target.value)}
-                      placeholder="Juros"
-                    />
+                    <Input type="number" className="h-11 rounded-xl bg-rose-50/50 border-none font-bold text-rose-700" value={fineValue} onChange={(e) => setFineValue(e.target.value)} placeholder="Multa" />
+                    <Input type="number" className="h-11 rounded-xl bg-rose-50/50 border-none font-bold text-rose-700" value={interestValue} onChange={(e) => setInterestValue(e.target.value)} placeholder="Juros" />
                   </div>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Outros Débitos</Label>
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Outros Débitos / Energia</Label>
                   <Button variant="ghost" size="sm" onClick={() => setExtraValues([...extraValues, { label: '', value: '0' }])} className="h-6 px-2 text-blue-600 font-bold text-[10px]">
                     <Plus className="w-3 h-3 mr-1" /> ADICIONAR
                   </Button>
                 </div>
                 
-                <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1">
+                <div className="space-y-4 max-h-[250px] overflow-y-auto pr-1">
                   {extraValues.map((extra, index) => (
-                    <div key={index} className="flex gap-2">
-                      <Input 
-                        placeholder="Ex: Água" 
-                        className="h-10 rounded-xl bg-slate-50 border-none text-xs font-bold flex-1"
-                        value={extra.label}
-                        onChange={(e) => {
-                          const newExtras = [...extraValues];
-                          newExtras[index].label = e.target.value;
-                          setExtraValues(newExtras);
-                        }}
-                      />
-                      <Input 
-                        type="number" 
-                        className="h-10 rounded-xl bg-slate-50 border-none text-xs font-bold w-20"
-                        value={extra.value}
-                        onChange={(e) => {
-                          const newExtras = [...extraValues];
-                          newExtras[index].value = e.target.value;
-                          setExtraValues(newExtras);
-                        }}
-                      />
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => setExtraValues(extraValues.filter((_, i) => i !== index))}
-                        className="h-10 w-10 rounded-xl text-slate-300 hover:text-rose-500"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                    <div key={index} className="p-3 rounded-2xl bg-slate-50 space-y-3 border border-slate-100">
+                      <div className="flex gap-2">
+                        <Input placeholder="Ex: Energia" className="h-9 rounded-lg bg-white border-slate-200 text-xs font-bold flex-1" value={extra.label} onChange={(e) => updateExtra(index, 'label', e.target.value)} />
+                        <Button variant="ghost" size="icon" onClick={() => setExtraValues(extraValues.filter((_, i) => i !== index))} className="h-9 w-9 text-slate-300 hover:text-rose-500"><Trash2 className="w-4 h-4" /></Button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-bold text-slate-400 uppercase">kWh</Label>
+                          <Input type="number" placeholder="Qtd" className="h-8 rounded-lg bg-white border-slate-200 text-xs" value={extra.quantity || ''} onChange={(e) => updateExtra(index, 'quantity', e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-bold text-slate-400 uppercase">Preço Unit.</Label>
+                          <Input type="number" placeholder="R$" className="h-8 rounded-lg bg-white border-slate-200 text-xs" value={extra.unitPrice || ''} onChange={(e) => updateExtra(index, 'unitPrice', e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-bold text-blue-600 uppercase">Total Item</Label>
+                          <Input type="number" className="h-8 rounded-lg bg-blue-50 border-none text-xs font-black text-blue-700" value={extra.value} onChange={(e) => updateExtra(index, 'value', e.target.value)} />
+                        </div>
+                      </div>
                     </div>
                   ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chave PIX</Label>
-                <div className="relative">
-                  < Landmark className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                  <Input 
-                    className="pl-10 h-11 rounded-xl bg-slate-50 border-none font-bold text-xs"
-                    value={pixKey}
-                    onChange={(e) => setPixKey(e.target.value)}
-                  />
                 </div>
               </div>
             </div>
 
             <div className="pt-4 border-t border-slate-50">
-              <div className="flex justify-between items-center p-4 bg-blue-50 rounded-2xl">
-                <div className="flex items-center gap-2 text-blue-600">
+              <div className="flex justify-between items-center p-4 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-100">
+                <div className="flex items-center gap-2">
                   <Calculator className="w-5 h-5" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Total</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">Total Geral</span>
                 </div>
-                <span className="text-xl font-black text-blue-900">R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span className="text-xl font-black">R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
@@ -299,23 +222,17 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
               <MessageSquare className="w-5 h-5" />
               <span className="text-[10px] font-black uppercase tracking-widest">Preview WhatsApp</span>
             </div>
-            
             <div className="flex-1 bg-slate-800/50 rounded-3xl p-5 text-slate-300 text-sm font-medium whitespace-pre-wrap leading-relaxed border border-slate-700/50 overflow-y-auto mb-6">
               {generatedMessage}
             </div>
-
             <div className="grid grid-cols-2 gap-3 mt-auto">
-              <Button 
-                variant="ghost" 
-                className="rounded-xl h-12 font-bold text-slate-400 hover:bg-slate-800 hover:text-white gap-2"
-                onClick={handleCopy}
-              >
+              <Button variant="ghost" className="rounded-xl h-12 font-bold text-slate-400 hover:bg-slate-800 hover:text-white gap-2" onClick={() => { navigator.clipboard.writeText(generatedMessage); showSuccess('Copiado!'); }}>
                 <Copy className="w-4 h-4" /> Copiar
               </Button>
-              <Button 
-                className="rounded-xl h-12 bg-emerald-500 hover:bg-emerald-600 text-white font-bold gap-2 shadow-lg"
-                onClick={handleSendWhatsApp}
-              >
+              <Button className="rounded-xl h-12 bg-emerald-500 hover:bg-emerald-600 text-white font-bold gap-2 shadow-lg" onClick={() => {
+                const phone = tenants.find(t => t.id === selectedTenantId)?.phone?.replace(/\D/g, '');
+                window.open(`https://wa.me/${phone || ''}?text=${encodeURIComponent(generatedMessage)}`, '_blank');
+              }}>
                 <Send className="w-4 h-4" /> Enviar
               </Button>
             </div>
