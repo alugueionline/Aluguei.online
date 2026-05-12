@@ -55,7 +55,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
-      // Buscamos as contas incluindo campos de consumo que podem ter sido preenchidos no "Dividir Conta"
       const { data: bills } = await supabase
         .from('bills')
         .select('*')
@@ -78,12 +77,19 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
           setFineValue((b.fine_value || 0).toString());
           setInterestValue((b.interest_value || 0).toString());
         } else {
-          // Aqui puxamos os valores de consumo (kWh) e preço unitário se existirem no banco
+          // Calculamos o consumo baseado nas leituras se existirem
+          let consumption = '';
+          if (b.current_reading !== null && b.previous_reading !== null) {
+            consumption = (Number(b.current_reading) - Number(b.previous_reading)).toString();
+          } else if (b.current_reading !== null) {
+            consumption = b.current_reading.toString();
+          }
+
           extras.push({
             label: `${b.type.charAt(0).toUpperCase() + b.type.slice(1)} (${b.month}/${b.year})`,
             value: val.toString(),
-            quantity: b.consumption?.toString() || '', // Puxa do banco
-            unitPrice: b.unit_price?.toString() || ''  // Puxa do banco
+            quantity: consumption,
+            unitPrice: b.kwh_price?.toString() || ''
           });
         }
       });
