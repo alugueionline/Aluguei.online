@@ -70,7 +70,7 @@ const Reports = () => {
         // 1. Processar Totais Gerais
         let totalRec = 0;
         let totalExp = 0;
-        const categories: Record<string, number> = {};
+        const categories: Record<string, { amount: number, count: number }> = {};
 
         bills.forEach(b => {
           const val = Number(b.total_value || b.calculated_value || 0);
@@ -78,7 +78,9 @@ const Reports = () => {
 
           if (incomeTypes.includes(type)) {
             totalRec += val;
-            categories[type] = (categories[type] || 0) + val;
+            if (!categories[type]) categories[type] = { amount: 0, count: 0 };
+            categories[type].amount += val;
+            categories[type].count += 1;
           } else {
             totalExp += val;
           }
@@ -92,22 +94,22 @@ const Reports = () => {
         }));
 
         // 2. Processar Mix de Receitas (Categorias)
-        const formattedCategories = Object.entries(categories).map(([name, value]) => ({
+        const formattedCategories = Object.entries(categories).map(([name, data]) => ({
           name: name.charAt(0).toUpperCase() + name.slice(1),
-          value: Math.round((value / (totalRec || 1)) * 100),
-          amount: value
+          value: Math.round((data.amount / (totalRec || 1)) * 100),
+          amount: data.amount,
+          count: data.count
         })).sort((a, b) => b.amount - a.amount);
 
         setCategoryData(formattedCategories);
 
-        // 3. Processar Evolução de Receita (Últimos 6 meses)
+        // 3. Processar Evolução de Receita (Últimos 6 meses reais)
         const last6Months = Array.from({ length: 6 }).map((_, i) => {
           const date = subMonths(new Date(), i);
           return {
             monthName: format(date, 'MMM', { locale: ptBR }),
             monthNum: format(date, 'MM'),
             year: format(date, 'yyyy'),
-            fullDate: date,
             value: 0
           };
         }).reverse();
@@ -115,7 +117,7 @@ const Reports = () => {
         last6Months.forEach(monthData => {
           const monthBills = bills.filter(b => {
             const isIncome = incomeTypes.includes(b.type?.toLowerCase());
-            // Se tiver payment_date, usa ele, senão usa a referência de mês/ano da conta
+            // Prioriza a data de pagamento real se existir, senão usa a referência da conta
             if (b.payment_date) {
               const pDate = parseISO(b.payment_date);
               return isIncome && 
@@ -286,7 +288,7 @@ const Reports = () => {
                       </div>
                       <div>
                         <p className="text-xs font-black text-slate-900">{item.name}</p>
-                        <p className="text-[10px] font-bold text-slate-400">{item.value}% do total</p>
+                        <p className="text-[10px] font-bold text-slate-400">{item.count} recebimentos • {item.value}%</p>
                       </div>
                     </div>
                     <span className="text-xs font-black text-slate-900">R$ {item.amount.toLocaleString('pt-BR')}</span>
