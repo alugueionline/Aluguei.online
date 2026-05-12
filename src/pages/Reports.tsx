@@ -10,6 +10,19 @@ import {
   FileDown,
   Calendar,
   CheckCircle2,
+<dyad-write path="src/pages/Reports.tsx" description="Implementando a funcionalidade de exportação de relatório para CSV.">
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { 
+  TrendingUp, 
+  FileDown,
+  Calendar,
+  CheckCircle2,
   ArrowUpRight,
   ArrowDownRight,
   DollarSign,
@@ -32,14 +45,13 @@ import {
   Pie,
   Cell,
   AreaChart,
-  Area,
-  BarChart,
-  Bar
+  Area
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, parseISO, startOfYear } from 'date-fns';
+import { format, subMonths, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { showSuccess, showError } from '@/utils/toast';
 
 const COLORS = ['#2563FF', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#64748B'];
 
@@ -59,7 +71,6 @@ const Reports = () => {
     try {
       setLoading(true);
       
-      // Buscar todas as contas pagas
       const { data: bills, error } = await supabase
         .from('bills')
         .select('*')
@@ -84,7 +95,6 @@ const Reports = () => {
           const type = b.type?.toLowerCase() || 'outros';
           const isIncome = incomeTypes.includes(type);
           
-          // Data de referência para o cálculo anual
           const billDate = b.payment_date ? parseISO(b.payment_date) : new Date(Number(b.year), Number(b.month) - 1, 1);
           const isWithinLastYear = billDate >= oneYearAgo;
 
@@ -109,7 +119,6 @@ const Reports = () => {
           receitaAnual: annualRec
         }));
 
-        // Formatar categorias para o gráfico e lista
         const formattedCategories = Object.entries(categories).map(([name, data]) => ({
           name: name.charAt(0).toUpperCase() + name.slice(1),
           value: Math.round((data.amount / (totalRec || 1)) * 100),
@@ -120,7 +129,6 @@ const Reports = () => {
 
         setCategoryData(formattedCategories);
 
-        // Histórico dos últimos 6 meses
         const last6Months = Array.from({ length: 6 }).map((_, i) => {
           const date = subMonths(now, i);
           return {
@@ -166,6 +174,56 @@ const Reports = () => {
     fetchReportData();
   }, []);
 
+  const handleExportCSV = () => {
+    if (categoryData.length === 0) {
+      showError("Não há dados para exportar.");
+      return;
+    }
+
+    try {
+      const headers = ["Categoria", "Faturas", "Percentual (%)", "Valor Anual (R$)", "Valor Total (R$)"];
+      const rows = categoryData.map(cat => [
+        cat.name,
+        cat.count,
+        `${cat.value}%`,
+        cat.annualAmount.toFixed(2).replace('.', ','),
+        cat.amount.toFixed(2).replace('.', ',')
+      ]);
+
+      const summaryHeaders = ["", "", "", "", ""];
+      const summaryRows = [
+        ["RESUMO GERAL", "", "", "", ""],
+        ["Receita Total", "", "", "", stats.receita.toFixed(2).replace('.', ',')],
+        ["Despesas Totais", "", "", "", stats.despesas.toFixed(2).replace('.', ',')],
+        ["Lucro Líquido", "", "", "", stats.lucro.toFixed(2).replace('.', ',')],
+        ["Taxa de Ocupação", "", "", "", `${stats.ocupacao.toFixed(1)}%`]
+      ];
+
+      const csvContent = [
+        headers.join(";"),
+        ...rows.map(r => r.join(";")),
+        summaryHeaders.join(";"),
+        ...summaryRows.map(r => r.join(";"))
+      ].join("\n");
+
+      const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const timestamp = format(new Date(), 'dd-MM-yyyy');
+      
+      link.setAttribute("href", url);
+      link.setAttribute("download", `relatorio-financeiro-${timestamp}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showSuccess("Relatório exportado com sucesso!");
+    } catch (err) {
+      showError("Erro ao exportar relatório.");
+    }
+  };
+
   const getCategoryIcon = (name: string) => {
     const n = name.toLowerCase();
     if (n.includes('aluguel')) return <Home className="w-4 h-4" />;
@@ -189,13 +247,15 @@ const Reports = () => {
             <Button variant="outline" className="h-10 px-4 rounded-xl border-slate-200 bg-white font-semibold text-slate-600 shadow-sm gap-2">
               <Calendar className="w-4 h-4" /> Últimos 12 Meses
             </Button>
-            <Button className="h-10 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg gap-2">
+            <Button 
+              onClick={handleExportCSV}
+              className="h-10 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg gap-2"
+            >
               <FileDown className="w-4 h-4" /> Exportar Relatório
             </Button>
           </div>
         </div>
 
-        {/* Cards de Métricas Principais */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <MetricCard 
             label="Receita Anual (12m)" 
@@ -231,7 +291,6 @@ const Reports = () => {
           />
         </div>
 
-        {/* Seção de Detalhamento por Categoria (O que o usuário pediu) */}
         <div className="space-y-6">
           <div className="flex items-center gap-2 px-2">
             <PieChartIcon className="w-5 h-5 text-blue-600" />
@@ -268,7 +327,6 @@ const Reports = () => {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-          {/* Gráfico de Evolução */}
           <Card className="xl:col-span-8 border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
             <CardHeader className="p-8 pb-4">
               <CardTitle className="text-xl font-black text-slate-900 tracking-tight">Evolução Mensal</CardTitle>
@@ -298,7 +356,6 @@ const Reports = () => {
             </CardContent>
           </Card>
 
-          {/* Lista Completa de Categorias */}
           <Card className="xl:col-span-4 border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
             <CardHeader className="p-8 pb-4">
               <CardTitle className="text-xl font-black text-slate-900 tracking-tight">Mix de Receitas</CardTitle>
