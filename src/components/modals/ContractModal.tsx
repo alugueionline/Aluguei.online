@@ -67,7 +67,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
           duration_months: (contract.duration_months || 12).toString(),
           rent_value: (contract.rent_value || 0).toString(),
           status: contract.status || 'ativo',
-          due_day: (contract.due_day || 5).toString()
+          due_day: (contract.tenants?.due_day || 5).toString()
         });
       } else {
         setFormData({
@@ -109,30 +109,39 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
 
-      const payload = {
+      // Payload para a tabela de contratos (sem due_day)
+      const contractPayload = {
         user_id: user.id,
         tenant_id: formData.tenant_id,
         property_id: formData.property_id,
         start_date: formData.start_date,
         duration_months: parseInt(formData.duration_months),
         rent_value: parseFloat(formData.rent_value),
-        status: formData.status,
-        due_day: parseInt(formData.due_day)
+        status: formData.status
       };
 
       if (isEdit) {
-        const { error } = await supabase.from('contracts').update(payload).eq('id', contract.id);
+        const { error } = await supabase.from('contracts').update(contractPayload).eq('id', contract.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('contracts').insert([payload]);
+        const { error } = await supabase.from('contracts').insert([contractPayload]);
         if (error) throw error;
         
         await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
       }
 
+      // Atualiza o dia de vencimento na tabela de inquilinos (onde a coluna realmente existe)
+      if (formData.tenant_id) {
+        await supabase
+          .from('tenants')
+          .update({ due_day: parseInt(formData.due_day) })
+          .eq('id', formData.tenant_id);
+      }
+
       showSuccess(isEdit ? 'Contrato atualizado!' : 'Contrato criado com sucesso!');
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
       queryClient.invalidateQueries({ queryKey: ['properties'] });
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
       onClose();
     } catch (error: any) {
       showError('Erro ao salvar: ' + error.message);
