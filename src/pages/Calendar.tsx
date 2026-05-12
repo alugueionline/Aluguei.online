@@ -1,14 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Calendar as CalendarUI } from '@/components/ui/calendar';
 import { 
   Clock, 
   DollarSign, 
   Wrench, 
-  UserPlus, 
   ChevronLeft, 
   ChevronRight, 
   CalendarDays,
@@ -19,86 +18,84 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ptBR } from 'date-fns/locale';
-import { addMonths, subMonths, format, isSameDay } from 'date-fns';
+import { addMonths, subMonths, format, isSameDay, startOfMonth, endOfMonth, getDate } from 'date-fns';
 import { EventModal } from '@/components/modals/EventModal';
 import { supabase } from '@/integrations/supabase/client';
 
 const Calendar = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  // Normalizamos para o primeiro dia do mês para evitar bugs de navegação
+  const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       setLoading(true);
       
-      // 1. Buscar eventos manuais
-      const { data: manualEvents } = await supabase.from('events').select('*');
-      
-      // 2. Buscar CONTRATOS ativos para gerar vencimentos individuais
-      const { data: contracts } = await supabase
-        .from('contracts')
-        .select('*, tenants(name), properties(name)')
-        .eq('status', 'ativo');
+      const monthStr = (currentMonth.getMonth() + 1).toString().padStart(2, '0');
+      const yearNum = currentMonth.getFullYear();
 
-      // 3. Buscar faturas para saber o que já foi pago
-      const { data: bills } = await supabase
-        .from('bills')
-        .select('*')
-        .eq('month', (currentMonth.getMonth() + 1).toString().padStart(2, '0'))
-        .eq('year', currentMonth.getFullYear());
+      // 1. Buscar eventos manuais e contratos em paralelo
+      const [eventsRes, contractsRes, billsRes] = await Promise.all([
+        supabase.from('events').select('*'),
+        supabase.from('contracts').select('*, tenants(name), properties(name)').eq('status', 'ativo'),
+        supabase.from('bills').select('*').eq('month', monthStr).eq('year', yearNum)
+      ]);
 
-      const formattedManual = (manualEvents || []).map(e => ({
+      const manualEvents = (eventsRes.data || []).map(e => ({
         ...e,
         date: new Date(e.date)
       }));
 
-      // 4. Gerar eventos de vencimento baseados no contrato
+      const bills = billsRes.data || [];
+      const contracts = contractsRes.data || [];
+
+      // 2. Gerar eventos de vencimento baseados no contrato para o mês visualizado
       const rentEvents: any[] = [];
-      if (contracts) {
-        contracts.forEach(c => {
-          const dueDay = c.due_day || 5;
-          const eventDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), dueDay);
-          
-          // Verifica se já existe fatura paga para este contrato/inquilino este mês
-          const isPaid = bills?.some(b => 
-            b.tenant_id === c.tenant_id && 
-            b.property_id === c.property_id && 
-            b.type === 'aluguel' && 
-            b.status === 'pago'
-          );
+      const lastDayOfMonth = getDate(endOfMonth(currentMonth));
 
-          rentEvents.push({
-            id: `rent-${c.id}`,
-            title: `Aluguel: ${c.tenants?.name || 'Inquilino'}`,
-            description: isPaid ? 'Pagamento Confirmado ✅' : `Vencimento aluguel ${c.properties?.name || 'Imóvel'}`,
-            type: 'payment',
-            status: isPaid ? 'paid' : 'pending',
-            date: eventDate,
-            time: '08:00'
-          });
+      contracts.forEach(c => {
+        // Ajusta o dia de vencimento se ele for maior que o último dia do mês atual
+        const dueDay = Math.min(c.due_day || 5, lastDayOfMonth);
+        const eventDate = new Date(yearNum, currentMonth.getMonth(), dueDay);
+        
+        const isPaid = bills.some(b => 
+          b.tenant_id === c.tenant_id && 
+          b.property_id === c.property_id && 
+          b.type === 'aluguel' && 
+          b.status === 'pago'
+        );
+
+        rentEvents.push({
+          id: `rent-${c.id}-${monthStr}-${yearNum}`,
+          title: `Aluguel: ${c.tenants?.name || 'Inquilino'}`,
+          description: isPaid ? 'Pagamento Confirmado ✅' : `Vencimento aluguel ${c.properties?.name || 'Imóvel'}`,
+          type: 'payment',
+          status: isPaid ? 'paid' : 'pending',
+          date: eventDate,
+          time: '08:00'
         });
-      }
+      });
 
-      setEvents([...formattedManual, ...rentEvents]);
+      setEvents([...manualEvents, ...rentEvents]);
     } catch (err) {
-      console.error(err);
+      console.error("Erro ao carregar agenda:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentMonth]);
 
   useEffect(() => {
     fetchEvents();
-  }, [currentMonth]);
+  }, [fetchEvents]);
 
-  const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
-  const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
+  const handlePrevMonth = () => setCurrentMonth(prev => startOfMonth(subMonths(prev, 1)));
+  const handleNextMonth = () => setCurrentMonth(prev => startOfMonth(addMonths(prev, 1)));
   const handleToday = () => {
     const today = new Date();
-    setCurrentMonth(today);
+    setCurrentMonth(startOfMonth(today));
     setDate(today);
   };
 
@@ -139,44 +136,43 @@ const Calendar = () => {
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
           <div className="xl:col-span-8 space-y-8">
-            <Card className="premium-card rounded-[2.5rem] border-none p-8">
-              {loading ? (
-                <div className="h-[400px] flex items-center justify-center">
+            <Card className="premium-card rounded-[2.5rem] border-none p-8 relative">
+              {loading && (
+                <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-[2.5rem]">
                   <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
                 </div>
-              ) : (
-                <CalendarUI
-                  mode="single"
-                  selected={date}
-                  onSelect={setDate}
-                  month={currentMonth}
-                  onMonthChange={setCurrentMonth}
-                  locale={ptBR}
-                  className="w-full"
-                  modifiers={eventDays}
-                  modifiersClassNames={{
-                    payment: "bg-amber-100 text-amber-700 font-black",
-                    paid: "bg-emerald-100 text-emerald-700 font-black",
-                    maintenance: "bg-blue-100 text-blue-700 font-black",
-                    contract: "bg-rose-100 text-rose-700 font-black",
-                    visit: "bg-slate-100 text-slate-700 font-black",
-                  }}
-                  classNames={{
-                    months: "w-full",
-                    month: "w-full space-y-4",
-                    caption: "hidden",
-                    table: "w-full border-collapse",
-                    head_row: "flex w-full justify-between",
-                    head_cell: "text-slate-400 font-bold uppercase text-[10px] tracking-widest w-12 text-center",
-                    row: "flex w-full justify-between mt-2",
-                    cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 w-12 h-12",
-                    day: "h-12 w-12 p-0 font-bold text-slate-900 rounded-2xl hover:bg-slate-100 transition-all flex items-center justify-center",
-                    day_selected: "bg-[#2563FF] text-white hover:bg-blue-700 focus:bg-[#2563FF] shadow-lg shadow-blue-100",
-                    day_today: "border-2 border-blue-500 text-blue-600",
-                    day_outside: "text-slate-300 opacity-50",
-                  }}
-                />
               )}
+              <CalendarUI
+                mode="single"
+                selected={date}
+                onSelect={setDate}
+                month={currentMonth}
+                onMonthChange={setCurrentMonth}
+                locale={ptBR}
+                className="w-full"
+                modifiers={eventDays}
+                modifiersClassNames={{
+                  payment: "bg-amber-100 text-amber-700 font-black",
+                  paid: "bg-emerald-100 text-emerald-700 font-black",
+                  maintenance: "bg-blue-100 text-blue-700 font-black",
+                  contract: "bg-rose-100 text-rose-700 font-black",
+                  visit: "bg-slate-100 text-slate-700 font-black",
+                }}
+                classNames={{
+                  months: "w-full",
+                  month: "w-full space-y-4",
+                  caption: "hidden",
+                  table: "w-full border-collapse",
+                  head_row: "flex w-full justify-between",
+                  head_cell: "text-slate-400 font-bold uppercase text-[10px] tracking-widest w-12 text-center",
+                  row: "flex w-full justify-between mt-2",
+                  cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 w-12 h-12",
+                  day: "h-12 w-12 p-0 font-bold text-slate-900 rounded-2xl hover:bg-slate-100 transition-all flex items-center justify-center",
+                  day_selected: "bg-[#2563FF] text-white hover:bg-blue-700 focus:bg-[#2563FF] shadow-lg shadow-blue-100",
+                  day_today: "border-2 border-blue-500 text-blue-600",
+                  day_outside: "text-slate-300 opacity-50",
+                }}
+              />
               
               <div className="mt-8 flex flex-wrap gap-6 pt-6 border-t border-slate-50">
                 <LegendItem color="bg-amber-400" label="Aluguel Pendente" />
@@ -229,7 +225,7 @@ const Calendar = () => {
                 Próximos Vencimentos
               </h3>
               <div className="space-y-6">
-                {upcomingEvents.length > 0 ? upcomingEvents.map((event, i) => (
+                {upcomingEvents.length > 0 ? upcomingEvents.map((event) => (
                   <div key={event.id} className="flex gap-4 items-center group cursor-pointer">
                     <div className={cn(
                       "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110",
