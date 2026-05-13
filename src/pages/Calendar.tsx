@@ -19,7 +19,8 @@ import {
   CheckCircle2,
   FileText,
   MapPin,
-  Home
+  Home,
+  User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -42,14 +43,14 @@ const Calendar = () => {
       const monthStr = (currentMonth.getMonth() + 1).toString().padStart(2, '0');
       const yearNum = currentMonth.getFullYear();
 
-      // Buscamos Contratos, Eventos Manuais e Contas do mês
+      // Buscamos Contratos, Eventos Manuais e Contas do mês (agora com JOIN para pegar nomes)
       const [contractsRes, eventsRes, billsRes] = await Promise.all([
         supabase.from('contracts').select('*, properties(name), tenants(name)').eq('status', 'ativo'),
         supabase.from('events').select('*'),
-        supabase.from('bills').select('*').eq('month', monthStr).eq('year', yearNum)
+        supabase.from('bills').select('*, properties(name), tenants(name)').eq('month', monthStr).eq('year', yearNum)
       ]);
 
-      // 1. Eventos Manuais (Vistorias, etc)
+      // 1. Eventos Manuais
       const manualEvents = (eventsRes.data || []).map(e => {
         const [y, m, d] = e.date.split('T')[0].split('-').map(Number);
         return {
@@ -68,7 +69,6 @@ const Calendar = () => {
         const dueDay = Math.min(contract.due_day || 5, lastDayOfMonth);
         const eventDate = new Date(yearNum, currentMonth.getMonth(), dueDay);
         
-        // Verifica se já existe uma conta de aluguel paga para este contrato/imóvel este mês
         const rentBill = bills.find(b => 
           b.tenant_id === contract.tenant_id && 
           b.property_id === contract.property_id && 
@@ -76,10 +76,12 @@ const Calendar = () => {
         );
         
         const isRentPaid = rentBill?.status === 'pago';
+        const tenantName = contract.tenants?.name || 'Inquilino não identificado';
 
         generatedEvents.push({
           id: `contract-rent-${contract.id}-${monthStr}`,
-          title: `Aluguel: ${contract.tenants?.name || 'Inquilino'}`,
+          title: `Aluguel: ${tenantName}`,
+          tenantName: tenantName,
           description: isRentPaid 
             ? `Pago ✅ (${contract.properties?.name})` 
             : `Vencimento: R$ ${Number(contract.rent_value).toLocaleString('pt-BR')} - ${contract.properties?.name}`,
@@ -91,23 +93,25 @@ const Calendar = () => {
         });
       });
 
-      // 3. Gerar Eventos para outras Contas (Energia, Água, etc) que não sejam o aluguel base
+      // 3. Gerar Eventos para outras Contas (Energia, Água, etc)
       bills.filter(b => b.type !== 'aluguel').forEach(bill => {
-        // Usamos o dia de vencimento do contrato vinculado ou dia 5 como fallback
         const contract = contracts.find(c => c.tenant_id === bill.tenant_id && c.property_id === bill.property_id);
         const dueDay = Math.min(contract?.due_day || 5, lastDayOfMonth);
         const eventDate = new Date(yearNum, currentMonth.getMonth(), dueDay);
+        const tenantName = bill.tenants?.name || 'Inquilino não identificado';
 
         generatedEvents.push({
           id: `bill-extra-${bill.id}`,
-          title: `${bill.type.charAt(0).toUpperCase() + bill.type.slice(1)}: ${bill.tenants?.name || 'Inquilino'}`,
+          title: `${bill.type.charAt(0).toUpperCase() + bill.type.slice(1)}: ${tenantName}`,
+          tenantName: tenantName,
           description: bill.status === 'pago' 
             ? `Pago ✅` 
             : `Valor: R$ ${Number(bill.total_value || bill.calculated_value).toLocaleString('pt-BR')}`,
           type: 'utility',
           status: bill.status,
           date: eventDate,
-          time: '09:00'
+          time: '09:00',
+          propertyName: bill.properties?.name
         });
       });
 
@@ -234,11 +238,19 @@ const Calendar = () => {
                           <span className="text-[10px] font-black text-slate-300 bg-slate-50 px-2 py-1 rounded-lg">{event.time}</span>
                         </div>
                         <p className="text-sm text-slate-500 mt-1 font-medium">{event.description}</p>
-                        {event.propertyName && (
-                          <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-blue-600 uppercase">
-                            <Home className="w-3 h-3" /> {event.propertyName}
-                          </div>
-                        )}
+                        
+                        <div className="flex flex-wrap gap-3 mt-3">
+                          {event.tenantName && (
+                            <div className="flex items-center gap-1 text-[10px] font-bold text-slate-600 uppercase bg-slate-50 px-2 py-1 rounded-lg">
+                              <User className="w-3 h-3" /> {event.tenantName}
+                            </div>
+                          )}
+                          {event.propertyName && (
+                            <div className="flex items-center gap-1 text-[10px] font-bold text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded-lg">
+                              <Home className="w-3 h-3" /> {event.propertyName}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))
