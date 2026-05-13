@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Copy, Send, Calculator, Landmark, Trash2, Plus, Search, Loader2, X, Zap } from 'lucide-react';
+import { MessageSquare, Copy, Send, Calculator, Landmark, Trash2, Plus, Search, Loader2, Mail } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -32,23 +32,24 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
   const [fineValue, setFineValue] = useState('0');
   const [interestValue, setInterestValue] = useState('0');
   const [extraValues, setExtraValues] = useState<ExtraValue[]>([]);
+  const [sendMethod, setSendMethod] = useState<'whatsapp' | 'email'>('whatsapp');
 
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true);
       const [tenantsRes, userRes] = await Promise.all([
-        supabase.from('tenants').select('id, name, phone').eq('status', 'ativo'),
+        supabase.from('tenants').select('id, name, phone, email').eq('status', 'ativo'),
         supabase.auth.getUser()
       ]);
       setTenants(tenantsRes.data || []);
       if (userRes.data.user?.user_metadata?.pix_key) setPixKey(userRes.data.user.user_metadata.pix_key);
       setLoading(false);
-      if (tenantId) handleSelectTenant(tenantId, tenantsRes.data || []);
+      if (tenantId) handleSelectTenant(tenantId);
     };
     if (isOpen) fetchInitialData();
   }, [isOpen, tenantId]);
 
-  const handleSelectTenant = async (id: string, currentTenants?: any[]) => {
+  const handleSelectTenant = async (id: string) => {
     setSelectedTenantId(id);
     try {
       setLoading(true);
@@ -80,8 +81,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
           let consumption = '';
           if (b.current_reading !== null && b.previous_reading !== null) {
             consumption = (Number(b.current_reading) - Number(b.previous_reading)).toString();
-          } else if (b.current_reading !== null) {
-            consumption = b.current_reading.toString();
           }
 
           extras.push({
@@ -144,12 +143,12 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     extraValues.forEach(e => {
       const val = parseFloat(e.value) || 0;
       if (val > 0) {
-        const consumptionInfo = (e.quantity && e.unitPrice) ? ` (${e.quantity} kWh x R$ ${e.unitPrice})` : '';
+        // Removido o preço unitário da mensagem conforme solicitado
+        const consumptionInfo = e.quantity ? ` (${e.quantity} kWh)` : '';
         details += `• *${e.label}:* R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}${consumptionInfo}\n`;
       }
     });
 
-    // Usando strings limpas para evitar bugs de codificação
     const saudacao = `Olá ${tenantObj?.name || 'Inquilino'}! 👋`;
     const intro = `Estou enviando o resumo do aluguel e demais valores pendentes:`;
     const totalStr = `💰 *Total a pagar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*`;
@@ -158,6 +157,26 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
     return `${saudacao}\n\n${intro}\n\n${details}\n${totalStr}\n\n${pixStr}\n\n${despedida}`;
   }, [selectedTenantId, rentValue, fineValue, interestValue, extraValues, pixKey, total, tenants]);
+
+  const handleSend = () => {
+    const tenantObj = tenants.find(t => t.id === selectedTenantId);
+    if (!tenantObj) return;
+
+    if (sendMethod === 'whatsapp') {
+      const phone = tenantObj.phone?.replace(/\D/g, '');
+      const encodedText = encodeURIComponent(generatedMessage);
+      window.open(`https://wa.me/${phone || ''}?text=${encodedText}`, '_blank');
+    } else {
+      const email = tenantObj.email;
+      if (!email) {
+        showError('Inquilino não possui e-mail cadastrado.');
+        return;
+      }
+      const subject = encodeURIComponent('Resumo de Aluguel - Aluguei.Online');
+      const body = encodeURIComponent(generatedMessage.replace(/\*/g, '')); // Remove asteriscos do markdown para o email
+      window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -241,9 +260,25 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
           </div>
 
           <div className="bg-slate-900 p-6 md:p-8 flex flex-col h-full">
-            <div className="flex items-center gap-2 mb-4 text-blue-400">
-              <MessageSquare className="w-5 h-5" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Preview WhatsApp</span>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 text-blue-400">
+                <MessageSquare className="w-5 h-5" />
+                <span className="text-[10px] font-black uppercase tracking-widest">Preview da Cobrança</span>
+              </div>
+              <div className="flex bg-slate-800 p-1 rounded-xl">
+                <button 
+                  onClick={() => setSendMethod('whatsapp')}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${sendMethod === 'whatsapp' ? 'bg-emerald-500 text-white' : 'text-slate-400'}`}
+                >
+                  WhatsApp
+                </button>
+                <button 
+                  onClick={() => setSendMethod('email')}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${sendMethod === 'email' ? 'bg-blue-500 text-white' : 'text-slate-400'}`}
+                >
+                  E-mail
+                </button>
+              </div>
             </div>
             <div className="flex-1 bg-slate-800/50 rounded-3xl p-5 text-slate-300 text-sm font-medium whitespace-pre-wrap leading-relaxed border border-slate-700/50 overflow-y-auto mb-6">
               {generatedMessage}
@@ -252,13 +287,12 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
               <Button variant="ghost" className="rounded-xl h-12 font-bold text-slate-400 hover:bg-slate-800 hover:text-white gap-2" onClick={() => { navigator.clipboard.writeText(generatedMessage); showSuccess('Copiado!'); }}>
                 <Copy className="w-4 h-4" /> Copiar
               </Button>
-              <Button className="rounded-xl h-12 bg-emerald-500 hover:bg-emerald-600 text-white font-bold gap-2 shadow-lg" onClick={() => {
-                const phone = tenants.find(t => t.id === selectedTenantId)?.phone?.replace(/\D/g, '');
-                // Usando encodeURIComponent para garantir que emojis e acentos funcionem
-                const encodedText = encodeURIComponent(generatedMessage);
-                window.open(`https://wa.me/${phone || ''}?text=${encodedText}`, '_blank');
-              }}>
-                <Send className="w-4 h-4" /> Enviar
+              <Button 
+                className={`rounded-xl h-12 font-bold gap-2 shadow-lg ${sendMethod === 'whatsapp' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-blue-600 hover:bg-blue-700'} text-white`} 
+                onClick={handleSend}
+              >
+                {sendMethod === 'whatsapp' ? <Send className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+                Enviar por {sendMethod === 'whatsapp' ? 'WhatsApp' : 'E-mail'}
               </Button>
             </div>
           </div>

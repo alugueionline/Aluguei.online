@@ -56,7 +56,7 @@ const Dashboard = () => {
           *, 
           properties(name, condo_fee), 
           bills(*),
-          contracts(rent_value, status, property_id, properties(condo_fee))
+          contracts(rent_value, status, property_id, due_day, properties(condo_fee))
         `)
         .eq('status', 'ativo');
 

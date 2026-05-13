@@ -42,8 +42,6 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
     };
   }, []);
 
-  const contractId = contract?.id;
-
   useEffect(() => {
     const fetchData = async () => {
       const [propsRes, tenantsRes] = await Promise.all([
@@ -67,7 +65,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
           duration_months: (contract.duration_months || 12).toString(),
           rent_value: (contract.rent_value || 0).toString(),
           status: contract.status || 'ativo',
-          due_day: (contract.tenants?.due_day || 5).toString()
+          due_day: (contract.due_day || 5).toString()
         });
       } else {
         setFormData({
@@ -81,7 +79,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
         });
       }
     }
-  }, [isOpen, contractId]);
+  }, [isOpen, contract]);
 
   const handlePropertyChange = (id: string) => {
     const prop = properties.find(p => p.id === id);
@@ -89,15 +87,6 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
       ...prev,
       property_id: id,
       rent_value: prop?.base_rent?.toString() || prev.rent_value
-    }));
-  };
-
-  const handleTenantChange = (id: string) => {
-    const tenant = tenants.find(t => t.id === id);
-    setFormData(prev => ({
-      ...prev,
-      tenant_id: id,
-      due_day: tenant?.due_day?.toString() || prev.due_day
     }));
   };
 
@@ -109,7 +98,6 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
 
-      // Payload para a tabela de contratos (sem due_day)
       const contractPayload = {
         user_id: user.id,
         tenant_id: formData.tenant_id,
@@ -117,7 +105,8 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
         start_date: formData.start_date,
         duration_months: parseInt(formData.duration_months),
         rent_value: parseFloat(formData.rent_value),
-        status: formData.status
+        status: formData.status,
+        due_day: parseInt(formData.due_day)
       };
 
       if (isEdit) {
@@ -128,14 +117,6 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
         if (error) throw error;
         
         await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
-      }
-
-      // Atualiza o dia de vencimento na tabela de inquilinos (onde a coluna realmente existe)
-      if (formData.tenant_id) {
-        await supabase
-          .from('tenants')
-          .update({ due_day: parseInt(formData.due_day) })
-          .eq('id', formData.tenant_id);
       }
 
       showSuccess(isEdit ? 'Contrato atualizado!' : 'Contrato criado com sucesso!');
@@ -163,7 +144,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
             <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Inquilino</Label>
             <Select 
               value={formData.tenant_id} 
-              onValueChange={handleTenantChange}
+              onValueChange={v => setFormData({...formData, tenant_id: v})}
             >
               <SelectTrigger className="rounded-xl h-12 bg-gray-50 border-none font-bold">
                 <div className="flex items-center gap-2">

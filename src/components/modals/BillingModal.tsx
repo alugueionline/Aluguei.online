@@ -51,6 +51,33 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
     if (isOpen) fetchData();
   }, [isOpen]);
 
+  // Busca automática da última leitura quando o inquilino ou imóvel muda
+  useEffect(() => {
+    const fetchLastReading = async () => {
+      if (type === 'energia' && billingMethod === 'consumo_kwh' && (tenantId || propertyId) && !isEdit) {
+        let query = supabase
+          .from('bills')
+          .select('current_reading')
+          .eq('type', 'energia')
+          .not('current_reading', 'is', null)
+          .order('year', { ascending: false })
+          .order('month', { ascending: false })
+          .limit(1);
+
+        if (tenantId && tenantId !== 'none') query = query.eq('tenant_id', tenantId);
+        if (propertyId) query = query.eq('property_id', propertyId);
+
+        const { data } = await query;
+        if (data && data.length > 0) {
+          setPrevReading(data[0].current_reading.toString());
+        } else {
+          setPrevReading('0');
+        }
+      }
+    };
+    fetchLastReading();
+  }, [tenantId, propertyId, type, billingMethod, isEdit]);
+
   useEffect(() => {
     if (isOpen && bill) {
       setType(bill.type || 'energia');
@@ -114,7 +141,7 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
         user_id: user.id,
         type,
         property_id: propertyId || null,
-        tenant_id: tenantId || null,
+        tenant_id: tenantId === 'none' ? null : (tenantId || null),
         month,
         year: parseInt(year),
         total_value: billingMethod === 'consumo_kwh' ? calculated : parseFloat(totalValue) || 0,
@@ -239,6 +266,9 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
                   />
                 </div>
               </div>
+              <p className="text-[10px] text-orange-400 font-medium italic text-center">
+                Consumo: {Math.max(0, (parseFloat(currReading) || 0) - (parseFloat(prevReading) || 0))} kWh
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">

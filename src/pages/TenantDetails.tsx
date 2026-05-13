@@ -26,7 +26,9 @@ import {
   MessageSquare,
   AlertCircle,
   RotateCcw,
-  Wallet
+  Wallet,
+  Trash2,
+  Check
 } from 'lucide-react';
 import { 
   Table, 
@@ -61,6 +63,7 @@ const TenantDetails = () => {
             id,
             rent_value,
             status,
+            due_day,
             properties (
               id,
               name,
@@ -86,51 +89,80 @@ const TenantDetails = () => {
         .from('bills')
         .select('*')
         .eq('tenant_id', id)
-        .order('year', { ascending: false })
-        .order('month', { ascending: false });
+        .order('year', { descending: false })
+        .order('month', { descending: false });
 
       const history = bills || [];
       
-      // Cálculo da Dívida Total (Pendente + Atrasado)
       const totalDebt = history
         .filter(b => b.status !== 'pago')
         .reduce((acc, curr) => acc + Number(curr.total_value || curr.calculated_value), 0);
 
-      // Cálculo do Total Pago (Histórico Completo)
       const totalPaid = history
         .filter(b => b.status === 'pago')
         .reduce((acc, curr) => acc + Number(curr.total_value || curr.calculated_value), 0);
 
-      const pendingCount = history.filter(b => b.status === 'pendente').length;
-      const overdueCount = history.filter(b => b.status === 'atrasado').length;
-
-      return { history, totalDebt, totalPaid, pendingCount, overdueCount };
+      return { history, totalDebt, totalPaid };
     },
     enabled: !!tenant
   });
 
-  const revertPaymentMutation = useMutation({
-    mutationFn: async (billId: string) => {
-      setProcessingBillId(billId);
+  const handleMarkAsPaid = async (billId: string) => {
+    setProcessingBillId(billId);
+    try {
+      const { error } = await supabase
+        .from('bills')
+        .update({ status: 'pago', payment_date: new Date().toISOString() })
+        .eq('id', billId);
+      
+      if (error) throw error;
+      showSuccess("Pagamento confirmado!");
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial', id] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    } catch (err: any) {
+      showError("Erro ao dar baixa: " + err.message);
+    } finally {
+      setProcessingBillId(null);
+    }
+  };
+
+  const handleRevertPayment = async (billId: string) => {
+    setProcessingBillId(billId);
+    try {
       const { error } = await supabase
         .from('bills')
         .update({ status: 'pendente', payment_date: null })
         .eq('id', billId);
       
       if (error) throw error;
-    },
-    onSuccess: () => {
+      showSuccess("Pagamento revertido.");
       queryClient.invalidateQueries({ queryKey: ['tenant-financial', id] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      showSuccess("Pagamento revertido para pendente.");
-    },
-    onError: (error: any) => {
-      showError("Erro ao reverter: " + error.message);
-    },
-    onSettled: () => {
+    } catch (err: any) {
+      showError("Erro ao reverter: " + err.message);
+    } finally {
       setProcessingBillId(null);
     }
-  });
+  };
+
+  const handleDeleteBill = async (billId: string) => {
+    if (!window.confirm("Tem certeza que deseja excluir este registro permanentemente?")) return;
+    
+    setProcessingBillId(billId);
+    try {
+      const { error } = await supabase
+        .from('bills')
+        .delete()
+        .eq('id', billId);
+      
+      if (error) throw error;
+      showSuccess("Registro excluído.");
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial', id] });
+    } catch (err: any) {
+      showError("Erro ao excluir: " + err.message);
+    } finally {
+      setProcessingBillId(null);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -171,7 +203,7 @@ const TenantDetails = () => {
             onClick={() => setIsBillingModalOpen(true)}
             className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold gap-2 shadow-lg shadow-emerald-100"
           >
-            <MessageSquare className="w-4 h-4" /> Cobrar WhatsApp
+            <MessageSquare className="w-4 h-4" /> Cobrar Inquilino
           </Button>
           <Button 
             onClick={() => setIsModalOpen(true)}
@@ -252,7 +284,6 @@ const TenantDetails = () => {
                 <p className="text-2xl font-black text-blue-900">
                   R$ {financialData?.totalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
-                <p className="text-[10px] text-blue-400 font-bold uppercase mt-1">Desde o início do contrato</p>
               </CardContent>
             </Card>
           </div>
@@ -281,7 +312,7 @@ const TenantDetails = () => {
                       <div className="flex justify-between items-start mb-2">
                         <h4 className="font-bold text-slate-900 truncate">{contract.properties?.name}</h4>
                         <Badge variant="outline" className="text-[8px] font-black uppercase border-blue-100 text-blue-600">
-                          {contract.properties?.type}
+                          Vencimento: Dia {contract.due_day || '5'}
                         </Badge>
                       </div>
                       <div className="flex justify-between items-end mt-4">
@@ -318,48 +349,73 @@ const TenantDetails = () => {
             </CardHeader>
             <CardContent className="p-0">
               {financialData?.history && financialData.history.length > 0 ? (
-                <Table>
-                  <TableHeader className="bg-slate-50/50">
-                    <TableRow>
-                      <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Referência</TableHead>
-                      <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Tipo</TableHead>
-                      <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Valor</TableHead>
-                      <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Status</TableHead>
-                      <TableHead className="text-right font-black text-[10px] uppercase tracking-widest p-6">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {financialData.history.map((bill) => (
-                      <TableRow key={bill.id} className="border-slate-50">
-                        <TableCell className="p-6 font-bold text-slate-900">{bill.month}/{bill.year}</TableCell>
-                        <TableCell className="p-6 capitalize text-slate-500 font-medium">{bill.type}</TableCell>
-                        <TableCell className="p-6 font-black text-slate-900">R$ {Number(bill.total_value || bill.calculated_value).toLocaleString('pt-BR')}</TableCell>
-                        <TableCell className="p-6">
-                          <Badge className={cn(
-                            "border-none px-3 py-1 rounded-lg font-black text-[10px] uppercase",
-                            bill.status === 'pago' ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-                          )}>
-                            {bill.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="p-6 text-right">
-                          {bill.status === 'pago' && (
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 rounded-lg text-slate-300 hover:text-blue-600 hover:bg-blue-50"
-                              onClick={() => revertPaymentMutation.mutate(bill.id)}
-                              disabled={processingBillId === bill.id}
-                              title="Reverter para Pendente"
-                            >
-                              {processingBillId === bill.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-                            </Button>
-                          )}
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-slate-50/50">
+                      <TableRow>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Referência</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Tipo</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Valor</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Status</TableHead>
+                        <TableHead className="text-right font-black text-[10px] uppercase tracking-widest p-6">Ações</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {financialData.history.map((bill) => (
+                        <TableRow key={bill.id} className="border-slate-50">
+                          <TableCell className="p-6 font-bold text-slate-900">{bill.month}/{bill.year}</TableCell>
+                          <TableCell className="p-6 capitalize text-slate-500 font-medium">{bill.type}</TableCell>
+                          <TableCell className="p-6 font-black text-slate-900">R$ {Number(bill.total_value || bill.calculated_value).toLocaleString('pt-BR')}</TableCell>
+                          <TableCell className="p-6">
+                            <Badge className={cn(
+                              "border-none px-3 py-1 rounded-lg font-black text-[10px] uppercase",
+                              bill.status === 'pago' ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                            )}>
+                              {bill.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="p-6 text-right">
+                            <div className="flex justify-end gap-2">
+                              {bill.status !== 'pago' ? (
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 rounded-lg text-emerald-600 hover:bg-emerald-50"
+                                  onClick={() => handleMarkAsPaid(bill.id)}
+                                  disabled={processingBillId === bill.id}
+                                  title="Dar Baixa"
+                                >
+                                  {processingBillId === bill.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                </Button>
+                              ) : (
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 rounded-lg text-slate-300 hover:text-blue-600 hover:bg-blue-50"
+                                  onClick={() => handleRevertPayment(bill.id)}
+                                  disabled={processingBillId === bill.id}
+                                  title="Reverter para Pendente"
+                                >
+                                  {processingBillId === bill.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                                </Button>
+                              )}
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50"
+                                onClick={() => handleDeleteBill(bill.id)}
+                                disabled={processingBillId === bill.id}
+                                title="Excluir Registro"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               ) : (
                 <div className="py-20 text-center flex flex-col items-center">
                   <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 mb-4">
