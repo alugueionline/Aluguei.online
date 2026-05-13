@@ -29,7 +29,7 @@ const Contracts = () => {
   const [selectedContract, setSelectedContract] = useState<any>(null);
   const queryClient = useQueryClient();
 
-  // Busca Contratos - Agora incluindo due_day na relação com tenants
+  // Busca Contratos - Agora usando due_day da própria tabela contracts
   const { data: contracts = [], isLoading: loadingContracts } = useQuery({
     queryKey: ['contracts'],
     queryFn: async () => {
@@ -37,7 +37,7 @@ const Contracts = () => {
       if (!user) return [];
       const { data, error } = await supabase
         .from('contracts')
-        .select('*, properties(id, name), tenants(id, name, due_day)')
+        .select('*, properties(id, name), tenants(id, name)')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -181,7 +181,7 @@ const Contracts = () => {
                 </div>
                 <div className="flex justify-between text-xs font-bold">
                   <span className="text-slate-400 uppercase tracking-widest">Vencimento</span>
-                  <span className="text-slate-900">Dia {c.tenants?.due_day || '5'}</span>
+                  <span className="text-slate-900">Dia {c.due_day || '5'}</span>
                 </div>
               </div>
 
