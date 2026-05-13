@@ -61,7 +61,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
           duration_months: (contract.duration_months || 12).toString(),
           rent_value: (contract.rent_value || 0).toString(),
           status: contract.status || 'ativo',
-          due_day: (contract.due_day || 5).toString()
+          due_day: (contract.tenants?.due_day || 5).toString()
         });
       } else {
         setFormData({
@@ -88,6 +88,8 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
+
+      // 1. Payload do Contrato (sem due_day)
       const contractPayload = {
         user_id: user.id,
         tenant_id: formData.tenant_id,
@@ -95,19 +97,31 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
         start_date: formData.start_date,
         duration_months: parseInt(formData.duration_months),
         rent_value: parseFloat(formData.rent_value),
-        status: formData.status,
-        due_day: parseInt(formData.due_day)
+        status: formData.status
       };
+
+      // 2. Salvar/Atualizar Contrato
       if (isEdit) {
         const { error } = await supabase.from('contracts').update(contractPayload).eq('id', contract.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from('contracts').insert([contractPayload]);
         if (error) throw error;
+        // Se for novo contrato, marca imóvel como alugado
         await supabase.from('properties').update({ status: 'alugado' }).eq('id', formData.property_id);
       }
+
+      // 3. Atualizar o dia de vencimento no Inquilino (onde a coluna realmente existe)
+      if (formData.tenant_id) {
+        await supabase
+          .from('tenants')
+          .update({ due_day: parseInt(formData.due_day) })
+          .eq('id', formData.tenant_id);
+      }
+
       showSuccess(isEdit ? 'Contrato atualizado!' : 'Contrato criado!');
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
       onClose();
     } catch (error: any) {
       showError('Erro ao salvar: ' + error.message);
