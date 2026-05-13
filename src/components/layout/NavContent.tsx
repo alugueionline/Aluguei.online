@@ -15,10 +15,9 @@ import {
   Bell, 
   LogOut,
   ChevronDown,
-  User as UserIcon,
-  ArrowRightLeft
+  User as UserIcon
 } from 'lucide-react';
-import { cn } from '@/utils/utils';
+import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 
