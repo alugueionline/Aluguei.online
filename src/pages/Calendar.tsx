@@ -15,12 +15,15 @@ import {
   Plus,
   Loader2,
   Zap,
-  Droplets
+  Droplets,
+  CheckCircle2,
+  FileText,
+  MapPin
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ptBR } from 'date-fns/locale';
-import { addMonths, subMonths, format, isSameDay, startOfMonth, endOfMonth, getDate, parseISO } from 'date-fns';
+import { addMonths, subMonths, format, isSameDay, startOfMonth, endOfMonth, getDate, parseISO, startOfDay } from 'date-fns';
 import { EventModal } from '@/components/modals/EventModal';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -38,17 +41,20 @@ const Calendar = () => {
       const monthStr = (currentMonth.getMonth() + 1).toString().padStart(2, '0');
       const yearNum = currentMonth.getFullYear();
 
-      // Buscamos Inquilinos (para o dia de vencimento), Eventos Manuais e Contas do mês
       const [tenantsRes, eventsRes, billsRes] = await Promise.all([
         supabase.from('tenants').select('*, properties(name)').eq('status', 'ativo'),
         supabase.from('events').select('*'),
         supabase.from('bills').select('*').eq('month', monthStr).eq('year', yearNum)
       ]);
 
-      const manualEvents = (eventsRes.data || []).map(e => ({
-        ...e,
-        date: parseISO(e.date.split('T')[0]) // Garante que a data seja tratada sem timezone shift
-      }));
+      // CORREÇÃO DE DATA: Garantir que a data do banco seja tratada como Meia-Noite LOCAL
+      const manualEvents = (eventsRes.data || []).map(e => {
+        const [y, m, d] = e.date.split('T')[0].split('-').map(Number);
+        return {
+          ...e,
+          date: new Date(y, m - 1, d) // Cria no horário local do navegador
+        };
+      });
 
       const tenants = tenantsRes.data || [];
       const bills = billsRes.data || [];
@@ -57,32 +63,29 @@ const Calendar = () => {
       const lastDayOfMonth = getDate(endOfMonth(currentMonth));
 
       tenants.forEach(tenant => {
-        // O Dia do Vencimento vem do cadastro do Inquilino
         const dueDay = Math.min(tenant.due_day || 5, lastDayOfMonth);
         const eventDate = new Date(yearNum, currentMonth.getMonth(), dueDay);
         
-        // 1. Evento de Aluguel
         const rentBill = bills.find(b => b.tenant_id === tenant.id && b.type === 'aluguel');
         const isRentPaid = rentBill?.status === 'pago';
 
         generatedEvents.push({
           id: `rent-${tenant.id}-${monthStr}`,
           title: `Aluguel: ${tenant.name}`,
-          description: isRentPaid ? 'Pagamento Confirmado ✅' : `Vencimento do aluguel - ${tenant.properties?.name || 'Imóvel'}`,
-          type: 'payment',
+          description: isRentPaid ? 'Pagamento Confirmado ✅' : `Vencimento - ${tenant.properties?.name || 'Imóvel'}`,
+          type: isRentPaid ? 'paid' : 'payment',
           status: isRentPaid ? 'paid' : 'pending',
           date: eventDate,
           time: '08:00'
         });
 
-        // 2. Outras Contas (Energia, Água, etc.) vinculadas a este inquilino no mês
         const otherBills = bills.filter(b => b.tenant_id === tenant.id && b.type !== 'aluguel');
         otherBills.forEach(bill => {
           generatedEvents.push({
             id: `bill-${bill.id}`,
             title: `${bill.type.charAt(0).toUpperCase() + bill.type.slice(1)}: ${tenant.name}`,
             description: bill.status === 'pago' ? 'Pago ✅' : `Valor: R$ ${Number(bill.total_value).toLocaleString('pt-BR')}`,
-            type: bill.type === 'energia' ? 'maintenance' : 'visit', // Usamos tipos existentes para cores
+            type: 'utility',
             status: bill.status,
             date: eventDate,
             time: '09:00'
@@ -104,21 +107,19 @@ const Calendar = () => {
 
   const handlePrevMonth = () => setCurrentMonth(prev => startOfMonth(subMonths(prev, 1)));
   const handleNextMonth = () => setCurrentMonth(prev => startOfMonth(addMonths(prev, 1)));
-  const handleToday = () => {
-    const today = new Date();
-    setCurrentMonth(startOfMonth(today));
-    setDate(today);
-  };
+  
+  // Filtro robusto comparando apenas Dia/Mês/Ano
+  const selectedDayEvents = events.filter(e => {
+    if (!date) return false;
+    return isSameDay(startOfDay(e.date), startOfDay(date));
+  });
 
   const eventDays = {
-    payment: events.filter(e => e.type === 'payment' && e.status !== 'paid').map(e => e.date),
-    paid: events.filter(e => e.type === 'payment' && e.status === 'paid').map(e => e.date),
-    maintenance: events.filter(e => e.type === 'maintenance' || e.type === 'energia').map(e => e.date),
-    contract: events.filter(e => e.type === 'contract').map(e => e.date),
-    visit: events.filter(e => e.type === 'visit' || e.type === 'agua').map(e => e.date),
+    payment: events.filter(e => e.type === 'payment').map(e => e.date),
+    paid: events.filter(e => e.type === 'paid').map(e => e.date),
+    utility: events.filter(e => e.type === 'utility' || e.type === 'maintenance').map(e => e.date),
+    contract: events.filter(e => e.type === 'contract' || e.type === 'visit').map(e => e.date),
   };
-
-  const selectedDayEvents = events.filter(e => date && isSameDay(e.date, date));
   
   return (
     <DashboardLayout title="Agenda de Gestão">
@@ -126,16 +127,15 @@ const Calendar = () => {
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
           <div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">Calendário Imobiliário</h2>
-            <p className="text-slate-500 font-medium">Visualize todos os vencimentos baseados no dia acordado com o inquilino.</p>
+            <p className="text-slate-500 font-medium">Cores vivas para identificar vencimentos e compromissos.</p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={handleToday} className="h-12 px-6 rounded-2xl border-slate-200 bg-white font-bold text-slate-600 shadow-sm">Hoje</Button>
             <div className="flex items-center bg-white p-1 rounded-2xl border border-slate-100 shadow-sm">
               <Button size="icon" variant="ghost" onClick={handlePrevMonth} className="h-10 w-10 rounded-xl text-slate-400 hover:text-blue-600"><ChevronLeft className="w-4 h-4" /></Button>
               <span className="px-4 text-sm font-black text-slate-900 min-w-[140px] text-center capitalize">{format(currentMonth, 'MMMM yyyy', { locale: ptBR })}</span>
               <Button size="icon" variant="ghost" onClick={handleNextMonth} className="h-10 w-10 rounded-xl text-slate-400 hover:text-blue-600"><ChevronRight className="w-4 h-4" /></Button>
             </div>
-            <Button onClick={() => setIsModalOpen(true)} className="h-12 px-6 rounded-2xl bg-[#2563FF] hover:bg-blue-700 text-white font-bold gap-2 shadow-lg shadow-blue-100">
+            <Button onClick={() => setIsModalOpen(true)} className="h-12 px-6 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-black gap-2 shadow-lg shadow-blue-100">
               <Plus className="w-5 h-5" /> Novo Evento
             </Button>
           </div>
@@ -143,7 +143,7 @@ const Calendar = () => {
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
           <div className="xl:col-span-8 space-y-8">
-            <Card className="premium-card rounded-[2.5rem] border-none p-8 relative">
+            <Card className="premium-card rounded-[2.5rem] border-none p-8 relative bg-white">
               {loading && (
                 <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-[2.5rem]">
                   <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
@@ -159,66 +159,72 @@ const Calendar = () => {
                 className="w-full"
                 modifiers={eventDays}
                 modifiersClassNames={{
-                  payment: "bg-amber-100 text-amber-700 font-black",
-                  paid: "bg-emerald-100 text-emerald-700 font-black",
-                  maintenance: "bg-blue-100 text-blue-700 font-black",
-                  contract: "bg-rose-100 text-rose-700 font-black",
-                  visit: "bg-slate-100 text-slate-700 font-black",
+                  payment: "bg-orange-500 text-white font-black hover:bg-orange-600 rounded-xl",
+                  paid: "bg-emerald-500 text-white font-black hover:bg-emerald-600 rounded-xl",
+                  utility: "bg-blue-500 text-white font-black hover:bg-blue-600 rounded-xl",
+                  contract: "bg-purple-500 text-white font-black hover:bg-purple-600 rounded-xl",
                 }}
                 classNames={{
                   months: "w-full",
-                  month: "w-full space-y-4",
+                  month: "w-full space-y-6",
                   caption: "hidden",
                   table: "w-full border-collapse",
-                  head_row: "flex w-full justify-between",
-                  head_cell: "text-slate-400 font-bold uppercase text-[10px] tracking-widest w-12 text-center",
+                  head_row: "flex w-full justify-between mb-4",
+                  head_cell: "text-slate-400 font-black uppercase text-[10px] tracking-[0.2em] w-12 text-center",
                   row: "flex w-full justify-between mt-2",
                   cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 w-12 h-12",
-                  day: "h-12 w-12 p-0 font-bold text-slate-900 rounded-2xl hover:bg-slate-100 transition-all flex items-center justify-center",
-                  day_selected: "bg-[#2563FF] text-white hover:bg-blue-700 focus:bg-[#2563FF] shadow-lg shadow-blue-100",
+                  day: "h-12 w-12 p-0 font-bold text-slate-900 rounded-xl hover:bg-slate-100 transition-all flex items-center justify-center cursor-pointer",
+                  day_selected: "ring-4 ring-blue-100 bg-blue-600 text-white hover:bg-blue-700 shadow-xl z-30 scale-110",
                   day_today: "border-2 border-blue-500 text-blue-600",
-                  day_outside: "text-slate-300 opacity-50",
+                  day_outside: "text-slate-200 opacity-30",
                 }}
               />
               
-              <div className="mt-8 flex flex-wrap gap-6 pt-6 border-t border-slate-50">
-                <LegendItem color="bg-amber-400" label="Vencimento Pendente" />
-                <LegendItem color="bg-emerald-400" label="Pagamento Confirmado" />
-                <LegendItem color="bg-blue-400" label="Contas de Consumo" />
-                <LegendItem color="bg-rose-400" label="Contratos/Vistorias" />
+              <div className="mt-10 flex flex-wrap gap-6 pt-8 border-t border-slate-50">
+                <LegendItem color="bg-orange-500" label="Vencimento Pendente" />
+                <LegendItem color="bg-emerald-500" label="Recebido / Pago" />
+                <LegendItem color="bg-blue-500" label="Contas de Consumo" />
+                <LegendItem color="bg-purple-500" label="Contratos / Visitas" />
               </div>
             </Card>
 
             <div className="space-y-4">
               <div className="flex items-center gap-2 px-2">
-                <CalendarDays className="w-4 h-4 text-slate-400" />
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Compromissos de {date ? format(date, "dd 'de' MMMM", { locale: ptBR }) : 'hoje'}</h3>
+                <CalendarDays className="w-4 h-4 text-blue-600" />
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">
+                  Compromissos de {date ? format(date, "dd 'de' MMMM", { locale: ptBR }) : 'hoje'}
+                </h3>
               </div>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {selectedDayEvents.length > 0 ? (
                   selectedDayEvents.map((event) => (
-                    <div key={event.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5 group hover:border-blue-200 transition-all">
+                    <div key={event.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-5 group hover:border-blue-200 hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-2">
                       <div className={cn(
-                        "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0",
-                        event.type === 'payment' ? (event.status === 'paid' ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600") :
-                        event.type === 'maintenance' || event.type === 'energia' ? "bg-blue-50 text-blue-600" : 
-                        event.type === 'contract' ? "bg-rose-50 text-rose-700" : "bg-slate-50 text-slate-600"
+                        "w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm",
+                        event.type === 'payment' ? "bg-orange-50 text-orange-600" :
+                        event.type === 'paid' ? "bg-emerald-50 text-emerald-600" :
+                        event.type === 'utility' ? "bg-blue-50 text-blue-600" : 
+                        "bg-purple-50 text-purple-600"
                       )}>
-                        {event.type === 'payment' ? <DollarSign className="w-5 h-5" /> :
-                         event.type === 'energia' ? <Zap className="w-5 h-5" /> :
-                         event.type === 'agua' ? <Droplets className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                        {event.type === 'payment' ? <DollarSign className="w-6 h-6" /> :
+                         event.type === 'paid' ? <CheckCircle2 className="w-6 h-6" /> :
+                         event.type === 'utility' ? <Zap className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start">
-                          <p className="text-sm font-black text-slate-900 tracking-tight">{event.title}</p>
-                          <span className="text-[10px] font-black text-slate-300">{event.time}</span>
+                          <p className="text-base font-black text-slate-900 tracking-tight">{event.title}</p>
+                          <span className="text-[10px] font-black text-slate-300 bg-slate-50 px-2 py-1 rounded-lg">{event.time}</span>
                         </div>
-                        <p className="text-xs text-slate-500 mt-1 truncate font-medium">{event.description}</p>
+                        <p className="text-sm text-slate-500 mt-1 font-medium">{event.description}</p>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className="col-span-2 p-12 bg-slate-50/50 rounded-[2rem] border border-dashed border-slate-200 text-center">
+                  <div className="col-span-2 p-16 bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200 text-center">
+                    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-200 shadow-sm">
+                      <CalendarDays className="w-8 h-8" />
+                    </div>
                     <p className="text-sm font-bold text-slate-400">Nenhum vencimento ou evento para este dia.</p>
                   </div>
                 )}
@@ -227,37 +233,53 @@ const Calendar = () => {
           </div>
 
           <div className="xl:col-span-4 space-y-8">
-            <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-xl">
-              <h4 className="text-lg font-black tracking-tight mb-4">Visão de Vencimentos</h4>
+            <div className="bg-slate-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/20 rounded-full -mr-16 -mt-16 blur-3xl" />
+              <h4 className="text-xl font-black tracking-tight mb-4">Visão Inteligente</h4>
               <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                O calendário projeta automaticamente os vencimentos de aluguel e contas de consumo no dia acordado com cada inquilino.
+                O calendário projeta automaticamente os vencimentos de aluguel e contas baseados no dia de vencimento de cada contrato.
               </p>
-              <div className="mt-6 p-4 bg-white/5 rounded-2xl border border-white/10">
-                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Legenda de Status</p>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-xs">
-                    <div className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span>Aguardando Pagamento</span>
+              
+              <div className="mt-8 space-y-4">
+                <div className="p-4 bg-white/5 rounded-2xl border border-white/10 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-orange-500 flex items-center justify-center text-white">
+                    <Clock className="w-5 h-5" />
                   </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span>Recebido / Confirmado</span>
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-widest text-blue-400">Atenção</p>
+                    <p className="text-sm font-bold">Vencimentos hoje</p>
                   </div>
                 </div>
               </div>
             </div>
+
+            <Card className="border-none shadow-sm rounded-[2.5rem] p-8 bg-blue-50/50 border border-blue-100">
+              <h4 className="text-xs font-black text-blue-600 uppercase tracking-[0.2em] mb-6">Dica de Gestão</h4>
+              <div className="flex gap-4">
+                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-blue-600 shadow-sm shrink-0">
+                  <Bell className="w-5 h-5" />
+                </div>
+                <p className="text-sm text-blue-900/70 font-medium leading-relaxed">
+                  Clique em qualquer dia para ver o detalhamento. Dias com cores sólidas indicam que há ações pendentes ou confirmadas.
+                </p>
+              </div>
+            </Card>
           </div>
         </div>
       </div>
-      <EventModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); fetchEvents(); }} selectedDate={date} />
+      <EventModal 
+        isOpen={isModalOpen} 
+        onClose={() => { setIsModalOpen(false); fetchEvents(); }} 
+        selectedDate={date} 
+      />
     </DashboardLayout>
   );
 };
 
 const LegendItem = ({ color, label }: { color: string, label: string }) => (
-  <div className="flex items-center gap-2">
-    <div className={cn("w-3 h-3 rounded-full", color)} />
-    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">{label}</span>
+  <div className="flex items-center gap-3">
+    <div className={cn("w-4 h-4 rounded-lg shadow-sm", color)} />
+    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{label}</span>
   </div>
 );
 
