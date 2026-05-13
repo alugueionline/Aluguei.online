@@ -51,7 +51,6 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
     if (isOpen) fetchData();
   }, [isOpen]);
 
-  // Busca automática da última leitura quando o inquilino ou imóvel muda
   useEffect(() => {
     const fetchLastReading = async () => {
       if (type === 'energia' && billingMethod === 'consumo_kwh' && (tenantId || propertyId) && !isEdit) {
@@ -117,26 +116,21 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
       const consumption = Math.max(0, curr - prev);
       return consumption * price;
     }
-    
     const val = parseFloat(totalValue) || 0;
     if (billingMethod === 'por_pessoa') {
       const res = parseInt(residents) || 1;
       return res > 0 ? val / res : 0;
     }
-    
     return val;
   }, [totalValue, billingMethod, residents, prevReading, currReading, kwhPrice]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
-
       const [year, month] = date.split('-');
-      
       const payload = {
         user_id: user.id,
         type,
@@ -153,7 +147,6 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
         residents: billingMethod === 'por_pessoa' ? parseInt(residents) : null,
         status
       };
-
       if (isEdit) {
         const { error } = await supabase.from('bills').update(payload).eq('id', bill.id);
         if (error) throw error;
@@ -163,10 +156,8 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
         if (error) throw error;
         showSuccess('Lançamento realizado com sucesso!');
       }
-
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['bills'] });
-      
       onSave(payload);
       onClose();
     } catch (err: any) {
@@ -239,31 +230,15 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold text-orange-600 uppercase">Anterior</Label>
-                  <Input 
-                    type="number" 
-                    value={prevReading} 
-                    onChange={e => setPrevReading(e.target.value)}
-                    className="h-10 rounded-xl bg-white border-orange-100 font-bold text-center"
-                  />
+                  <Input type="number" value={prevReading} onChange={e => setPrevReading(e.target.value)} className="h-10 rounded-xl bg-white border-orange-100 font-bold text-center" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold text-orange-600 uppercase">Atual</Label>
-                  <Input 
-                    type="number" 
-                    value={currReading} 
-                    onChange={e => setCurrReading(e.target.value)}
-                    className="h-10 rounded-xl bg-white border-orange-100 font-bold text-center"
-                  />
+                  <Input type="number" value={currReading} onChange={e => setCurrReading(e.target.value)} className="h-10 rounded-xl bg-white border-orange-100 font-bold text-center" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold text-orange-600 uppercase">Preço kWh</Label>
-                  <Input 
-                    type="number" 
-                    step="0.01"
-                    value={kwhPrice} 
-                    onChange={e => setKwhPrice(e.target.value)}
-                    className="h-10 rounded-xl bg-white border-orange-100 font-bold text-center"
-                  />
+                  <Input type="number" step="0.01" value={kwhPrice} onChange={e => setKwhPrice(e.target.value)} className="h-10 rounded-xl bg-white border-orange-100 font-bold text-center" />
                 </div>
               </div>
               <p className="text-[10px] text-orange-400 font-medium italic text-center">
@@ -276,27 +251,12 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
                 <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
                   {billingMethod === 'por_pessoa' ? 'Valor Total Fatura' : 'Valor da Conta'}
                 </Label>
-                <Input 
-                  type="number" 
-                  step="0.01"
-                  value={totalValue} 
-                  onChange={(e) => setTotalValue(e.target.value)} 
-                  placeholder="0,00" 
-                  required 
-                  className="h-12 rounded-xl bg-slate-50 border-none font-bold"
-                />
+                <Input type="number" step="0.01" value={totalValue} onChange={(e) => setTotalValue(e.target.value)} placeholder="0,00" required className="h-12 rounded-xl bg-slate-50 border-none font-bold" />
               </div>
               {billingMethod === 'por_pessoa' && (
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nº de Moradores</Label>
-                  <Input 
-                    type="number" 
-                    value={residents} 
-                    onChange={(e) => setResidents(e.target.value)} 
-                    className="h-12 rounded-xl bg-blue-50/30 border-none font-bold"
-                    min="1"
-                    required 
-                  />
+                  <Input type="number" value={residents} onChange={(e) => setResidents(e.target.value)} className="h-12 rounded-xl bg-blue-50/30 border-none font-bold" min="1" required />
                 </div>
               )}
             </div>
@@ -305,13 +265,7 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mês/Ano Referência</Label>
-              <Input 
-                type="month" 
-                value={date} 
-                onChange={(e) => setDate(e.target.value)} 
-                required
-                className="h-12 rounded-xl bg-slate-50 border-none font-bold"
-              />
+              <Input type="month" value={date} onChange={(e) => setDate(e.target.value)} required className="h-12 rounded-xl bg-slate-50 border-none font-bold" />
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status</Label>
