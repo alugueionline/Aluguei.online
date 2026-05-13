@@ -40,6 +40,19 @@ export interface Tenant {
   residents_count: number;
 }
 
+export interface Contract {
+  id: string;
+  user_id: string;
+  property_id: string;
+  tenant_id: string;
+  rent_value: number;
+  start_date: string;
+  duration_months: number;
+  status: 'ativo' | 'pendente' | 'encerrado';
+  due_day: number;
+  created_at?: string;
+}
+
 export interface Bill {
   id: string;
   user_id: string;
