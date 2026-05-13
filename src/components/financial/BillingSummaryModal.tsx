@@ -267,7 +267,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
               <div className="flex bg-slate-800 p-1 rounded-xl">
                 <button 
                   onClick={() => setSendMethod('whatsapp')}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${sendMethod === 'whatsapp' ? 'bg-emerald-50 text-white' : 'text-slate-400'}`}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${sendMethod === 'whatsapp' ? 'bg-emerald-500 text-white' : 'text-slate-400'}`}
                 >
                   WhatsApp
                 </button>
@@ -287,7 +287,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
                 <Copy className="w-4 h-4" /> Copiar
               </Button>
               <Button 
-                className={`rounded-xl h-12 font-bold gap-2 shadow-lg ${sendMethod === 'whatsapp' ? 'bg-emerald-50 hover:bg-emerald-600' : 'bg-blue-600 hover:bg-blue-700'} text-white`} 
+                className={`rounded-xl h-12 font-bold gap-2 shadow-lg ${sendMethod === 'whatsapp' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-blue-600 hover:bg-blue-700'} text-white`} 
                 onClick={handleSend}
               >
                 {sendMethod === 'whatsapp' ? <Send className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
