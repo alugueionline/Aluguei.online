@@ -35,22 +35,52 @@ export const SharedBillModal = ({ isOpen, onClose }: SharedBillModalProps) => {
   }>>({});
 
   useEffect(() => {
-    const fetchTenants = async () => {
-      const { data } = await supabase
-        .from('tenants')
-        .select('id, name, residents_count, property_id, properties(name)')
-        .eq('status', 'ativo');
-      
-      if (data) {
-        setTenants(data);
-        const initial: any = {};
-        data.forEach(t => {
-          initial[t.id] = { selected: false, prevReading: '0', currReading: '0' };
-        });
-        setSelectedTenants(initial);
+    const fetchTenantsAndReadings = async () => {
+      setLoading(true);
+      try {
+        // 1. Busca todos os inquilinos ativos
+        const { data: tenantsData } = await supabase
+          .from('tenants')
+          .select('id, name, residents_count, property_id, properties(name)')
+          .eq('status', 'ativo');
+        
+        if (tenantsData) {
+          setTenants(tenantsData);
+
+          // 2. Busca as últimas leituras de energia para esses inquilinos
+          const { data: lastReadings } = await supabase
+            .from('bills')
+            .select('tenant_id, current_reading')
+            .eq('type', 'energia')
+            .not('current_reading', 'is', null)
+            .order('created_at', { ascending: false });
+
+          // Criar um mapa de tenant_id -> última leitura
+          const readingMap: Record<string, string> = {};
+          lastReadings?.forEach(bill => {
+            if (!readingMap[bill.tenant_id]) {
+              readingMap[bill.tenant_id] = bill.current_reading.toString();
+            }
+          });
+
+          const initial: any = {};
+          tenantsData.forEach(t => {
+            initial[t.id] = { 
+              selected: false, 
+              prevReading: readingMap[t.id] || '0', 
+              currReading: '' 
+            };
+          });
+          setSelectedTenants(initial);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar dados para rateio:", err);
+      } finally {
+        setLoading(false);
       }
     };
-    if (isOpen) fetchTenants();
+
+    if (isOpen) fetchTenantsAndReadings();
   }, [isOpen]);
 
   const handleSelectAll = (select: boolean) => {
