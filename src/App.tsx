@@ -22,7 +22,17 @@ import Calendar from "./pages/Calendar";
 import Alerts from "./pages/Alerts";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// Configuração otimizada do QueryClient
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60, // Mantém dados "frescos" por 1 minuto
+      gcTime: 1000 * 60 * 5, // Mantém no cache por 5 minutos
+      retry: 1,
+      refetchOnWindowFocus: false, // Evita recarregar toda vez que você volta para a aba do navegador
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
