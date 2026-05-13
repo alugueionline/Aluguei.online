@@ -18,7 +18,8 @@ import {
   Droplets,
   CheckCircle2,
   FileText,
-  MapPin
+  MapPin,
+  Home
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -41,55 +42,72 @@ const Calendar = () => {
       const monthStr = (currentMonth.getMonth() + 1).toString().padStart(2, '0');
       const yearNum = currentMonth.getFullYear();
 
-      const [tenantsRes, eventsRes, billsRes] = await Promise.all([
-        supabase.from('tenants').select('*, properties(name)').eq('status', 'ativo'),
+      // Buscamos Contratos, Eventos Manuais e Contas do mês
+      const [contractsRes, eventsRes, billsRes] = await Promise.all([
+        supabase.from('contracts').select('*, properties(name), tenants(name)').eq('status', 'ativo'),
         supabase.from('events').select('*'),
         supabase.from('bills').select('*').eq('month', monthStr).eq('year', yearNum)
       ]);
 
-      // CORREÇÃO DE DATA: Garantir que a data do banco seja tratada como Meia-Noite LOCAL
+      // 1. Eventos Manuais (Vistorias, etc)
       const manualEvents = (eventsRes.data || []).map(e => {
         const [y, m, d] = e.date.split('T')[0].split('-').map(Number);
         return {
           ...e,
-          date: new Date(y, m - 1, d) // Cria no horário local do navegador
+          date: new Date(y, m - 1, d)
         };
       });
 
-      const tenants = tenantsRes.data || [];
+      const contracts = contractsRes.data || [];
       const bills = billsRes.data || [];
-
       const generatedEvents: any[] = [];
       const lastDayOfMonth = getDate(endOfMonth(currentMonth));
 
-      tenants.forEach(tenant => {
-        const dueDay = Math.min(tenant.due_day || 5, lastDayOfMonth);
+      // 2. Gerar Vencimentos de Aluguel baseados nos CONTRATOS
+      contracts.forEach(contract => {
+        const dueDay = Math.min(contract.due_day || 5, lastDayOfMonth);
         const eventDate = new Date(yearNum, currentMonth.getMonth(), dueDay);
         
-        const rentBill = bills.find(b => b.tenant_id === tenant.id && b.type === 'aluguel');
+        // Verifica se já existe uma conta de aluguel paga para este contrato/imóvel este mês
+        const rentBill = bills.find(b => 
+          b.tenant_id === contract.tenant_id && 
+          b.property_id === contract.property_id && 
+          b.type === 'aluguel'
+        );
+        
         const isRentPaid = rentBill?.status === 'pago';
 
         generatedEvents.push({
-          id: `rent-${tenant.id}-${monthStr}`,
-          title: `Aluguel: ${tenant.name}`,
-          description: isRentPaid ? 'Pagamento Confirmado ✅' : `Vencimento - ${tenant.properties?.name || 'Imóvel'}`,
+          id: `contract-rent-${contract.id}-${monthStr}`,
+          title: `Aluguel: ${contract.tenants?.name || 'Inquilino'}`,
+          description: isRentPaid 
+            ? `Pago ✅ (${contract.properties?.name})` 
+            : `Vencimento: R$ ${Number(contract.rent_value).toLocaleString('pt-BR')} - ${contract.properties?.name}`,
           type: isRentPaid ? 'paid' : 'payment',
           status: isRentPaid ? 'paid' : 'pending',
           date: eventDate,
-          time: '08:00'
+          time: '08:00',
+          propertyName: contract.properties?.name
         });
+      });
 
-        const otherBills = bills.filter(b => b.tenant_id === tenant.id && b.type !== 'aluguel');
-        otherBills.forEach(bill => {
-          generatedEvents.push({
-            id: `bill-${bill.id}`,
-            title: `${bill.type.charAt(0).toUpperCase() + bill.type.slice(1)}: ${tenant.name}`,
-            description: bill.status === 'pago' ? 'Pago ✅' : `Valor: R$ ${Number(bill.total_value).toLocaleString('pt-BR')}`,
-            type: 'utility',
-            status: bill.status,
-            date: eventDate,
-            time: '09:00'
-          });
+      // 3. Gerar Eventos para outras Contas (Energia, Água, etc) que não sejam o aluguel base
+      bills.filter(b => b.type !== 'aluguel').forEach(bill => {
+        // Usamos o dia de vencimento do contrato vinculado ou dia 5 como fallback
+        const contract = contracts.find(c => c.tenant_id === bill.tenant_id && c.property_id === bill.property_id);
+        const dueDay = Math.min(contract?.due_day || 5, lastDayOfMonth);
+        const eventDate = new Date(yearNum, currentMonth.getMonth(), dueDay);
+
+        generatedEvents.push({
+          id: `bill-extra-${bill.id}`,
+          title: `${bill.type.charAt(0).toUpperCase() + bill.type.slice(1)}: ${bill.tenants?.name || 'Inquilino'}`,
+          description: bill.status === 'pago' 
+            ? `Pago ✅` 
+            : `Valor: R$ ${Number(bill.total_value || bill.calculated_value).toLocaleString('pt-BR')}`,
+          type: 'utility',
+          status: bill.status,
+          date: eventDate,
+          time: '09:00'
         });
       });
 
@@ -108,7 +126,6 @@ const Calendar = () => {
   const handlePrevMonth = () => setCurrentMonth(prev => startOfMonth(subMonths(prev, 1)));
   const handleNextMonth = () => setCurrentMonth(prev => startOfMonth(addMonths(prev, 1)));
   
-  // Filtro robusto comparando apenas Dia/Mês/Ano
   const selectedDayEvents = events.filter(e => {
     if (!date) return false;
     return isSameDay(startOfDay(e.date), startOfDay(date));
@@ -127,7 +144,7 @@ const Calendar = () => {
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
           <div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">Calendário Imobiliário</h2>
-            <p className="text-slate-500 font-medium">Cores vivas para identificar vencimentos e compromissos.</p>
+            <p className="text-slate-500 font-medium">Vencimentos automáticos baseados em seus contratos ativos.</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center bg-white p-1 rounded-2xl border border-slate-100 shadow-sm">
@@ -217,6 +234,11 @@ const Calendar = () => {
                           <span className="text-[10px] font-black text-slate-300 bg-slate-50 px-2 py-1 rounded-lg">{event.time}</span>
                         </div>
                         <p className="text-sm text-slate-500 mt-1 font-medium">{event.description}</p>
+                        {event.propertyName && (
+                          <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-blue-600 uppercase">
+                            <Home className="w-3 h-3" /> {event.propertyName}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))
@@ -237,20 +259,8 @@ const Calendar = () => {
               <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/20 rounded-full -mr-16 -mt-16 blur-3xl" />
               <h4 className="text-xl font-black tracking-tight mb-4">Visão Inteligente</h4>
               <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                O calendário projeta automaticamente os vencimentos de aluguel e contas baseados no dia de vencimento de cada contrato.
+                O calendário agora projeta os vencimentos de **cada contrato individualmente**. Se um inquilino tem múltiplos imóveis, você verá todos os vencimentos aqui.
               </p>
-              
-              <div className="mt-8 space-y-4">
-                <div className="p-4 bg-white/5 rounded-2xl border border-white/10 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-orange-500 flex items-center justify-center text-white">
-                    <Clock className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-widest text-blue-400">Atenção</p>
-                    <p className="text-sm font-bold">Vencimentos hoje</p>
-                  </div>
-                </div>
-              </div>
             </div>
 
             <Card className="border-none shadow-sm rounded-[2.5rem] p-8 bg-blue-50/50 border border-blue-100">
@@ -260,7 +270,7 @@ const Calendar = () => {
                   <Bell className="w-5 h-5" />
                 </div>
                 <p className="text-sm text-blue-900/70 font-medium leading-relaxed">
-                  Clique em qualquer dia para ver o detalhamento. Dias com cores sólidas indicam que há ações pendentes ou confirmadas.
+                  Vencimentos em **Laranja** ainda não foram baixados no financeiro. Assim que você der a baixa, eles ficarão **Verdes**.
                 </p>
               </div>
             </Card>
