@@ -18,7 +18,7 @@ import {
   User as UserIcon,
   ArrowRightLeft
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/utils/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -27,7 +27,6 @@ const menuItems = [
   { icon: Home, label: 'Imóveis', path: '/properties' },
   { icon: Users, label: 'Locatários', path: '/tenants' },
   { icon: DollarSign, label: 'Financeiro', path: '/financial' },
-  { icon: ArrowRightLeft, label: 'Dividir Contas', path: '/shared-bills' },
   { icon: ArrowUpDown, label: 'Receitas / Despesas', path: '/billing' },
   { icon: Wrench, label: 'Manutenção', path: '/maintenance' },
   { icon: BarChart3, label: 'Relatórios', path: '/reports' },

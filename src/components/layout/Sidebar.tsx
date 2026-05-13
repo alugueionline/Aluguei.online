@@ -28,7 +28,6 @@ const menuItems = [
   { icon: Users, label: "Inquilinos", path: "/tenants" },
   { icon: FileText, label: "Contratos", path: "/contracts" },
   { icon: DollarSign, label: "Financeiro", path: "/financial" },
-  { icon: ArrowRightLeft, label: "Dividir Contas", path: "/shared-bills" },
   { icon: Wrench, label: "Manutenção", path: "/maintenance" },
   { icon: Calendar, label: "Calendário", path: "/calendar" },
   { icon: BarChart3, label: "Relatórios", path: "/reports" },

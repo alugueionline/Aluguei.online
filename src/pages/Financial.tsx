@@ -24,12 +24,14 @@ import {
   Trash2,
   Percent,
   RotateCcw,
-  AlertTriangle
+  AlertTriangle,
+  ArrowRightLeft
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TransactionModal } from '@/components/modals/TransactionModal';
 import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
 import { TenantCollectionList } from '@/components/financial/TenantCollectionList';
+import { SharedBillsTab } from '@/components/financial/SharedBillsTab';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { showSuccess, showError } from '@/utils/toast';
@@ -238,8 +240,6 @@ const Financial = () => {
 
     try {
       setLoading(true);
-      // Extraímos os IDs reais removendo apenas os sufixos de multa/juros
-      // Não usamos split('-') pois o UUID contém hífens
       const realIds = Array.from(new Set(selectedIds.map(id => 
         id.replace('-fine', '').replace('-interest', '')
       )));
@@ -291,11 +291,14 @@ const Financial = () => {
 
       <Tabs defaultValue="collections" className="space-y-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-          <TabsList className="bg-white p-1 shadow-sm border-none h-14 rounded-[1.5rem]">
-            <TabsTrigger value="collections" className="gap-2 px-8 rounded-2xl h-12 data-[state=active]:bg-blue-600 data-[state=active]:text-white font-bold">
-              <Users className="w-4 h-4" /> Cobranças por Inquilino
+          <TabsList className="bg-white p-1 shadow-sm border-none h-14 rounded-[1.5rem] overflow-x-auto max-w-full">
+            <TabsTrigger value="collections" className="gap-2 px-6 md:px-8 rounded-2xl h-12 data-[state=active]:bg-blue-600 data-[state=active]:text-white font-bold whitespace-nowrap">
+              <Users className="w-4 h-4" /> Cobrança por Inquilino
             </TabsTrigger>
-            <TabsTrigger value="transactions" className="gap-2 px-8 rounded-2xl h-12 data-[state=active]:bg-blue-600 data-[state=active]:text-white font-bold">
+            <TabsTrigger value="shared" className="gap-2 px-6 md:px-8 rounded-2xl h-12 data-[state=active]:bg-blue-600 data-[state=active]:text-white font-bold whitespace-nowrap">
+              <ArrowRightLeft className="w-4 h-4" /> Dividir Contas
+            </TabsTrigger>
+            <TabsTrigger value="transactions" className="gap-2 px-6 md:px-8 rounded-2xl h-12 data-[state=active]:bg-blue-600 data-[state=active]:text-white font-bold whitespace-nowrap">
               <History className="w-4 h-4" /> Transações
             </TabsTrigger>
           </TabsList>
@@ -315,6 +318,10 @@ const Financial = () => {
 
         <TabsContent value="collections">
           <TenantCollectionList />
+        </TabsContent>
+
+        <TabsContent value="shared">
+          <SharedBillsTab />
         </TabsContent>
 
         <TabsContent value="transactions" className="space-y-6">
