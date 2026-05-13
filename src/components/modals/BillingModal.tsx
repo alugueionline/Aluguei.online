@@ -51,29 +51,49 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
     if (isOpen) fetchData();
   }, [isOpen]);
 
+  // Busca automática da última leitura aprimorada
   useEffect(() => {
     const fetchLastReading = async () => {
-      if (type === 'energia' && billingMethod === 'consumo_kwh' && (tenantId || propertyId) && !isEdit) {
-        let query = supabase
-          .from('bills')
-          .select('current_reading')
-          .eq('type', 'energia')
-          .not('current_reading', 'is', null)
-          .order('year', { ascending: false })
-          .order('month', { ascending: false })
-          .limit(1);
+      // Só buscamos se for energia por kWh e não for edição
+      if (type === 'energia' && billingMethod === 'consumo_kwh' && !isEdit) {
+        
+        // Se não tiver inquilino nem imóvel selecionado, não busca
+        if (!tenantId || tenantId === 'none') {
+          if (!propertyId) return;
+        }
 
-        if (tenantId && tenantId !== 'none') query = query.eq('tenant_id', tenantId);
-        if (propertyId) query = query.eq('property_id', propertyId);
+        try {
+          let query = supabase
+            .from('bills')
+            .select('current_reading')
+            .eq('type', 'energia')
+            .not('current_reading', 'is', null)
+            .order('created_at', { ascending: false }) // Pega o registro criado por último
+            .limit(1);
 
-        const { data } = await query;
-        if (data && data.length > 0) {
-          setPrevReading(data[0].current_reading.toString());
-        } else {
+          // Filtra por inquilino se selecionado, senão por imóvel
+          if (tenantId && tenantId !== 'none') {
+            query = query.eq('tenant_id', tenantId);
+          } else if (propertyId) {
+            query = query.eq('property_id', propertyId);
+          }
+
+          const { data, error } = await query;
+          
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            setPrevReading(data[0].current_reading.toString());
+          } else {
+            setPrevReading('0');
+          }
+        } catch (err) {
+          console.error("[BillingModal] Erro ao buscar leitura anterior:", err);
           setPrevReading('0');
         }
       }
     };
+
     fetchLastReading();
   }, [tenantId, propertyId, type, billingMethod, isEdit]);
 
@@ -96,6 +116,8 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
       setBillingMethod('fixo');
       setResidents('1');
       setStatus('pendente');
+      setPrevReading('');
+      setCurrReading('');
     }
   }, [isOpen, bill]);
 
