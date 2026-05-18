@@ -46,10 +46,10 @@ const Dashboard = () => {
   const [selectedTenantForCollection, setSelectedTenantForCollection] = useState<string | undefined>(undefined);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
 
-  // Tipos que são considerados Receita (Entrada)
+  // Tipos que são considerados Receita (Entrada) para o gráfico de Recebido vs Despesa
   const isIncomeType = (type: string) => {
     const t = type?.toLowerCase() || '';
-    return ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'taxa extra', 'luz'].includes(t);
+    return ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'taxa extra', 'luz', 'taxa'].includes(t);
   };
 
   const { data: tenants = [], isLoading: loadingTenants } = useQuery({
@@ -83,7 +83,7 @@ const Dashboard = () => {
             if (currentDay > dueDay) projectedIsOverdue = true;
           }
           
-          // Projeção de Condomínio (se houver taxa cadastrada no imóvel)
+          // Projeção de Condomínio
           const hasCondoBill = t.bills?.some((b: any) => b.type === 'condominio' && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id);
           const condoFee = Number(contract.properties?.condo_fee || 0);
           if (condoFee > 0 && !hasCondoBill) {
@@ -114,7 +114,7 @@ const Dashboard = () => {
   });
 
   const { data: financialData, isLoading: loadingBills } = useQuery({
-    queryKey: ['dashboard-stats-v5'],
+    queryKey: ['dashboard-stats-v6'],
     queryFn: async () => {
       const [billsRes, contractsRes] = await Promise.all([
         supabase.from('bills').select('*'), 
@@ -131,12 +131,13 @@ const Dashboard = () => {
 
       bills.forEach(b => {
         const val = Number(b.total_value || b.calculated_value || 0);
-        const isIncome = isIncomeType(b.type);
         
         if (b.status === 'pago') { 
-          if (isIncome) rec += val; else des += val; 
+          if (isIncomeType(b.type)) rec += val; else des += val; 
         } else {
-          if (isIncome) {
+          // Se a fatura está pendente e tem um inquilino, ela DEVE ser contada como recebível (atr ou pen)
+          // Independente do tipo de string, para bater com a lista de inquilinos
+          if (b.tenant_id) {
             const contract = contracts.find(c => c.tenant_id === b.tenant_id && c.property_id === b.property_id);
             if (isBillOverdue(b, contract?.due_day || 5)) {
               atr += val;
@@ -240,7 +241,7 @@ const Dashboard = () => {
           ))}
         </div>
       </div>
-      <QuickPaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} tenant={selectedTenantForPayment} onSuccess={() => { queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v5'] }); queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] }); }} />
+      <QuickPaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} tenant={selectedTenantForPayment} onSuccess={() => { queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v6'] }); queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] }); }} />
       <BillingSummaryModal isOpen={isCollectionModalOpen} onClose={() => setIsCollectionModalOpen(false)} tenantId={selectedTenantForCollection} />
     </DashboardLayout>
   );
