@@ -40,6 +40,7 @@ import { cn } from '@/lib/utils';
 import { TenantModal } from '@/components/modals/TenantModal';
 import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
 import { showSuccess, showError } from '@/utils/toast';
+import { isBillOverdue, getProjectedOverdueRent } from '@/utils/financial';
 
 const TenantDetails = () => {
   const { id } = useParams();
@@ -63,7 +64,7 @@ const TenantDetails = () => {
   });
 
   const { data: financialData } = useQuery({
-    queryKey: ['tenant-financial-v2', id],
+    queryKey: ['tenant-financial-v3', id],
     queryFn: async () => {
       const { data: bills } = await supabase
         .from('bills')
@@ -74,15 +75,11 @@ const TenantDetails = () => {
       
       const history = bills || [];
       
-      const now = new Date();
-      const currentDay = now.getDate();
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
-
       let totalDebt = 0;
       let totalOverdue = 0;
       let totalPaid = 0;
 
+      // 1. Processar faturas existentes
       history.forEach(b => {
         const val = Number(b.total_value || b.calculated_value || 0);
         if (b.status === 'pago') {
@@ -90,22 +87,25 @@ const TenantDetails = () => {
         } else {
           totalDebt += val;
           
-          // Lógica de atraso
-          const billMonth = parseInt(b.month);
-          const billYear = b.year;
           const contract = tenant?.contracts?.find((c: any) => c.property_id === b.property_id);
-          const dueDay = contract?.due_day || 5;
-
-          let isAtrasado = b.status === 'atrasado';
-          if (!isAtrasado) {
-            if (billYear < currentYear) isAtrasado = true;
-            else if (billYear === currentYear && billMonth < currentMonth) isAtrasado = true;
-            else if (billYear === currentYear && billMonth === currentMonth && currentDay > dueDay) isAtrasado = true;
+          if (isBillOverdue(b, contract?.due_day || 5)) {
+            totalOverdue += val;
           }
-
-          if (isAtrasado) totalOverdue += val;
         }
       });
+
+      // 2. Processar projeções de aluguel (o que já venceu mas não foi faturado)
+      if (tenant?.contracts) {
+        tenant.contracts.forEach((contract: any) => {
+          if (contract.status === 'ativo') {
+            const projected = getProjectedOverdueRent(contract, history);
+            if (projected > 0) {
+              totalDebt += projected;
+              totalOverdue += projected;
+            }
+          }
+        });
+      }
 
       return { history, totalDebt, totalOverdue, totalPaid };
     },
@@ -118,7 +118,7 @@ const TenantDetails = () => {
       const { error } = await supabase.from('bills').update({ status: 'pago', payment_date: new Date().toISOString() }).eq('id', billId);
       if (error) throw error;
       showSuccess("Pagamento confirmado!");
-      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v2', id] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v3', id] });
     } catch (err: any) {
       showError("Erro ao dar baixa: " + err.message);
     } finally {
@@ -132,7 +132,7 @@ const TenantDetails = () => {
       const { error } = await supabase.from('bills').update({ status: 'pendente', payment_date: null }).eq('id', billId);
       if (error) throw error;
       showSuccess("Pagamento revertido.");
-      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v2', id] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v3', id] });
     } catch (err: any) {
       showError("Erro ao reverter: " + err.message);
     } finally {
@@ -147,7 +147,7 @@ const TenantDetails = () => {
       const { error } = await supabase.from('bills').delete().eq('id', billId);
       if (error) throw error;
       showSuccess("Registro excluído.");
-      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v2', id] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v3', id] });
     } catch (err: any) {
       showError("Erro ao excluir: " + err.message);
     } finally {
@@ -220,21 +220,8 @@ const TenantDetails = () => {
                   <TableHeader className="bg-gray-50/50"><TableRow><TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Referência</TableHead><TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Tipo</TableHead><TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Valor</TableHead><TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Status</TableHead><TableHead className="text-right font-black text-[10px] uppercase tracking-widest p-6">Ações</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {financialData?.history.map((bill) => {
-                      const now = new Date();
-                      const currentDay = now.getDate();
-                      const currentMonth = now.getMonth() + 1;
-                      const currentYear = now.getFullYear();
-                      const billMonth = parseInt(bill.month);
-                      const billYear = bill.year;
                       const contract = tenant?.contracts?.find((c: any) => c.property_id === bill.property_id);
-                      const dueDay = contract?.due_day || 5;
-
-                      let isAtrasado = bill.status === 'atrasado';
-                      if (bill.status !== 'pago' && !isAtrasado) {
-                        if (billYear < currentYear) isAtrasado = true;
-                        else if (billYear === currentYear && billMonth < currentMonth) isAtrasado = true;
-                        else if (billYear === currentYear && billMonth === currentMonth && currentDay > dueDay) isAtrasado = true;
-                      }
+                      const isAtrasado = isBillOverdue(bill, contract?.due_day || 5);
 
                       return (
                         <TableRow key={bill.id} className="border-slate-50">

@@ -36,6 +36,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { QuickPaymentModal } from '@/components/modals/QuickPaymentModal';
 import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
 import { getTenantAvatar } from '@/utils/avatar';
+import { isBillOverdue } from '@/utils/financial';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -44,26 +45,6 @@ const Dashboard = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedTenantForCollection, setSelectedTenantForCollection] = useState<string | undefined>(undefined);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
-
-  // Lógica centralizada para determinar se uma fatura está atrasada
-  const isOverdue = (bill: any, dueDay: number) => {
-    if (bill.status === 'pago') return false;
-    if (bill.status === 'atrasado') return true;
-
-    const now = new Date();
-    const currentDay = now.getDate();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
-
-    const billMonth = parseInt(bill.month);
-    const billYear = bill.year;
-
-    if (billYear < currentYear) return true;
-    if (billYear === currentYear && billMonth < currentMonth) return true;
-    if (billYear === currentYear && billMonth === currentMonth && currentDay > dueDay) return true;
-
-    return false;
-  };
 
   const { data: tenants = [], isLoading: loadingTenants } = useQuery({
     queryKey: ['tenants-dashboard-active'],
@@ -107,7 +88,7 @@ const Dashboard = () => {
         
         const hasOverdue = pendingBills.some((b: any) => {
           const contract = activeContracts.find(c => c.property_id === b.property_id);
-          return isOverdue(b, contract?.due_day || 5);
+          return isBillOverdue(b, contract?.due_day || 5);
         }) || projectedIsOverdue;
 
         let status: 'atrasado' | 'pendente' | 'pago' = 'pendente';
@@ -142,7 +123,7 @@ const Dashboard = () => {
       const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio'];
 
       bills.forEach(b => {
-        const val = Number(b.total_value || 0);
+        const val = Number(b.total_value || b.calculated_value || 0);
         const type = b.type?.toLowerCase();
         const isIncome = incomeTypes.includes(type);
         
@@ -151,7 +132,7 @@ const Dashboard = () => {
         } else {
           if (isIncome) {
             const contract = contracts.find(c => c.tenant_id === b.tenant_id && c.property_id === b.property_id);
-            if (isOverdue(b, contract?.due_day || 5)) {
+            if (isBillOverdue(b, contract?.due_day || 5)) {
               atr += val;
             } else {
               pen += val;
