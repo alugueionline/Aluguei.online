@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,7 +24,8 @@ import {
   RotateCcw,
   Wallet,
   Trash2,
-  Check
+  Check,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   Table, 
@@ -62,7 +63,7 @@ const TenantDetails = () => {
   });
 
   const { data: financialData } = useQuery({
-    queryKey: ['tenant-financial', id],
+    queryKey: ['tenant-financial-v2', id],
     queryFn: async () => {
       const { data: bills } = await supabase
         .from('bills')
@@ -70,10 +71,43 @@ const TenantDetails = () => {
         .eq('tenant_id', id)
         .order('year', { descending: false })
         .order('month', { descending: false });
+      
       const history = bills || [];
-      const totalDebt = history.filter(b => b.status !== 'pago').reduce((acc, curr) => acc + Number(curr.total_value || curr.calculated_value), 0);
-      const totalPaid = history.filter(b => b.status === 'pago').reduce((acc, curr) => acc + Number(curr.total_value || curr.calculated_value), 0);
-      return { history, totalDebt, totalPaid };
+      
+      const now = new Date();
+      const currentDay = now.getDate();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
+      let totalDebt = 0;
+      let totalOverdue = 0;
+      let totalPaid = 0;
+
+      history.forEach(b => {
+        const val = Number(b.total_value || b.calculated_value || 0);
+        if (b.status === 'pago') {
+          totalPaid += val;
+        } else {
+          totalDebt += val;
+          
+          // Lógica de atraso
+          const billMonth = parseInt(b.month);
+          const billYear = b.year;
+          const contract = tenant?.contracts?.find((c: any) => c.property_id === b.property_id);
+          const dueDay = contract?.due_day || 5;
+
+          let isAtrasado = b.status === 'atrasado';
+          if (!isAtrasado) {
+            if (billYear < currentYear) isAtrasado = true;
+            else if (billYear === currentYear && billMonth < currentMonth) isAtrasado = true;
+            else if (billYear === currentYear && billMonth === currentMonth && currentDay > dueDay) isAtrasado = true;
+          }
+
+          if (isAtrasado) totalOverdue += val;
+        }
+      });
+
+      return { history, totalDebt, totalOverdue, totalPaid };
     },
     enabled: !!tenant
   });
@@ -84,7 +118,7 @@ const TenantDetails = () => {
       const { error } = await supabase.from('bills').update({ status: 'pago', payment_date: new Date().toISOString() }).eq('id', billId);
       if (error) throw error;
       showSuccess("Pagamento confirmado!");
-      queryClient.invalidateQueries({ queryKey: ['tenant-financial', id] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v2', id] });
     } catch (err: any) {
       showError("Erro ao dar baixa: " + err.message);
     } finally {
@@ -98,7 +132,7 @@ const TenantDetails = () => {
       const { error } = await supabase.from('bills').update({ status: 'pendente', payment_date: null }).eq('id', billId);
       if (error) throw error;
       showSuccess("Pagamento revertido.");
-      queryClient.invalidateQueries({ queryKey: ['tenant-financial', id] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v2', id] });
     } catch (err: any) {
       showError("Erro ao reverter: " + err.message);
     } finally {
@@ -113,7 +147,7 @@ const TenantDetails = () => {
       const { error } = await supabase.from('bills').delete().eq('id', billId);
       if (error) throw error;
       showSuccess("Registro excluído.");
-      queryClient.invalidateQueries({ queryKey: ['tenant-financial', id] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v2', id] });
     } catch (err: any) {
       showError("Erro ao excluir: " + err.message);
     } finally {
@@ -152,9 +186,9 @@ const TenantDetails = () => {
           </Card>
 
           <div className="grid grid-cols-1 gap-4">
-            <Card className={cn("border-none shadow-sm rounded-[2rem]", financialData?.totalDebt && financialData.totalDebt > 0 ? "bg-rose-50 border-rose-100" : "bg-emerald-50 border-emerald-100")}>
-              <CardHeader className="pb-2"><CardTitle className={cn("text-sm font-black flex items-center gap-2 uppercase tracking-widest", financialData?.totalDebt && financialData.totalDebt > 0 ? "text-rose-800" : "text-emerald-800")}>{financialData?.totalDebt && financialData.totalDebt > 0 ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />} Dívida Pendente</CardTitle></CardHeader>
-              <CardContent><p className={cn("text-2xl font-black", financialData?.totalDebt && financialData.totalDebt > 0 ? "text-rose-900" : "text-emerald-900")}>R$ {financialData?.totalDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></CardContent>
+            <Card className={cn("border-none shadow-sm rounded-[2rem]", financialData?.totalOverdue && financialData.totalOverdue > 0 ? "bg-rose-50 border-rose-100" : "bg-white")}>
+              <CardHeader className="pb-2"><CardTitle className={cn("text-sm font-black flex items-center gap-2 uppercase tracking-widest", financialData?.totalOverdue && financialData.totalOverdue > 0 ? "text-rose-800" : "text-slate-400")}>{financialData?.totalOverdue && financialData.totalOverdue > 0 ? <AlertTriangle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />} Dívida Atrasada</CardTitle></CardHeader>
+              <CardContent><p className={cn("text-2xl font-black", financialData?.totalOverdue && financialData.totalOverdue > 0 ? "text-rose-900" : "text-slate-900")}>R$ {financialData?.totalOverdue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></CardContent>
             </Card>
             <Card className="border-none shadow-sm bg-blue-50 border-blue-100 rounded-[2rem]">
               <CardHeader className="pb-2"><CardTitle className="text-sm font-black text-blue-800 flex items-center gap-2 uppercase tracking-widest"><Wallet className="w-4 h-4" /> Total Pago</CardTitle></CardHeader>
@@ -185,24 +219,50 @@ const TenantDetails = () => {
                 <Table>
                   <TableHeader className="bg-gray-50/50"><TableRow><TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Referência</TableHead><TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Tipo</TableHead><TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Valor</TableHead><TableHead className="font-black text-[10px] uppercase tracking-widest p-6">Status</TableHead><TableHead className="text-right font-black text-[10px] uppercase tracking-widest p-6">Ações</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {financialData?.history.map((bill) => (
-                      <TableRow key={bill.id} className="border-slate-50">
-                        <TableCell className="p-6 font-bold text-slate-900">{bill.month}/{bill.year}</TableCell>
-                        <TableCell className="p-6 capitalize text-slate-500 font-medium">{bill.type}</TableCell>
-                        <TableCell className="p-6 font-black text-slate-900">R$ {Number(bill.total_value || bill.calculated_value).toLocaleString('pt-BR')}</TableCell>
-                        <TableCell className="p-6"><Badge className={cn("border-none px-3 py-1 rounded-lg font-black text-[10px] uppercase", bill.status === 'pago' ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>{bill.status}</Badge></TableCell>
-                        <TableCell className="p-6 text-right">
-                          <div className="flex justify-end gap-2">
-                            {bill.status !== 'pago' ? (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-emerald-600 hover:bg-emerald-50" onClick={() => handleMarkAsPaid(bill.id)} disabled={processingBillId === bill.id} title="Dar Baixa">{processingBillId === bill.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}</Button>
-                            ) : (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-300 hover:text-blue-600 hover:bg-blue-50" onClick={() => handleRevertPayment(bill.id)} disabled={processingBillId === bill.id} title="Reverter">{processingBillId === bill.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}</Button>
-                            )}
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleDeleteBill(bill.id)} disabled={processingBillId === bill.id} title="Excluir"><Trash2 className="w-3.5 h-3.5" /></Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {financialData?.history.map((bill) => {
+                      const now = new Date();
+                      const currentDay = now.getDate();
+                      const currentMonth = now.getMonth() + 1;
+                      const currentYear = now.getFullYear();
+                      const billMonth = parseInt(bill.month);
+                      const billYear = bill.year;
+                      const contract = tenant?.contracts?.find((c: any) => c.property_id === bill.property_id);
+                      const dueDay = contract?.due_day || 5;
+
+                      let isAtrasado = bill.status === 'atrasado';
+                      if (bill.status !== 'pago' && !isAtrasado) {
+                        if (billYear < currentYear) isAtrasado = true;
+                        else if (billYear === currentYear && billMonth < currentMonth) isAtrasado = true;
+                        else if (billYear === currentYear && billMonth === currentMonth && currentDay > dueDay) isAtrasado = true;
+                      }
+
+                      return (
+                        <TableRow key={bill.id} className="border-slate-50">
+                          <TableCell className="p-6 font-bold text-slate-900">{bill.month}/{bill.year}</TableCell>
+                          <TableCell className="p-6 capitalize text-slate-500 font-medium">{bill.type}</TableCell>
+                          <TableCell className="p-6 font-black text-slate-900">R$ {Number(bill.total_value || bill.calculated_value).toLocaleString('pt-BR')}</TableCell>
+                          <TableCell className="p-6">
+                            <Badge className={cn(
+                              "border-none px-3 py-1 rounded-lg font-black text-[10px] uppercase", 
+                              bill.status === 'pago' ? "bg-emerald-50 text-emerald-700" : 
+                              isAtrasado ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"
+                            )}>
+                              {bill.status === 'pago' ? 'Pago' : isAtrasado ? 'Atrasado' : 'Pendente'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="p-6 text-right">
+                            <div className="flex justify-end gap-2">
+                              {bill.status !== 'pago' ? (
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-emerald-600 hover:bg-emerald-50" onClick={() => handleMarkAsPaid(bill.id)} disabled={processingBillId === bill.id} title="Dar Baixa">{processingBillId === bill.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}</Button>
+                              ) : (
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-300 hover:text-blue-600 hover:bg-blue-50" onClick={() => handleRevertPayment(bill.id)} disabled={processingBillId === bill.id} title="Reverter">{processingBillId === bill.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}</Button>
+                              )}
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleDeleteBill(bill.id)} disabled={processingBillId === bill.id} title="Excluir"><Trash2 className="w-3.5 h-3.5" /></Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

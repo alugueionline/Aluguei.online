@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,31 +44,68 @@ const Dashboard = () => {
   const [selectedTenantForCollection, setSelectedTenantForCollection] = useState<string | undefined>(undefined);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
 
+  // Lógica centralizada para determinar se uma fatura está atrasada
+  const isOverdue = (bill: any, dueDay: number) => {
+    if (bill.status === 'pago') return false;
+    if (bill.status === 'atrasado') return true;
+
+    const now = new Date();
+    const currentDay = now.getDate();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    const billMonth = parseInt(bill.month);
+    const billYear = bill.year;
+
+    if (billYear < currentYear) return true;
+    if (billYear === currentYear && billMonth < currentMonth) return true;
+    if (billYear === currentYear && billMonth === currentMonth && currentDay > dueDay) return true;
+
+    return false;
+  };
+
   const { data: tenants = [], isLoading: loadingTenants } = useQuery({
     queryKey: ['tenants-dashboard-active'],
     queryFn: async () => {
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
-      const { data } = await supabase.from('tenants').select(`*, properties(name, condo_fee), bills(*), contracts(rent_value, status, property_id, due_day, properties(condo_fee))`).eq('status', 'ativo');
+      
+      const { data } = await supabase
+        .from('tenants')
+        .select(`*, properties(name, condo_fee), bills(*), contracts(rent_value, status, property_id, due_day, properties(condo_fee))`)
+        .eq('status', 'ativo');
+
       const processed = (data || []).map(t => {
         const activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
         const pendingBills = t.bills?.filter((b: any) => b.status !== 'pago') || [];
+        
         const existingBillsTotal = pendingBills.reduce((acc: number, b: any) => acc + Number(b.calculated_value || b.total_value || 0), 0);
+        
         let projectedTotal = 0;
         activeContracts.forEach((contract: any) => {
           const hasRentBill = t.bills?.some((b: any) => b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id);
           if (!hasRentBill) projectedTotal += Number(contract.rent_value || 0);
+          
           const hasCondoBill = t.bills?.some((b: any) => b.type === 'condominio' && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id);
           const condoFee = Number(contract.properties?.condo_fee || 0);
           if (condoFee > 0 && !hasCondoBill) projectedTotal += condoFee;
         });
+
         const totalDebt = existingBillsTotal + projectedTotal;
-        const hasOverdue = pendingBills.some((b: any) => b.status === 'atrasado');
+        
+        // Verifica se alguma conta pendente está realmente atrasada
+        const hasOverdue = pendingBills.some((b: any) => {
+          const contract = activeContracts.find(c => c.property_id === b.property_id);
+          return isOverdue(b, contract?.due_day || 5);
+        });
+
         let status: 'atrasado' | 'pendente' | 'pago' = 'pendente';
         if (totalDebt === 0) status = 'pago';
         else if (hasOverdue) status = 'atrasado';
+
         return { ...t, totalDebt, hasOverdue, dashboardStatus: status };
       });
+
       return processed.sort((a, b) => {
         const order = { atrasado: 0, pendente: 1, pago: 2 };
         return order[a.dashboardStatus] - order[b.dashboardStatus];
@@ -77,37 +114,72 @@ const Dashboard = () => {
   });
 
   const { data: financialData, isLoading: loadingBills } = useQuery({
-    queryKey: ['dashboard-stats-v2'],
+    queryKey: ['dashboard-stats-v3'],
     queryFn: async () => {
-      const [billsRes, contractsRes] = await Promise.all([supabase.from('bills').select('*'), supabase.from('contracts').select('*').eq('status', 'ativo')]);
+      const [billsRes, contractsRes] = await Promise.all([
+        supabase.from('bills').select('*'), 
+        supabase.from('contracts').select('*').eq('status', 'ativo')
+      ]);
+      
       const bills = billsRes.data || [];
       const contracts = contractsRes.data || [];
+      
       let rec = 0, des = 0, pen = 0, atr = 0;
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
       const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio'];
+
       bills.forEach(b => {
         const val = Number(b.total_value || 0);
         const type = b.type?.toLowerCase();
         const isIncome = incomeTypes.includes(type);
-        if (b.status === 'pago') { if (isIncome) rec += val; else des += val; }
-        else if (b.status === 'atrasado') { if (isIncome) atr += val; }
-        else { if (isIncome) pen += val; }
+        
+        if (b.status === 'pago') { 
+          if (isIncome) rec += val; else des += val; 
+        } else {
+          if (isIncome) {
+            const contract = contracts.find(c => c.tenant_id === b.tenant_id && c.property_id === b.property_id);
+            if (isOverdue(b, contract?.due_day || 5)) {
+              atr += val;
+            } else {
+              pen += val;
+            }
+          }
+        }
       });
+
+      // Adiciona aluguéis projetados que ainda não foram gerados mas já venceram
       contracts.forEach(c => {
         const rentVal = Number(c.rent_value || 0);
         const hasBillThisMonth = bills.some(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear);
-        if (!hasBillThisMonth) pen += rentVal;
+        
+        if (!hasBillThisMonth) {
+          const now = new Date();
+          if (now.getDate() > (c.due_day || 5)) {
+            atr += rentVal;
+          } else {
+            pen += rentVal;
+          }
+        }
       });
+
       const totalExpected = rec + pen + atr;
-      const collectionData = [{ name: 'Recebido', value: rec, color: '#10b981' }, { name: 'Pendente', value: pen, color: '#f59e0b' }, { name: 'Atrasado', value: atr, color: '#f43f5e' }];
-      return { stats: { receitas: rec, despesas: des, lucro: rec - des, pendente: pen, atrasado: atr, totalExpected }, collectionData };
+      const collectionData = [
+        { name: 'Recebido', value: rec, color: '#10b981' }, 
+        { name: 'Pendente', value: pen, color: '#f59e0b' }, 
+        { name: 'Atrasado', value: atr, color: '#f43f5e' }
+      ];
+
+      return { 
+        stats: { receitas: rec, despesas: des, lucro: rec - des, pendente: pen, atrasado: atr, totalExpected }, 
+        collectionData 
+      };
     }
   });
 
   const stats = financialData?.stats || { receitas: 0, despesas: 0, lucro: 0, pendente: 0, atrasado: 0, totalExpected: 0 };
   const collectionData = financialData?.collectionData || [];
-  const isAllPaid = stats.totalExpected > 0 && stats.receitas === stats.totalExpected;
+  const isAllPaid = stats.totalExpected > 0 && stats.receitas >= stats.totalExpected;
 
   if (loadingBills || loadingTenants) return <DashboardLayout><div className="h-[60vh] flex flex-col items-center justify-center gap-4"><Loader2 className="w-8 h-8 text-blue-600 animate-spin" /><p className="text-slate-400 font-medium text-sm">Sincronizando...</p></div></DashboardLayout>;
 
@@ -164,7 +236,7 @@ const Dashboard = () => {
           ))}
         </div>
       </div>
-      <QuickPaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} tenant={selectedTenantForPayment} onSuccess={() => { queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v2'] }); queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] }); }} />
+      <QuickPaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} tenant={selectedTenantForPayment} onSuccess={() => { queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v3'] }); queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] }); }} />
       <BillingSummaryModal isOpen={isCollectionModalOpen} onClose={() => setIsCollectionModalOpen(false)} tenantId={selectedTenantForCollection} />
     </DashboardLayout>
   );
