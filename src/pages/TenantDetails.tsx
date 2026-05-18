@@ -25,7 +25,8 @@ import {
   Wallet,
   Trash2,
   Check,
-  AlertTriangle
+  AlertTriangle,
+  CalendarClock
 } from 'lucide-react';
 import { 
   Table, 
@@ -64,16 +65,17 @@ const TenantDetails = () => {
   });
 
   const { data: financialData } = useQuery({
-    queryKey: ['tenant-financial-v3', id],
+    queryKey: ['tenant-financial-v4', id],
     queryFn: async () => {
       const { data: bills } = await supabase
         .from('bills')
         .select('*')
         .eq('tenant_id', id)
-        .order('year', { descending: false })
-        .order('month', { descending: false });
+        .order('year', { descending: true })
+        .order('month', { descending: true });
       
       const history = bills || [];
+      const displayHistory = [...history];
       
       let totalDebt = 0;
       let totalOverdue = 0;
@@ -86,7 +88,6 @@ const TenantDetails = () => {
           totalPaid += val;
         } else {
           totalDebt += val;
-          
           const contract = tenant?.contracts?.find((c: any) => c.property_id === b.property_id);
           if (isBillOverdue(b, contract?.due_day || 5)) {
             totalOverdue += val;
@@ -96,29 +97,67 @@ const TenantDetails = () => {
 
       // 2. Processar projeções de aluguel (o que já venceu mas não foi faturado)
       if (tenant?.contracts) {
+        const now = new Date();
+        const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
+        const currentYear = now.getFullYear();
+
         tenant.contracts.forEach((contract: any) => {
           if (contract.status === 'ativo') {
             const projected = getProjectedOverdueRent(contract, history);
             if (projected > 0) {
               totalDebt += projected;
               totalOverdue += projected;
+              
+              // Adiciona uma linha "virtual" para o usuário ver na tabela
+              displayHistory.unshift({
+                id: `projected-${contract.id}`,
+                type: 'aluguel',
+                month: currentMonth,
+                year: currentYear,
+                total_value: projected,
+                status: 'pendente',
+                isProjected: true,
+                property_id: contract.property_id
+              });
             }
           }
         });
       }
 
-      return { history, totalDebt, totalOverdue, totalPaid };
+      return { history: displayHistory, totalDebt, totalOverdue, totalPaid };
     },
     enabled: !!tenant
   });
 
-  const handleMarkAsPaid = async (billId: string) => {
-    setProcessingBillId(billId);
+  const handleMarkAsPaid = async (bill: any) => {
+    setProcessingBillId(bill.id);
     try {
-      const { error } = await supabase.from('bills').update({ status: 'pago', payment_date: new Date().toISOString() }).eq('id', billId);
-      if (error) throw error;
+      if (bill.isProjected) {
+        // Se for uma projeção, precisamos primeiro criar a fatura no banco
+        const { data: { user } } = await supabase.auth.getUser();
+        const { error: insertError } = await supabase.from('bills').insert([{
+          user_id: user?.id,
+          tenant_id: id,
+          property_id: bill.property_id,
+          type: 'aluguel',
+          month: bill.month,
+          year: bill.year,
+          total_value: bill.total_value,
+          status: 'pago',
+          payment_date: new Date().toISOString()
+        }]);
+        if (insertError) throw insertError;
+      } else {
+        const { error } = await supabase.from('bills').update({ 
+          status: 'pago', 
+          payment_date: new Date().toISOString() 
+        }).eq('id', bill.id);
+        if (error) throw error;
+      }
+      
       showSuccess("Pagamento confirmado!");
-      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v3', id] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v4', id] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v6'] });
     } catch (err: any) {
       showError("Erro ao dar baixa: " + err.message);
     } finally {
@@ -132,7 +171,7 @@ const TenantDetails = () => {
       const { error } = await supabase.from('bills').update({ status: 'pendente', payment_date: null }).eq('id', billId);
       if (error) throw error;
       showSuccess("Pagamento revertido.");
-      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v3', id] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v4', id] });
     } catch (err: any) {
       showError("Erro ao reverter: " + err.message);
     } finally {
@@ -147,7 +186,7 @@ const TenantDetails = () => {
       const { error } = await supabase.from('bills').delete().eq('id', billId);
       if (error) throw error;
       showSuccess("Registro excluído.");
-      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v3', id] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v4', id] });
     } catch (err: any) {
       showError("Erro ao excluir: " + err.message);
     } finally {
@@ -224,8 +263,11 @@ const TenantDetails = () => {
                       const isAtrasado = isBillOverdue(bill, contract?.due_day || 5);
 
                       return (
-                        <TableRow key={bill.id} className="border-slate-50">
-                          <TableCell className="p-6 font-bold text-slate-900">{bill.month}/{bill.year}</TableCell>
+                        <TableRow key={bill.id} className={cn("border-slate-50", bill.isProjected && "bg-blue-50/30")}>
+                          <TableCell className="p-6 font-bold text-slate-900">
+                            {bill.month}/{bill.year}
+                            {bill.isProjected && <span className="ml-2 text-[8px] bg-blue-600 text-white px-1.5 py-0.5 rounded-full uppercase">Projetado</span>}
+                          </TableCell>
                           <TableCell className="p-6 capitalize text-slate-500 font-medium">{bill.type}</TableCell>
                           <TableCell className="p-6 font-black text-slate-900">R$ {Number(bill.total_value || bill.calculated_value).toLocaleString('pt-BR')}</TableCell>
                           <TableCell className="p-6">
@@ -240,16 +282,28 @@ const TenantDetails = () => {
                           <TableCell className="p-6 text-right">
                             <div className="flex justify-end gap-2">
                               {bill.status !== 'pago' ? (
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-emerald-600 hover:bg-emerald-50" onClick={() => handleMarkAsPaid(bill.id)} disabled={processingBillId === bill.id} title="Dar Baixa">{processingBillId === bill.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}</Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-emerald-600 hover:bg-emerald-50" onClick={() => handleMarkAsPaid(bill)} disabled={processingBillId === bill.id} title="Dar Baixa">{processingBillId === bill.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}</Button>
                               ) : (
                                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-300 hover:text-blue-600 hover:bg-blue-50" onClick={() => handleRevertPayment(bill.id)} disabled={processingBillId === bill.id} title="Reverter">{processingBillId === bill.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}</Button>
                               )}
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleDeleteBill(bill.id)} disabled={processingBillId === bill.id} title="Excluir"><Trash2 className="w-3.5 h-3.5" /></Button>
+                              {!bill.isProjected && (
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleDeleteBill(bill.id)} disabled={processingBillId === bill.id} title="Excluir"><Trash2 className="w-3.5 h-3.5" /></Button>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
                       );
                     })}
+                    {financialData?.history.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="p-12 text-center">
+                          <div className="flex flex-col items-center gap-2 text-slate-400">
+                            <CalendarClock className="w-8 h-8 opacity-20" />
+                            <p className="text-sm font-medium">Nenhum histórico ou pendência encontrada.</p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>
