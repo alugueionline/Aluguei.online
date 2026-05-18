@@ -24,7 +24,6 @@ import {
   Trash2,
   Percent,
   RotateCcw,
-  AlertTriangle,
   ArrowRightLeft
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +43,12 @@ const Financial = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
+  // Tipos que são considerados Receita (Entrada)
+  const isIncomeType = (type: string) => {
+    const t = type?.toLowerCase() || '';
+    return ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'taxa extra', 'luz'].includes(t);
+  };
+
   // Busca de faturas com cache
   const { data: bills = [], isLoading: loadingBills } = useQuery({
     queryKey: ['bills'],
@@ -59,11 +64,11 @@ const Financial = () => {
 
   // Busca de contratos para cálculo de pendências
   const { data: contracts = [] } = useQuery({
-    queryKey: ['contracts-active'],
+    queryKey: ['contracts-active-financial'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('contracts')
-        .select('*')
+        .select('*, properties(condo_fee)')
         .eq('status', 'ativo');
       if (error) throw error;
       return data || [];
@@ -74,13 +79,12 @@ const Financial = () => {
   const stats = useMemo(() => {
     const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
     const currentYear = new Date().getFullYear();
-    const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio'];
     
     let inc = 0, exp = 0, pen = 0;
     
     bills.forEach(b => {
       const val = Number(b.total_value || b.calculated_value || 0);
-      const isIncome = incomeTypes.includes(b.type?.toLowerCase());
+      const isIncome = isIncomeType(b.type);
       
       if (b.status === 'pago') {
         if (isIncome) inc += val;
@@ -90,16 +94,28 @@ const Financial = () => {
       }
     });
 
+    // Projeções de Aluguel e Condomínio para o mês atual
     contracts.forEach(c => {
-      const rentVal = Number(c.rent_value || 0);
-      const hasBillThisMonth = bills.some(b => 
+      // Aluguel
+      const hasRentBill = bills.some(b => 
         b.tenant_id === c.tenant_id && 
         b.property_id === c.property_id &&
         b.type === 'aluguel' && 
         b.month === currentMonth && 
         b.year === currentYear
       );
-      if (!hasBillThisMonth) pen += rentVal;
+      if (!hasRentBill) pen += Number(c.rent_value || 0);
+
+      // Condomínio
+      const condoFee = Number(c.properties?.condo_fee || 0);
+      const hasCondoBill = bills.some(b => 
+        b.tenant_id === c.tenant_id && 
+        b.property_id === c.property_id &&
+        b.type === 'condominio' && 
+        b.month === currentMonth && 
+        b.year === currentYear
+      );
+      if (condoFee > 0 && !hasCondoBill) pen += condoFee;
     });
 
     return { income: inc, expense: exp, balance: inc - exp, pending: pen };

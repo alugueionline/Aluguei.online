@@ -46,10 +46,16 @@ const Dashboard = () => {
   const [selectedTenantForCollection, setSelectedTenantForCollection] = useState<string | undefined>(undefined);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
 
+  // Tipos que são considerados Receita (Entrada)
+  const isIncomeType = (type: string) => {
+    const t = type?.toLowerCase() || '';
+    return ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'taxa extra', 'luz'].includes(t);
+  };
+
   const { data: tenants = [], isLoading: loadingTenants } = useQuery({
     queryKey: ['tenants-dashboard-active'],
     queryFn: async () => {
-      const currentMonth = new Date().getMonth() + 1;
+      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
       const currentDay = new Date().getDate();
       
@@ -62,7 +68,7 @@ const Dashboard = () => {
         const activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
         const pendingBills = t.bills?.filter((b: any) => b.status !== 'pago') || [];
         
-        const existingBillsTotal = pendingBills.reduce((acc: number, b: any) => acc + Number(b.calculated_value || b.total_value || 0), 0);
+        const existingBillsTotal = pendingBills.reduce((acc: number, b: any) => acc + Number(b.total_value || b.calculated_value || 0), 0);
         
         let projectedTotal = 0;
         let projectedIsOverdue = false;
@@ -70,13 +76,15 @@ const Dashboard = () => {
         activeContracts.forEach((contract: any) => {
           const dueDay = contract.due_day || 5;
           
-          const hasRentBill = t.bills?.some((b: any) => b.type === 'aluguel' && Number(b.month) === currentMonth && b.year === currentYear && b.property_id === contract.property_id);
+          // Projeção de Aluguel
+          const hasRentBill = t.bills?.some((b: any) => b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id);
           if (!hasRentBill) {
             projectedTotal += Number(contract.rent_value || 0);
             if (currentDay > dueDay) projectedIsOverdue = true;
           }
           
-          const hasCondoBill = t.bills?.some((b: any) => b.type === 'condominio' && Number(b.month) === currentMonth && b.year === currentYear && b.property_id === contract.property_id);
+          // Projeção de Condomínio (se houver taxa cadastrada no imóvel)
+          const hasCondoBill = t.bills?.some((b: any) => b.type === 'condominio' && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id);
           const condoFee = Number(contract.properties?.condo_fee || 0);
           if (condoFee > 0 && !hasCondoBill) {
             projectedTotal += condoFee;
@@ -106,26 +114,24 @@ const Dashboard = () => {
   });
 
   const { data: financialData, isLoading: loadingBills } = useQuery({
-    queryKey: ['dashboard-stats-v4'],
+    queryKey: ['dashboard-stats-v5'],
     queryFn: async () => {
       const [billsRes, contractsRes] = await Promise.all([
         supabase.from('bills').select('*'), 
-        supabase.from('contracts').select('*').eq('status', 'ativo')
+        supabase.from('contracts').select('*, properties(condo_fee)').eq('status', 'ativo')
       ]);
       
       const bills = billsRes.data || [];
       const contracts = contractsRes.data || [];
       
       let rec = 0, des = 0, pen = 0, atr = 0;
-      const currentMonth = new Date().getMonth() + 1;
+      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
       const currentDay = new Date().getDate();
-      const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio'];
 
       bills.forEach(b => {
         const val = Number(b.total_value || b.calculated_value || 0);
-        const type = b.type?.toLowerCase();
-        const isIncome = incomeTypes.includes(type);
+        const isIncome = isIncomeType(b.type);
         
         if (b.status === 'pago') { 
           if (isIncome) rec += val; else des += val; 
@@ -141,16 +147,23 @@ const Dashboard = () => {
         }
       });
 
+      // Projeções de Aluguel e Condomínio para o mês atual
       contracts.forEach(c => {
-        const rentVal = Number(c.rent_value || 0);
-        const hasBillThisMonth = bills.some(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && b.type === 'aluguel' && Number(b.month) === currentMonth && b.year === currentYear);
-        
-        if (!hasBillThisMonth) {
-          if (currentDay > (c.due_day || 5)) {
-            atr += rentVal;
-          } else {
-            pen += rentVal;
-          }
+        const dueDay = c.due_day || 5;
+        const isOverdue = currentDay > dueDay;
+
+        // Aluguel
+        const hasRentBill = bills.some(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear);
+        if (!hasRentBill) {
+          const val = Number(c.rent_value || 0);
+          if (isOverdue) atr += val; else pen += val;
+        }
+
+        // Condomínio
+        const condoFee = Number(c.properties?.condo_fee || 0);
+        const hasCondoBill = bills.some(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && b.type === 'condominio' && b.month === currentMonth && b.year === currentYear);
+        if (condoFee > 0 && !hasCondoBill) {
+          if (isOverdue) atr += condoFee; else pen += condoFee;
         }
       });
 
@@ -227,7 +240,7 @@ const Dashboard = () => {
           ))}
         </div>
       </div>
-      <QuickPaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} tenant={selectedTenantForPayment} onSuccess={() => { queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v4'] }); queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] }); }} />
+      <QuickPaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} tenant={selectedTenantForPayment} onSuccess={() => { queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v5'] }); queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] }); }} />
       <BillingSummaryModal isOpen={isCollectionModalOpen} onClose={() => setIsCollectionModalOpen(false)} tenantId={selectedTenantForCollection} />
     </DashboardLayout>
   );
