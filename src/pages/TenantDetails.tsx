@@ -41,7 +41,7 @@ import { cn } from '@/lib/utils';
 import { TenantModal } from '@/components/modals/TenantModal';
 import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
 import { showSuccess, showError } from '@/utils/toast';
-import { isBillOverdue, getProjectedOverdueRent } from '@/utils/financial';
+import { isBillOverdue, getProjectedRent } from '@/utils/financial';
 
 const TenantDetails = () => {
   const { id } = useParams();
@@ -65,7 +65,7 @@ const TenantDetails = () => {
   });
 
   const { data: financialData } = useQuery({
-    queryKey: ['tenant-financial-v4', id],
+    queryKey: ['tenant-financial-v5', id],
     queryFn: async () => {
       const { data: bills } = await supabase
         .from('bills')
@@ -95,18 +95,25 @@ const TenantDetails = () => {
         }
       });
 
-      // 2. Processar projeções de aluguel (o que já venceu mas não foi faturado)
+      // 2. Processar projeções de aluguel (mês atual que ainda não foi faturado)
       if (tenant?.contracts) {
         const now = new Date();
+        const currentDay = now.getDate();
         const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
         const currentYear = now.getFullYear();
 
         tenant.contracts.forEach((contract: any) => {
           if (contract.status === 'ativo') {
-            const projected = getProjectedOverdueRent(contract, history);
+            const projected = getProjectedRent(contract, history);
             if (projected > 0) {
               totalDebt += projected;
-              totalOverdue += projected;
+              
+              const dueDay = contract.due_day || 5;
+              const isOverdue = currentDay > dueDay;
+              
+              if (isOverdue) {
+                totalOverdue += projected;
+              }
               
               // Adiciona uma linha "virtual" para o usuário ver na tabela
               displayHistory.unshift({
@@ -123,6 +130,12 @@ const TenantDetails = () => {
           }
         });
       }
+
+      // Re-ordenar para garantir que os projetados fiquem no topo se forem do mês atual
+      displayHistory.sort((a, b) => {
+        if (a.year !== b.year) return b.year - a.year;
+        return parseInt(b.month) - parseInt(a.month);
+      });
 
       return { history: displayHistory, totalDebt, totalOverdue, totalPaid };
     },
@@ -156,8 +169,9 @@ const TenantDetails = () => {
       }
       
       showSuccess("Pagamento confirmado!");
-      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v4', id] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v5', id] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v6'] });
+      queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] });
     } catch (err: any) {
       showError("Erro ao dar baixa: " + err.message);
     } finally {
@@ -171,7 +185,7 @@ const TenantDetails = () => {
       const { error } = await supabase.from('bills').update({ status: 'pendente', payment_date: null }).eq('id', billId);
       if (error) throw error;
       showSuccess("Pagamento revertido.");
-      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v4', id] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v5', id] });
     } catch (err: any) {
       showError("Erro ao reverter: " + err.message);
     } finally {
@@ -186,7 +200,7 @@ const TenantDetails = () => {
       const { error } = await supabase.from('bills').delete().eq('id', billId);
       if (error) throw error;
       showSuccess("Registro excluído.");
-      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v4', id] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v5', id] });
     } catch (err: any) {
       showError("Erro ao excluir: " + err.message);
     } finally {
@@ -269,7 +283,7 @@ const TenantDetails = () => {
                             {bill.isProjected && <span className="ml-2 text-[8px] bg-blue-600 text-white px-1.5 py-0.5 rounded-full uppercase">Projetado</span>}
                           </TableCell>
                           <TableCell className="p-6 capitalize text-slate-500 font-medium">{bill.type}</TableCell>
-                          <TableCell className="p-6 font-black text-slate-900">R$ {Number(bill.total_value || bill.calculated_value).toLocaleString('pt-BR')}</TableCell>
+                          <TableCell className="p-6 font-black text-slate-900">R$ {Number(bill.total_value || bill.calculated_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
                           <TableCell className="p-6">
                             <Badge className={cn(
                               "border-none px-3 py-1 rounded-lg font-black text-[10px] uppercase", 
