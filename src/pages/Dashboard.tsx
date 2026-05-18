@@ -20,7 +20,8 @@ import {
   Check,
   PartyPopper,
   ArrowRight,
-  AlertTriangle
+  AlertTriangle,
+  CalendarDays
 } from 'lucide-react';
 import { 
   PieChart,
@@ -67,8 +68,9 @@ const Dashboard = () => {
   const { data: tenants = [], isLoading: loadingTenants } = useQuery({
     queryKey: ['tenants-dashboard-active'],
     queryFn: async () => {
-      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+      const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
+      const currentDay = new Date().getDate();
       
       const { data } = await supabase
         .from('tenants')
@@ -82,28 +84,37 @@ const Dashboard = () => {
         const existingBillsTotal = pendingBills.reduce((acc: number, b: any) => acc + Number(b.calculated_value || b.total_value || 0), 0);
         
         let projectedTotal = 0;
+        let projectedIsOverdue = false;
+
         activeContracts.forEach((contract: any) => {
-          const hasRentBill = t.bills?.some((b: any) => b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id);
-          if (!hasRentBill) projectedTotal += Number(contract.rent_value || 0);
+          const dueDay = contract.due_day || 5;
           
-          const hasCondoBill = t.bills?.some((b: any) => b.type === 'condominio' && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id);
+          const hasRentBill = t.bills?.some((b: any) => b.type === 'aluguel' && Number(b.month) === currentMonth && b.year === currentYear && b.property_id === contract.property_id);
+          if (!hasRentBill) {
+            projectedTotal += Number(contract.rent_value || 0);
+            if (currentDay > dueDay) projectedIsOverdue = true;
+          }
+          
+          const hasCondoBill = t.bills?.some((b: any) => b.type === 'condominio' && Number(b.month) === currentMonth && b.year === currentYear && b.property_id === contract.property_id);
           const condoFee = Number(contract.properties?.condo_fee || 0);
-          if (condoFee > 0 && !hasCondoBill) projectedTotal += condoFee;
+          if (condoFee > 0 && !hasCondoBill) {
+            projectedTotal += condoFee;
+            if (currentDay > dueDay) projectedIsOverdue = true;
+          }
         });
 
         const totalDebt = existingBillsTotal + projectedTotal;
         
-        // Verifica se alguma conta pendente está realmente atrasada
         const hasOverdue = pendingBills.some((b: any) => {
           const contract = activeContracts.find(c => c.property_id === b.property_id);
           return isOverdue(b, contract?.due_day || 5);
-        });
+        }) || projectedIsOverdue;
 
         let status: 'atrasado' | 'pendente' | 'pago' = 'pendente';
         if (totalDebt === 0) status = 'pago';
         else if (hasOverdue) status = 'atrasado';
 
-        return { ...t, totalDebt, hasOverdue, dashboardStatus: status };
+        return { ...t, totalDebt, hasOverdue, dashboardStatus: status, activeContracts };
       });
 
       return processed.sort((a, b) => {
@@ -114,7 +125,7 @@ const Dashboard = () => {
   });
 
   const { data: financialData, isLoading: loadingBills } = useQuery({
-    queryKey: ['dashboard-stats-v3'],
+    queryKey: ['dashboard-stats-v4'],
     queryFn: async () => {
       const [billsRes, contractsRes] = await Promise.all([
         supabase.from('bills').select('*'), 
@@ -125,8 +136,9 @@ const Dashboard = () => {
       const contracts = contractsRes.data || [];
       
       let rec = 0, des = 0, pen = 0, atr = 0;
-      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+      const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
+      const currentDay = new Date().getDate();
       const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio'];
 
       bills.forEach(b => {
@@ -148,14 +160,12 @@ const Dashboard = () => {
         }
       });
 
-      // Adiciona aluguéis projetados que ainda não foram gerados mas já venceram
       contracts.forEach(c => {
         const rentVal = Number(c.rent_value || 0);
-        const hasBillThisMonth = bills.some(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear);
+        const hasBillThisMonth = bills.some(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && b.type === 'aluguel' && Number(b.month) === currentMonth && b.year === currentYear);
         
         if (!hasBillThisMonth) {
-          const now = new Date();
-          if (now.getDate() > (c.due_day || 5)) {
+          if (currentDay > (c.due_day || 5)) {
             atr += rentVal;
           } else {
             pen += rentVal;
@@ -224,7 +234,7 @@ const Dashboard = () => {
           {tenants.map((t) => (
             <Card key={t.id} className={cn("premium-card rounded-[2rem] p-6 group transition-all border-none", t.dashboardStatus === 'atrasado' ? "bg-rose-50/50 ring-1 ring-rose-100" : "bg-white")}>
               <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="flex items-center gap-4 cursor-pointer group/tenant w-full md:w-auto" onClick={() => navigate(`/tenants/${t.id}`)}><div className="relative"><Avatar className="w-14 h-14 rounded-2xl border-2 border-white shadow-sm group-hover/tenant:border-blue-200 transition-all"><AvatarImage src={getTenantAvatar(t.name)} /><AvatarFallback className="bg-blue-50 text-blue-600 font-black">{t.name.substring(0, 2).toUpperCase()}</AvatarFallback></Avatar>{t.dashboardStatus === 'pago' && <div className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border-2 border-white"><Check className="w-3 h-3" /></div>}</div><div><h4 className="font-black text-slate-900 tracking-tight group-hover/tenant:text-blue-600 transition-colors">{t.name}</h4><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5"><Home className="w-3 h-3" /> {t.properties?.name || 'Sem imóvel'}</p></div></div>
+                <div className="flex items-center gap-4 cursor-pointer group/tenant w-full md:w-auto" onClick={() => navigate(`/tenants/${t.id}`)}><div className="relative"><Avatar className="w-14 h-14 rounded-2xl border-2 border-white shadow-sm group-hover/tenant:border-blue-200 transition-all"><AvatarImage src={getTenantAvatar(t.name)} /><AvatarFallback className="bg-blue-50 text-blue-600 font-black">{t.name.substring(0, 2).toUpperCase()}</AvatarFallback></Avatar>{t.dashboardStatus === 'pago' && <div className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border-2 border-white"><Check className="w-3 h-3" /></div>}</div><div><h4 className="font-black text-slate-900 tracking-tight group-hover/tenant:text-blue-600 transition-colors">{t.name}</h4><div className="flex flex-col gap-0.5"><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5"><Home className="w-3 h-3" /> {t.properties?.name || 'Sem imóvel'}</p><p className="text-[10px] text-blue-500 font-black uppercase tracking-widest flex items-center gap-1.5"><CalendarDays className="w-3 h-3" /> Vencimento: Dia {t.activeContracts?.[0]?.due_day || 5}</p></div></div></div>
                 <div className="flex items-center justify-between md:justify-end gap-8 w-full md:w-auto"><div className="text-left md:text-right"><p className="text-[10px] text-slate-400 font-black uppercase">Dívida Atual</p><p className={cn("text-lg font-black", t.dashboardStatus === 'atrasado' ? "text-rose-600" : t.dashboardStatus === 'pendente' ? "text-amber-600" : "text-emerald-600")}>R$ {t.totalDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div>
                   <div className="flex items-center gap-2">
                     {t.dashboardStatus !== 'pago' ? (<><Button size="sm" variant="outline" className="h-11 px-4 rounded-xl border-blue-200 text-blue-600 font-bold gap-2 hover:bg-blue-50" onClick={() => { setSelectedTenantForCollection(t.id); setIsCollectionModalOpen(true); }}><MessageSquare className="w-4 h-4" /> Cobrar</Button><Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black px-5 h-11 gap-2 shadow-lg shadow-emerald-100" onClick={() => { setSelectedTenantForPayment(t); setIsPaymentModalOpen(true); }}><Check className="w-4 h-4" /> Baixar</Button></>) : (<Badge className="bg-emerald-50 text-emerald-600 border-none px-4 py-2 rounded-xl font-black text-[10px] uppercase">Tudo Pago</Badge>)}
@@ -236,7 +246,7 @@ const Dashboard = () => {
           ))}
         </div>
       </div>
-      <QuickPaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} tenant={selectedTenantForPayment} onSuccess={() => { queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v3'] }); queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] }); }} />
+      <QuickPaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} tenant={selectedTenantForPayment} onSuccess={() => { queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v4'] }); queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] }); }} />
       <BillingSummaryModal isOpen={isCollectionModalOpen} onClose={() => setIsCollectionModalOpen(false)} tenantId={selectedTenantForCollection} />
     </DashboardLayout>
   );
