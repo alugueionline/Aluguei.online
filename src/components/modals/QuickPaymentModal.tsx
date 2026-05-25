@@ -30,7 +30,7 @@ export const QuickPaymentModal = ({ isOpen, onClose, tenant, onSuccess }: QuickP
       const formattedItems = pendingBills.map((b: any) => ({
         id: b.id,
         label: `${b.type.charAt(0).toUpperCase() + b.type.slice(1)} (${b.month}/${b.year})`,
-        value: Number(b.calculated_value || b.total_value),
+        value: Number(b.total_value || b.calculated_value),
         isExisting: true,
         type: b.type,
         month: b.month,

@@ -53,8 +53,8 @@ const Billing = () => {
     (bill.tenants?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalPendente = bills.filter(b => b.status !== 'pago').reduce((acc, b) => acc + Number(b.calculated_value || b.total_value), 0);
-  const totalPago = bills.filter(b => b.status === 'pago').reduce((acc, b) => acc + Number(b.calculated_value || b.total_value), 0);
+  const totalPendente = bills.filter(b => b.status !== 'pago').reduce((acc, b) => acc + Number(b.total_value || b.calculated_value), 0);
+  const totalPago = bills.filter(b => b.status === 'pago').reduce((acc, b) => acc + Number(b.total_value || b.calculated_value), 0);
 
   return (
     <DashboardLayout title="Contas e Utilidades">
@@ -82,7 +82,7 @@ const Billing = () => {
                       <TableCell className="p-6"><div className="flex items-center gap-3"><div className={cn("p-2.5 rounded-xl", bill.billing_method === 'consumo_kwh' ? 'bg-orange-50 text-orange-600' : bill.billing_method === 'por_pessoa' ? 'bg-blue-50 text-blue-600' : bill.type === 'aluguel' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-600')}>{bill.type === 'energia' ? <Zap className="w-4 h-4" /> : bill.type === 'agua' ? <Droplets className="w-4 h-4" /> : <FileText className="w-4 h-4" />}</div><div><span className="font-bold capitalize text-sm block">{bill.type}</span><span className="text-[10px] text-gray-400 font-bold uppercase">{bill.billing_method === 'consumo_kwh' ? 'Consumo kWh' : bill.billing_method === 'por_pessoa' ? `Rateio (${bill.residents} mor.)` : 'Fixo'}</span></div></div></TableCell>
                       <TableCell className="p-6"><p className="font-bold text-gray-900 text-sm">{bill.properties?.name || 'N/A'}</p><p className="text-[10px] text-gray-400 font-medium">{bill.tenants?.name || 'Sem inquilino'}</p></TableCell>
                       <TableCell className="p-6 text-gray-500 text-sm font-bold">{bill.month}/{bill.year}</TableCell>
-                      <TableCell className="p-6"><p className="font-black text-sm text-gray-900">R$ {Number(bill.calculated_value || bill.total_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></TableCell>
+                      <TableCell className="p-6"><p className="font-black text-sm text-gray-900">R$ {Number(bill.total_value || bill.calculated_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></TableCell>
                       <TableCell className="p-6"><Badge className={cn("border-none px-3 py-1 rounded-lg font-black text-[10px] uppercase", bill.status === 'pago' ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>{bill.status}</Badge></TableCell>
                       <TableCell className="p-6 text-right"><div className="flex justify-end gap-1"><Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-blue-50 hover:text-blue-600" onClick={() => handleEdit(bill)}><Edit2 className="w-4 h-4" /></Button><Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-red-50 hover:text-red-600" onClick={() => handleDelete(bill.id)}><Trash2 className="w-4 h-4" /></Button></div></TableCell>
                     </TableRow>

@@ -48,7 +48,7 @@ export const TenantCollectionList = () => {
         const activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
         const pendingBills = (bills || []).filter(b => b.tenant_id === t.id && b.status !== 'pago');
         const existingBillsTotal = pendingBills.reduce((acc, b) => 
-          acc + Number(b.calculated_value || b.total_value || 0), 0
+          acc + Number(b.total_value || b.calculated_value || 0), 0
         );
 
         let projectedTotal = 0;
@@ -172,7 +172,7 @@ export const TenantCollectionList = () => {
                           {tenant.breakdown.pendingBills.map((b: any, i: number) => (
                             <div key={`bill-${i}`} className="flex justify-between gap-8 text-xs">
                               <span className="capitalize">{b.type} ({b.month}/{b.year}):</span>
-                              <span className="font-bold">R$ {Number(b.calculated_value || b.total_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                              <span className="font-bold">R$ {Number(b.total_value || b.calculated_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                             </div>
                           ))}
 
