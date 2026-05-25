@@ -139,10 +139,11 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
 
       // Se o atraso for maior que a carência configurada
       if (daysLate > config.gracePeriod) {
-        autoFine = baseValue * (config.finePercent / 100);
+        // Arredonda para 2 casas decimais para evitar dízimas periódicas
+        autoFine = Number((baseValue * (config.finePercent / 100)).toFixed(2));
         // Juros pro-rata die (diário) baseado na taxa mensal
         const dailyInterestRate = (config.interestMonthly / 30) / 100;
-        autoInterest = baseValue * dailyInterestRate * daysLate;
+        autoInterest = Number((baseValue * dailyInterestRate * daysLate).toFixed(2));
       }
 
       // Aplica ajuste manual se existir, senão usa o valor calculado automaticamente
