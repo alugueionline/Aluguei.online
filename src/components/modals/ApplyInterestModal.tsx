@@ -30,7 +30,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
   const [config, setConfig] = useState({
     finePercent: 10,
     interestMonthly: 2,
-    gracePeriod: 5
+    gracePeriod: 0
   });
 
   // Carregar faturas pendentes, contratos ativos e projetar aluguéis do inquilino
@@ -117,20 +117,23 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
   const calculatedBills = useMemo(() => {
     const dueDay = activeContract?.due_day || 5;
     const now = new Date();
+    // Normaliza a data atual para meia-noite local
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     return bills.map(bill => {
       const baseValue = Number(bill.total_value || bill.calculated_value || 0);
       
-      // Data de vencimento estimada
-      const dueDate = new Date(bill.year, parseInt(bill.month) - 1, dueDay);
+      // Normaliza a data de vencimento estimada para meia-noite local
+      const dueDateMidnight = new Date(Number(bill.year), Number(bill.month) - 1, dueDay);
       
-      // Dias de atraso
-      const diffTime = now.getTime() - dueDate.getTime();
-      const daysLate = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+      // Dias de atraso exatos (usando arredondamento para evitar problemas de fuso horário)
+      const diffTime = todayMidnight.getTime() - dueDateMidnight.getTime();
+      const daysLate = Math.max(0, Math.round(diffTime / (1000 * 60 * 60 * 24)));
 
       let fine = 0;
       let interest = 0;
 
+      // Se o atraso for maior que a carência configurada
       if (daysLate > config.gracePeriod) {
         fine = baseValue * (config.finePercent / 100);
         // Juros pro-rata die (diário) baseado na taxa mensal
@@ -143,7 +146,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
       return {
         ...bill,
         baseValue,
-        dueDate,
+        dueDate: dueDateMidnight,
         daysLate,
         calculatedFine: fine,
         calculatedInterest: interest,
