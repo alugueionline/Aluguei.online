@@ -20,7 +20,8 @@ import {
   Home,
   Loader2,
   BarChart3,
-  PieChart as PieChartIcon
+  PieChart as PieChartIcon,
+  Percent
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -80,7 +81,11 @@ const Reports = () => {
         const categories: Record<string, { amount: number, count: number, annualAmount: number }> = {};
 
         bills.forEach(b => {
-          const val = Number(b.total_value || b.calculated_value || 0);
+          const totalVal = Number(b.total_value || b.calculated_value || 0);
+          const fineVal = Number(b.fine_value || 0);
+          const interestVal = Number(b.interest_value || 0);
+          const baseVal = Math.max(0, totalVal - fineVal - interestVal);
+          
           const type = b.type?.toLowerCase() || 'outros';
           const isIncome = incomeTypes.includes(type);
           
@@ -88,15 +93,42 @@ const Reports = () => {
           const isWithinLastYear = billDate >= oneYearAgo;
 
           if (isIncome) {
-            totalRec += val;
-            if (isWithinLastYear) annualRec += val;
+            // Process base value
+            if (baseVal > 0) {
+              totalRec += baseVal;
+              if (isWithinLastYear) annualRec += baseVal;
 
-            if (!categories[type]) categories[type] = { amount: 0, count: 0, annualAmount: 0 };
-            categories[type].amount += val;
-            categories[type].count += 1;
-            if (isWithinLastYear) categories[type].annualAmount += val;
+              if (!categories[type]) categories[type] = { amount: 0, count: 0, annualAmount: 0 };
+              categories[type].amount += baseVal;
+              categories[type].count += 1;
+              if (isWithinLastYear) categories[type].annualAmount += baseVal;
+            }
+
+            // Process fine value separately
+            if (fineVal > 0) {
+              totalRec += fineVal;
+              if (isWithinLastYear) annualRec += fineVal;
+
+              const fineType = 'multa';
+              if (!categories[fineType]) categories[fineType] = { amount: 0, count: 0, annualAmount: 0 };
+              categories[fineType].amount += fineVal;
+              categories[fineType].count += 1;
+              if (isWithinLastYear) categories[fineType].annualAmount += fineVal;
+            }
+
+            // Process interest value separately
+            if (interestVal > 0) {
+              totalRec += interestVal;
+              if (isWithinLastYear) annualRec += interestVal;
+
+              const interestType = 'juros';
+              if (!categories[interestType]) categories[interestType] = { amount: 0, count: 0, annualAmount: 0 };
+              categories[interestType].amount += interestVal;
+              categories[interestType].count += 1;
+              if (isWithinLastYear) categories[interestType].annualAmount += interestVal;
+            }
           } else {
-            totalExp += val;
+            totalExp += totalVal;
           }
         });
 
@@ -264,6 +296,7 @@ const Reports = () => {
     if (n.includes('energia')) return <Zap className="w-4 h-4" />;
     if (n.includes('agua')) return <Droplets className="w-4 h-4" />;
     if (n.includes('internet')) return <Globe className="w-4 h-4" />;
+    if (n.includes('multa') || n.includes('juros')) return <Percent className="w-4 h-4" />;
     return <DollarSign className="w-4 h-4" />;
   };
 
@@ -416,7 +449,7 @@ const Reports = () => {
                       ))}
                     </Pie>
                     <Tooltip 
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.08)' }}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
                       formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`}
                     />
                   </PieChart>
