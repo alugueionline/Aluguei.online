@@ -29,10 +29,10 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
   // Estado para armazenar ajustes manuais de multa e juros por fatura
   const [manualAdjustments, setManualAdjustments] = useState<Record<string, { fine: string, interest: string }>>({});
 
-  // Configurações de cálculo (padrão do sistema)
+  // Configurações de cálculo (padrão do sistema - multa alterada para 12% e juros mensais removidos/zerados)
   const [config, setConfig] = useState({
-    finePercent: 10,
-    interestMonthly: 2,
+    finePercent: 12,
+    interestMonthly: 0,
     gracePeriod: 0
   });
 
@@ -319,23 +319,14 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
         </div>
 
         <div className="p-8 space-y-6 max-h-[75vh] overflow-y-auto">
-          {/* Configurações de Taxas */}
-          <div className="grid grid-cols-3 gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100">
+          {/* Configurações de Taxas - Simplificado para Multa Fixa e Carência */}
+          <div className="grid grid-cols-2 gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100">
             <div className="space-y-1.5">
               <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Multa Fixa (%)</Label>
               <Input 
                 type="number" 
                 value={config.finePercent} 
                 onChange={e => setConfig({ ...config, finePercent: Number(e.target.value) })}
-                className="h-10 rounded-xl bg-white border-slate-200 font-bold text-center text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Juros Mensais (%)</Label>
-              <Input 
-                type="number" 
-                value={config.interestMonthly} 
-                onChange={e => setConfig({ ...config, interestMonthly: Number(e.target.value) })}
                 className="h-10 rounded-xl bg-white border-slate-200 font-bold text-center text-sm"
               />
             </div>
