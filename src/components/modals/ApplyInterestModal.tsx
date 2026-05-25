@@ -25,6 +25,9 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
   const [bills, setBills] = useState<any[]>([]);
   const [activeContract, setActiveContract] = useState<any>(null);
   const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
+  
+  // Estado para armazenar ajustes manuais de multa e juros por fatura
+  const [manualAdjustments, setManualAdjustments] = useState<Record<string, { fine: string, interest: string }>>({});
 
   // Configurações de cálculo (padrão do sistema)
   const [config, setConfig] = useState({
@@ -96,6 +99,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
 
         const allBills = [...filteredBills, ...projectedBills];
         setBills(allBills);
+        setManualAdjustments({}); // Limpa ajustes anteriores
         
         if (activeContracts.length > 0) {
           setActiveContract(activeContracts[0]); // Para fins de configuração padrão de vencimento
@@ -130,16 +134,21 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
       const diffTime = todayMidnight.getTime() - dueDateMidnight.getTime();
       const daysLate = Math.max(0, Math.round(diffTime / (1000 * 60 * 60 * 24)));
 
-      let fine = 0;
-      let interest = 0;
+      let autoFine = 0;
+      let autoInterest = 0;
 
       // Se o atraso for maior que a carência configurada
       if (daysLate > config.gracePeriod) {
-        fine = baseValue * (config.finePercent / 100);
+        autoFine = baseValue * (config.finePercent / 100);
         // Juros pro-rata die (diário) baseado na taxa mensal
         const dailyInterestRate = (config.interestMonthly / 30) / 100;
-        interest = baseValue * dailyInterestRate * daysLate;
+        autoInterest = baseValue * dailyInterestRate * daysLate;
       }
+
+      // Aplica ajuste manual se existir, senão usa o valor calculado automaticamente
+      const adjustment = manualAdjustments[bill.id];
+      const fine = adjustment?.fine !== undefined ? (parseFloat(adjustment.fine) || 0) : autoFine;
+      const interest = adjustment?.interest !== undefined ? (parseFloat(adjustment.interest) || 0) : autoInterest;
 
       const totalUpdated = baseValue + fine + interest;
 
@@ -150,10 +159,22 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
         daysLate,
         calculatedFine: fine,
         calculatedInterest: interest,
+        autoFine,
+        autoInterest,
         totalUpdated
       };
     });
-  }, [bills, activeContract, config]);
+  }, [bills, activeContract, config, manualAdjustments]);
+
+  const handleSaveAdjustment = (billId: string, field: 'fine' | 'interest', value: string) => {
+    setManualAdjustments(prev => ({
+      ...prev,
+      [billId]: {
+        fine: field === 'fine' ? value : (prev[billId]?.fine ?? calculatedBills.find(b => b.id === billId)?.autoFine.toString() ?? '0'),
+        interest: field === 'interest' ? value : (prev[billId]?.interest ?? calculatedBills.find(b => b.id === billId)?.autoInterest.toString() ?? '0')
+      }
+    }));
+  };
 
   const handleApply = async () => {
     if (selectedBillIds.length === 0) {
@@ -339,65 +360,89 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
               </div>
             ) : calculatedBills.length > 0 ? (
               <div className="space-y-3">
-                {calculatedBills.map(bill => (
-                  <div 
-                    key={bill.id} 
-                    className={cn(
-                      "p-4 rounded-2xl border transition-all flex flex-col gap-3",
-                      selectedBillIds.includes(bill.id) ? "bg-rose-50/30 border-rose-100" : "bg-slate-50 border-slate-100 opacity-60"
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Checkbox 
-                          checked={selectedBillIds.includes(bill.id)}
-                          onCheckedChange={(checked) => {
-                            setSelectedBillIds(prev => 
-                              checked ? [...prev, bill.id] : prev.filter(id => id !== bill.id)
-                            );
-                          }}
-                        />
-                        <div>
-                          <p className="text-sm font-black text-slate-900 capitalize">
-                            {bill.type} ({bill.month}/{bill.year})
-                            {bill.isProjected && <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded ml-2 uppercase">Projetado</span>}
-                          </p>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase">Vencimento: {bill.dueDate.toLocaleDateString('pt-BR')}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge className={cn(
-                          "border-none text-[9px] font-black px-2 py-0.5 rounded-md",
-                          bill.daysLate > config.gracePeriod ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-600"
-                        )}>
-                          {bill.daysLate} dias de atraso
-                        </Badge>
-                      </div>
-                    </div>
+                {calculatedBills.map(bill => {
+                  const isSelected = selectedBillIds.includes(bill.id);
+                  const fineVal = manualAdjustments[bill.id]?.fine ?? bill.calculatedFine.toString();
+                  const interestVal = manualAdjustments[bill.id]?.interest ?? bill.calculatedInterest.toString();
 
-                    {selectedBillIds.includes(bill.id) && (
-                      <div className="grid grid-cols-3 gap-4 pt-3 border-t border-dashed border-rose-100/50 text-xs">
-                        <div>
-                          <p className="text-[9px] text-slate-400 font-bold uppercase">Valor Base</p>
-                          <p className="font-bold text-slate-700">R$ {bill.baseValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  return (
+                    <div 
+                      key={bill.id} 
+                      className={cn(
+                        "p-4 rounded-2xl border transition-all flex flex-col gap-3",
+                        isSelected ? "bg-rose-50/30 border-rose-100" : "bg-slate-50 border-slate-100 opacity-60"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Checkbox 
+                            checked={isSelected}
+                            onCheckedChange={(checked) => {
+                              setSelectedBillIds(prev => 
+                                checked ? [...prev, bill.id] : prev.filter(id => id !== bill.id)
+                              );
+                            }}
+                          />
+                          <div>
+                            <p className="text-sm font-black text-slate-900 capitalize">
+                              {bill.type} ({bill.month}/{bill.year})
+                              {bill.isProjected && <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded ml-2 uppercase">Projetado</span>}
+                            </p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase">Vencimento: {bill.dueDate.toLocaleDateString('pt-BR')}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-[9px] text-rose-500 font-bold uppercase">Multa ({config.finePercent}%)</p>
-                          <p className="font-bold text-rose-600">+ R$ {bill.calculatedFine.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                        </div>
-                        <div>
-                          <p className="text-[9px] text-rose-500 font-bold uppercase">Juros ({config.interestMonthly}% mês)</p>
-                          <p className="font-bold text-rose-600">+ R$ {bill.calculatedInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <div className="text-right">
+                          <Badge className={cn(
+                            "border-none text-[9px] font-black px-2 py-0.5 rounded-md",
+                            bill.daysLate > config.gracePeriod ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-600"
+                          )}>
+                            {bill.daysLate} dias de atraso
+                          </Badge>
                         </div>
                       </div>
-                    )}
-                  </div>
-                ))}
+
+                      {isSelected && (
+                        <div className="grid grid-cols-3 gap-4 pt-3 border-t border-dashed border-rose-100/50 text-xs items-end">
+                          <div>
+                            <p className="text-[9px] text-slate-400 font-bold uppercase mb-1">Valor Base</p>
+                            <p className="font-bold text-slate-700 h-10 flex items-center">R$ {bill.baseValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] text-rose-500 font-bold uppercase mb-1">Multa (R$)</p>
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-rose-400">R$</span>
+                              <Input 
+                                type="number" 
+                                step="0.01"
+                                value={fineVal}
+                                onChange={e => handleSaveAdjustment(bill.id, 'fine', e.target.value)}
+                                className="h-10 pl-7 rounded-xl bg-white border-rose-100 font-bold text-rose-700 text-xs"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-[9px] text-rose-500 font-bold uppercase mb-1">Juros (R$)</p>
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-rose-400">R$</span>
+                              <Input 
+                                type="number" 
+                                step="0.01"
+                                value={interestVal}
+                                onChange={e => handleSaveAdjustment(bill.id, 'interest', e.target.value)}
+                                className="h-10 pl-7 rounded-xl bg-white border-rose-100 font-bold text-rose-700 text-xs"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="py-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                 <AlertCircle className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                <p className="text-sm font-bold text-slate-400">Nenhuma fatura pendente elegível encontrada.</p>
+                <p className="text-sm font-bold text-slate-400">Nenhuma faturar pendente elegível encontrada.</p>
               </div>
             )}
           </div>
