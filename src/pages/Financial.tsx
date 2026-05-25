@@ -35,6 +35,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { showSuccess, showError } from '@/utils/toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { isBillOverdue } from '@/utils/financial';
 
 const Financial = () => {
   const queryClient = useQueryClient();
@@ -79,8 +80,9 @@ const Financial = () => {
   const stats = useMemo(() => {
     const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
     const currentYear = new Date().getFullYear();
+    const currentDay = new Date().getDate();
     
-    let inc = 0, exp = 0, pen = 0;
+    let inc = 0, exp = 0, pen = 0, atr = 0;
     
     bills.forEach(b => {
       const val = Number(b.total_value || b.calculated_value || 0);
@@ -90,12 +92,20 @@ const Financial = () => {
         if (isIncome) inc += val;
         else exp += val;
       } else {
-        if (isIncome) pen += val;
+        const contract = contracts.find(c => c.tenant_id === b.tenant_id && c.property_id === b.property_id);
+        if (isBillOverdue(b, contract?.due_day || 5)) {
+          atr += val;
+        } else {
+          if (isIncome) pen += val;
+        }
       }
     });
 
     // Projeções de Aluguel e Condomínio para o mês atual
     contracts.forEach(c => {
+      const dueDay = c.due_day || 5;
+      const isOverdue = currentDay > dueDay;
+
       // Aluguel
       const hasRentBill = bills.some(b => 
         b.tenant_id === c.tenant_id && 
@@ -104,7 +114,11 @@ const Financial = () => {
         b.month === currentMonth && 
         b.year === currentYear
       );
-      if (!hasRentBill) pen += Number(c.rent_value || 0);
+      if (!hasRentBill) {
+        const val = Number(c.rent_value || 0);
+        if (isOverdue) atr += val;
+        else pen += val;
+      }
 
       // Condomínio
       const condoFee = Number(c.properties?.condo_fee || 0);
@@ -115,10 +129,13 @@ const Financial = () => {
         b.month === currentMonth && 
         b.year === currentYear
       );
-      if (condoFee > 0 && !hasCondoBill) pen += condoFee;
+      if (condoFee > 0 && !hasCondoBill) {
+        if (isOverdue) atr += condoFee;
+        else pen += condoFee;
+      }
     });
 
-    return { income: inc, expense: exp, balance: inc - exp, pending: pen };
+    return { income: inc, expense: exp, balance: inc - exp, pending: pen, overdue: atr };
   }, [bills, contracts]);
 
   const displayItems = useMemo(() => {
@@ -175,8 +192,8 @@ const Financial = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         <StatCard label="Receitas (Pago)" value={`R$ ${stats.income.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<CheckCircle2 className="text-emerald-500" />} color="emerald" />
         <StatCard label="Despesas (Pago)" value={`R$ ${stats.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<ArrowDownCircle className="text-rose-500" />} color="rose" />
-        <StatCard label="Lucro Líquido" value={`R$ ${stats.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Wallet className="text-blue-500" />} color="blue" />
-        <StatCard label="A Receber Total" value={`R$ ${stats.pending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Clock className="text-amber-500" />} color="amber" />
+        <StatCard label="Atrasado" value={`R$ ${stats.overdue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Clock className={stats.overdue > 0 ? "text-rose-500" : "text-slate-400"} />} color={stats.overdue > 0 ? "rose" : "slate"} highlight={stats.overdue > 0} />
+        <StatCard label="Pendente" value={`R$ ${stats.pending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Clock className="text-amber-500" />} color="amber" />
       </div>
 
       <Tabs defaultValue="collections" className="space-y-8">
@@ -226,17 +243,47 @@ const Financial = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {displayItems.map((item) => (
-                        <tr key={item.id} className={cn("border-b border-gray-50 hover:bg-gray-50/30 transition-colors", item.isCharge && "bg-slate-50/30", selectedIds.includes(item.id) && "bg-blue-50/30")}>
-                          <td className="p-6"><Checkbox checked={selectedIds.includes(item.id)} onCheckedChange={(checked) => setSelectedIds(prev => checked ? [...prev, item.id] : prev.filter(i => i !== item.id))} /></td>
-                          <td className="p-6"><div className="flex items-center gap-3"><div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", item.isCharge ? "bg-rose-50 text-rose-600" : item.type === 'despesa' ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600")}>{item.isCharge ? <Percent className="w-5 h-5" /> : item.type === 'despesa' ? <ArrowDownCircle className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />}</div><div><span className={cn("font-bold text-gray-900 capitalize block", item.isCharge && "text-rose-700")}>{item.displayType}</span>{item.isCharge && <span className="text-[9px] font-black text-rose-400 uppercase tracking-widest">Encargo Financeiro</span>}</div></div></td>
-                          <td className="p-6"><div className="space-y-1"><div className="flex items-center gap-1.5 text-xs font-bold text-gray-700"><Building2 className="w-3 h-3 text-blue-500" /> {item.properties?.name || 'N/A'}</div>{item.tenants?.name && <div className="flex items-center gap-1.5 text-[10px] font-medium text-gray-400"><User className="w-3 h-3" /> {item.tenants.name}</div>}</div></td>
-                          <td className="p-6 text-sm text-gray-500 font-medium">{item.month}/{item.year}</td>
-                          <td className="p-6"><p className={cn("font-black", item.isCharge ? "text-rose-600" : "text-gray-900")}>R$ {Number(item.displayValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></td>
-                          <td className="p-6"><Badge className={cn("border-none px-3 py-1 rounded-lg font-black text-[10px] uppercase", item.status === 'pago' ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>{item.status}</Badge></td>
-                          <td className="p-6 text-right"><div className="flex items-center justify-end gap-2">{item.status !== 'pago' ? (<Button size="sm" variant="outline" onClick={() => handleMarkAsPaid(item.id)} className="h-9 rounded-xl border-emerald-100 text-emerald-600 hover:bg-emerald-50 font-bold text-xs">Baixar</Button>) : item.status === 'pago' && (<Button size="sm" variant="ghost" onClick={() => handleRevertPayment(item.id)} className="h-9 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 font-bold text-xs gap-1.5" title="Reverter"><RotateCcw className="w-3.5 h-3.5" /> Reverter</Button>)}<Button size="icon" variant="ghost" onClick={() => handleDeleteItem(item)} className="h-9 w-9 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50"><Trash2 className="w-4 h-4" /></Button></div></td>
-                        </tr>
-                      ))}
+                      {displayItems.map((item) => {
+                        const contract = contracts.find(c => c.tenant_id === item.tenant_id && c.property_id === item.property_id);
+                        const isAtrasado = item.status !== 'pago' && isBillOverdue(item, contract?.due_day || 5);
+
+                        return (
+                          <tr key={item.id} className={cn(
+                            "border-b border-gray-50 hover:bg-gray-50/30 transition-colors", 
+                            isAtrasado ? "bg-rose-50/20 hover:bg-rose-50/40" : item.isCharge ? "bg-slate-50/30" : "", 
+                            selectedIds.includes(item.id) && "bg-blue-50/30"
+                          )}>
+                            <td className="p-6"><Checkbox checked={selectedIds.includes(item.id)} onCheckedChange={(checked) => setSelectedIds(prev => checked ? [...prev, item.id] : prev.filter(i => i !== item.id))} /></td>
+                            <td className="p-6">
+                              <div className="flex items-center gap-3">
+                                <div className={cn(
+                                  "w-10 h-10 rounded-xl flex items-center justify-center", 
+                                  isAtrasado ? "bg-rose-50 text-rose-600" : item.isCharge ? "bg-rose-50 text-rose-600" : item.type === 'despesa' ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
+                                )}>
+                                  {isAtrasado ? <Percent className="w-5 h-5" /> : item.isCharge ? <Percent className="w-5 h-5" /> : item.type === 'despesa' ? <ArrowDownCircle className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />}
+                                </div>
+                                <div>
+                                  <span className={cn("font-bold text-gray-900 capitalize block", isAtrasado && "text-rose-700")}>{item.displayType}</span>
+                                  {isAtrasado && <span className="text-[9px] font-black text-rose-400 uppercase tracking-widest">Atrasado</span>}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-6"><div className="space-y-1"><div className="flex items-center gap-1.5 text-xs font-bold text-gray-700"><Building2 className="w-3 h-3 text-blue-500" /> {item.properties?.name || 'N/A'}</div>{item.tenants?.name && <div className="flex items-center gap-1.5 text-[10px] font-medium text-gray-400"><User className="w-3 h-3" /> {item.tenants.name}</div>}</div></td>
+                            <td className="p-6 text-sm text-gray-500 font-medium">{item.month}/{item.year}</td>
+                            <td className="p-6"><p className={cn("font-black", isAtrasado ? "text-rose-600" : "text-gray-900")}>R$ {Number(item.displayValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></td>
+                            <td className="p-6">
+                              <Badge className={cn(
+                                "border-none px-3 py-1 rounded-lg font-black text-[10px] uppercase", 
+                                item.status === 'pago' ? "bg-emerald-50 text-emerald-700" : 
+                                isAtrasado ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"
+                              )}>
+                                {item.status === 'pago' ? 'Pago' : isAtrasado ? 'Atrasado' : 'Pendente'}
+                              </Badge>
+                            </td>
+                            <td className="p-6 text-right"><div className="flex items-center justify-end gap-2">{item.status !== 'pago' ? (<Button size="sm" variant="outline" onClick={() => handleMarkAsPaid(item.id)} className="h-9 rounded-xl border-emerald-100 text-emerald-600 hover:bg-emerald-50 font-bold text-xs">Baixar</Button>) : item.status === 'pago' && (<Button size="sm" variant="ghost" onClick={() => handleRevertPayment(item.id)} className="h-9 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 font-bold text-xs gap-1.5" title="Reverter"><RotateCcw className="w-3.5 h-3.5" /> Reverter</Button>)}<Button size="icon" variant="ghost" onClick={() => handleDeleteItem(item)} className="h-9 w-9 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50"><Trash2 className="w-4 h-4" /></Button></div></td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -252,11 +299,23 @@ const Financial = () => {
   );
 };
 
-const StatCard = ({ label, value, icon, color }: any) => (
-  <Card className="premium-card border-none p-8 rounded-[2rem] bg-white">
-    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center mb-6", color === 'emerald' ? 'bg-emerald-50' : color === 'rose' ? 'bg-rose-50' : color === 'blue' ? 'bg-blue-50' : 'bg-amber-50')}>{icon}</div>
+const StatCard = ({ label, value, icon, color, highlight }: any) => (
+  <Card className={cn(
+    "premium-card p-8 rounded-[2rem] bg-white border-none transition-all",
+    highlight && "ring-2 ring-rose-100 bg-rose-50/30"
+  )}>
+    <div className={cn(
+      "w-12 h-12 rounded-2xl flex items-center justify-center mb-6", 
+      color === 'emerald' ? 'bg-emerald-50' : 
+      color === 'rose' ? 'bg-rose-50' : 
+      color === 'blue' ? 'bg-blue-50' : 
+      color === 'amber' ? 'bg-amber-50' : 'bg-slate-50'
+    )}>{icon}</div>
     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{label}</p>
-    <h3 className="text-2xl font-black text-gray-900 mt-1 tracking-tight">{value}</h3>
+    <h3 className={cn(
+      "text-2xl font-black mt-1 tracking-tight",
+      color === 'rose' && highlight ? "text-rose-600" : "text-gray-900"
+    )}>{value}</h3>
   </Card>
 );
 

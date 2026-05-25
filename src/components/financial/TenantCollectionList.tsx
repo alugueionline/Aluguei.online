@@ -14,6 +14,7 @@ import { QuickPaymentModal } from '@/components/modals/QuickPaymentModal';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { getTenantAvatar } from '@/utils/avatar';
+import { isBillOverdue } from '@/utils/financial';
 
 export const TenantCollectionList = () => {
   const navigate = useNavigate();
@@ -28,6 +29,7 @@ export const TenantCollectionList = () => {
     queryFn: async () => {
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
+      const currentDay = new Date().getDate();
 
       const { data: tenants } = await supabase
         .from('tenants')
@@ -36,7 +38,7 @@ export const TenantCollectionList = () => {
           name, 
           phone, 
           properties(name, condo_fee),
-          contracts(rent_value, status, property_id, properties(condo_fee))
+          contracts(rent_value, status, property_id, due_day, properties(condo_fee))
         `)
         .eq('status', 'ativo');
 
@@ -52,9 +54,13 @@ export const TenantCollectionList = () => {
         );
 
         let projectedTotal = 0;
+        let projectedIsOverdue = false;
         let projectedItems: any[] = [];
 
         activeContracts.forEach((contract: any) => {
+          const dueDay = contract.due_day || 5;
+          const isOverdue = currentDay > dueDay;
+
           const hasAnyRentBill = (bills || []).some(b => 
             b.tenant_id === t.id && 
             b.property_id === contract.property_id &&
@@ -67,6 +73,7 @@ export const TenantCollectionList = () => {
             const rentVal = Number(contract.rent_value || 0);
             projectedTotal += rentVal;
             projectedItems.push({ type: 'Aluguel (Projetado)', value: rentVal });
+            if (isOverdue) projectedIsOverdue = true;
           }
 
           const hasAnyCondoBill = (bills || []).some(b => 
@@ -81,16 +88,22 @@ export const TenantCollectionList = () => {
           if (condoFee > 0 && !hasAnyCondoBill) {
             projectedTotal += condoFee;
             projectedItems.push({ type: 'Condomínio (Projetado)', value: condoFee });
+            if (isOverdue) projectedIsOverdue = true;
           }
         });
         
         const totalDebt = existingBillsTotal + projectedTotal;
 
+        const hasOverdue = pendingBills.some(b => {
+          const contract = activeContracts.find(c => c.property_id === b.property_id);
+          return isBillOverdue(b, contract?.due_day || 5);
+        }) || projectedIsOverdue;
+
         return {
           ...t,
           totalDebt,
           pendingCount: pendingBills.length + projectedItems.length,
-          hasOverdue: pendingBills.some(b => b.status === 'atrasado'),
+          hasOverdue,
           bills: pendingBills,
           breakdown: {
             projectedItems,
@@ -128,7 +141,10 @@ export const TenantCollectionList = () => {
         {tenantDebts.map((tenant) => (
           <Card 
             key={tenant.id} 
-            className="border-none shadow-sm hover:shadow-md transition-all rounded-[2rem] overflow-hidden bg-white group cursor-pointer"
+            className={cn(
+              "border-none shadow-sm hover:shadow-md transition-all rounded-[2rem] overflow-hidden group cursor-pointer",
+              tenant.hasOverdue ? "bg-rose-50/50 ring-1 ring-rose-100" : "bg-white"
+            )}
             onClick={() => navigate(`/tenants/${tenant.id}`)}
           >
             <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
