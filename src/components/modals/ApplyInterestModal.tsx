@@ -279,7 +279,8 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
     .filter(b => selectedBillIds.includes(b.id))
     .reduce((acc, curr) => acc + curr.calculatedInterest, 0);
 
-  const totalNew = totalOriginal + totalFines + totalInterest;
+  const totalPenalties = totalFines + totalInterest;
+  const totalNew = totalOriginal + totalPenalties;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -416,6 +417,13 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
                 <span>NOVOS JUROS A GERAR</span>
                 <span>+ R$ {totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
+              
+              {/* Linha de Destaque com a Soma das Penalidades */}
+              <div className="pt-2 border-t border-dashed border-white/10 flex justify-between text-xs font-black text-amber-400">
+                <span>TOTAL DE PENALIDADES (MULTA + JUROS)</span>
+                <span>+ R$ {totalPenalties.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+
               <div className="pt-3 border-t border-white/10 flex justify-between items-center">
                 <span className="text-sm font-black uppercase tracking-wider">VALOR TOTAL ATUALIZADO</span>
                 <span className="text-2xl font-black text-blue-400">R$ {totalNew.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
