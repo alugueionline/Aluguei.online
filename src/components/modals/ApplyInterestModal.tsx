@@ -33,7 +33,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
     gracePeriod: 5
   });
 
-  // Carregar faturas pendentes e contrato ativo do inquilino
+  // Carregar faturas pendentes, contratos ativos e projetar aluguéis do inquilino
   useEffect(() => {
     const fetchData = async () => {
       if (!isOpen || !tenantId) return;
@@ -47,27 +47,62 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
             .neq('status', 'pago'),
           supabase
             .from('contracts')
-            .select('*')
+            .select('*, properties(name)')
             .eq('tenant_id', tenantId)
             .eq('status', 'ativo')
-            .maybeSingle()
         ]);
 
         if (billsRes.error) throw billsRes.error;
         if (contractRes.error) throw contractRes.error;
 
+        const dbBills = billsRes.data || [];
+        const activeContracts = contractRes.data || [];
+
         // Filtrar para não aplicar juros sobre juros/multas já existentes
-        const filteredBills = (billsRes.data || []).filter(
+        const filteredBills = dbBills.filter(
           (b: any) => b.type !== 'multa' && b.type !== 'juros' && b.type !== 'multa_juros'
         );
 
-        setBills(filteredBills);
-        setActiveContract(contractRes.data);
+        // Projetar aluguel se não houver fatura no banco para o mês atual
+        const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+        const currentYear = new Date().getFullYear();
+
+        const projectedBills: any[] = [];
+        activeContracts.forEach((contract: any) => {
+          const hasRentBill = dbBills.some(b => 
+            b.type === 'aluguel' && 
+            b.month === currentMonth && 
+            b.year === currentYear && 
+            b.property_id === contract.property_id
+          );
+
+          if (!hasRentBill) {
+            projectedBills.push({
+              id: `projected-rent-${contract.id}`,
+              tenant_id: tenantId,
+              property_id: contract.property_id,
+              type: 'aluguel',
+              month: currentMonth,
+              year: currentYear,
+              total_value: Number(contract.rent_value || 0),
+              status: 'pendente',
+              isProjected: true,
+              properties: {
+                name: contract.properties?.name || 'Imóvel'
+              }
+            });
+          }
+        });
+
+        const allBills = [...filteredBills, ...projectedBills];
+        setBills(allBills);
+        
+        if (activeContracts.length > 0) {
+          setActiveContract(activeContracts[0]); // Para fins de configuração padrão de vencimento
+        }
         
         // Selecionar todas por padrão
-        if (filteredBills) {
-          setSelectedBillIds(filteredBills.map((b: any) => b.id));
-        }
+        setSelectedBillIds(allBills.map((b: any) => b.id));
       } catch (err: any) {
         showError('Erro ao carregar dados: ' + err.message);
       } finally {
@@ -130,8 +165,28 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
 
       const billsToUpdate = calculatedBills.filter(b => selectedBillIds.includes(b.id));
 
-      // 1. Preparar atualizações das faturas originais (apenas mudar status para atrasado)
-      const updatePromises = billsToUpdate.map(b => {
+      // 1. Se houver faturas projetadas selecionadas, precisamos criá-las no banco primeiro
+      const projectedBills = billsToUpdate.filter(b => b.isProjected);
+      for (const proj of projectedBills) {
+        const { error: insertProjError } = await supabase
+          .from('bills')
+          .insert([{
+            user_id: user.id,
+            tenant_id: tenantId,
+            property_id: proj.property_id,
+            type: 'aluguel',
+            month: proj.month,
+            year: proj.year,
+            total_value: proj.baseValue,
+            status: proj.daysLate > 0 ? 'atrasado' : 'pendente'
+          }]);
+
+        if (insertProjError) throw insertProjError;
+      }
+
+      // 2. Atualizar faturas que já existiam no banco para status 'atrasado' se tiverem dias de atraso
+      const existingBills = billsToUpdate.filter(b => !b.isProjected);
+      const updatePromises = existingBills.map(b => {
         return supabase
           .from('bills')
           .update({
@@ -140,40 +195,66 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
           .eq('id', b.id);
       });
 
-      // Executar atualizações das faturas originais
-      const updateResults = await Promise.all(updatePromises);
-      const updateError = updateResults.find(r => r.error);
-      if (updateError) throw updateError.error;
+      if (updatePromises.length > 0) {
+        const updateResults = await Promise.all(updatePromises);
+        const updateError = updateResults.find(r => r.error);
+        if (updateError) throw updateError.error;
+      }
 
-      // 2. Calcular o total consolidado de multas e juros
+      // 3. Calcular o total consolidado de multas e juros
       const totalFines = billsToUpdate.reduce((acc, curr) => acc + curr.calculatedFine, 0);
       const totalInterest = billsToUpdate.reduce((acc, curr) => acc + curr.calculatedInterest, 0);
       const totalPenalty = totalFines + totalInterest;
 
-      // 3. Inserir apenas UMA fatura consolidada se o valor for maior que zero
+      // 4. Criar ou atualizar a fatura consolidada de multa_juros
       if (totalPenalty > 0) {
         const now = new Date();
         const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
         const currentYear = now.getFullYear();
 
-        const { error: insertError } = await supabase
+        // Verificar se já existe uma fatura de multa_juros pendente para este inquilino
+        const { data: existingPenaltyBill } = await supabase
           .from('bills')
-          .insert([{
-            user_id: user.id,
-            tenant_id: tenantId,
-            property_id: activeContract?.property_id || billsToUpdate[0]?.property_id || null,
-            type: 'multa_juros',
-            month: currentMonth,
-            year: currentYear,
-            total_value: totalPenalty,
-            calculated_value: totalPenalty,
-            status: 'pendente'
-          }]);
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('type', 'multa_juros')
+          .eq('status', 'pendente')
+          .maybeSingle();
 
-        if (insertError) throw insertError;
+        if (existingPenaltyBill) {
+          // Atualiza o valor da fatura existente
+          const { error: updatePenaltyError } = await supabase
+            .from('bills')
+            .update({
+              total_value: totalPenalty,
+              calculated_value: totalPenalty,
+              month: currentMonth,
+              year: currentYear
+            })
+            .eq('id', existingPenaltyBill.id);
+
+          if (updatePenaltyError) throw updatePenaltyError;
+        } else {
+          // Cria uma nova fatura de multa_juros
+          const { error: insertPenaltyError } = await supabase
+            .from('bills')
+            .insert([{
+              user_id: user.id,
+              tenant_id: tenantId,
+              property_id: activeContract?.property_id || billsToUpdate[0]?.property_id || null,
+              type: 'multa_juros',
+              month: currentMonth,
+              year: currentYear,
+              total_value: totalPenalty,
+              calculated_value: totalPenalty,
+              status: 'pendente'
+            }]);
+
+          if (insertPenaltyError) throw insertPenaltyError;
+        }
       }
 
-      showSuccess('Lançamento único de multa e juros gerado com sucesso!');
+      showSuccess('Lançamento de multa e juros atualizado com sucesso!');
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -273,7 +354,10 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
                           }}
                         />
                         <div>
-                          <p className="text-sm font-black text-slate-900 capitalize">{bill.type} ({bill.month}/{bill.year})</p>
+                          <p className="text-sm font-black text-slate-900 capitalize">
+                            {bill.type} ({bill.month}/{bill.year})
+                            {bill.isProjected && <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded ml-2 uppercase">Projetado</span>}
+                          </p>
                           <p className="text-[10px] text-slate-400 font-bold uppercase">Vencimento: {bill.dueDate.toLocaleDateString('pt-BR')}</p>
                         </div>
                       </div>
