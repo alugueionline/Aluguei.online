@@ -46,8 +46,7 @@ const Maintenance = () => {
         month,
         year,
         total_value: maintenance.cost || 0,
-        status: 'pago',
-        description: `Manutenção: ${maintenance.description}`
+        status: 'pago'
       }]);
 
       showSuccess('Manutenção concluída e paga!');

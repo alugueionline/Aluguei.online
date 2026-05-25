@@ -215,6 +215,16 @@ const TenantDetails = () => {
 
   const activeContracts = tenant.contracts?.filter((c: any) => c.status === 'ativo') || [];
 
+  // Função auxiliar para gerar descrições dinâmicas na interface
+  const getBillDescription = (bill: any) => {
+    const type = bill.type?.toLowerCase();
+    if (type === 'multa') return 'Multa por atraso de pagamento';
+    if (type === 'juros') return 'Juros de mora pro-rata die';
+    if (type === 'manutencao') return 'Reparo ou manutenção de imóvel';
+    if (type === 'aluguel') return 'Mensalidade de locação';
+    return `Cobrança de ${bill.type}`;
+  };
+
   return (
     <DashboardLayout title="Perfil do Inquilino">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
@@ -301,9 +311,7 @@ const TenantDetails = () => {
                           </TableCell>
                           <TableCell className="p-6 text-slate-500 font-medium">
                             <span className="capitalize block font-bold text-slate-800">{bill.type}</span>
-                            {bill.description && (
-                              <span className="text-[10px] text-slate-400 block mt-0.5">{bill.description}</span>
-                            )}
+                            <span className="text-[10px] text-slate-400 block mt-0.5">{getBillDescription(bill)}</span>
                           </TableCell>
                           <TableCell className="p-6">
                             <span className="font-black text-slate-900">

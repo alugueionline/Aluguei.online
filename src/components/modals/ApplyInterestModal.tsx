@@ -153,8 +153,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
             year: b.year,
             total_value: b.calculatedFine,
             calculated_value: b.calculatedFine,
-            status: 'pendente',
-            description: `Multa por atraso - ${b.type} (${b.month}/${b.year})`
+            status: 'pendente'
           });
         }
 
@@ -168,8 +167,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
             year: b.year,
             total_value: b.calculatedInterest,
             calculated_value: b.calculatedInterest,
-            status: 'pendente',
-            description: `Juros de mora - ${b.type} (${b.month}/${b.year})`
+            status: 'pendente'
           });
         }
       });
