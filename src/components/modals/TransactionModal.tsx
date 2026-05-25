@@ -53,7 +53,7 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    loading || setLoading(true);
     
     const formData = new FormData(e.target as HTMLFormElement);
     const type = formData.get('type') as string;
@@ -97,7 +97,7 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] rounded-[2rem]">
+      <DialogContent className="sm:max-w-[500px] rounded-[2rem] p-6 md:p-8 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-black tracking-tight">Nova Transação</DialogTitle>
         </DialogHeader>

@@ -121,7 +121,7 @@ export const ContractModal = ({ isOpen, onClose, contract }: ContractModalProps)
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] p-8">
+      <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] p-6 md:p-8 max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle className="text-2xl font-black tracking-tight">{isEdit ? 'Editar Contrato' : 'Novo Contrato'}</DialogTitle></DialogHeader>
         <form onSubmit={handleSave} className="space-y-5 py-4">
           <div className="space-y-2">
