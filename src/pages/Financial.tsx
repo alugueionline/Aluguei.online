@@ -46,7 +46,7 @@ const Financial = () => {
   // Tipos que são considerados Receita (Entrada)
   const isIncomeType = (type: string) => {
     const t = type?.toLowerCase() || '';
-    return ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'taxa extra', 'luz', 'multa', 'juros'].includes(t);
+    return ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'taxa extra', 'luz', 'multa', 'juros', 'multa_juros'].includes(t);
   };
 
   // Busca de faturas com cache
@@ -123,10 +123,10 @@ const Financial = () => {
 
   const displayItems = useMemo(() => {
     return bills.map(bill => {
-      const isCharge = bill.type === 'multa' || bill.type === 'juros';
+      const isCharge = bill.type === 'multa' || bill.type === 'juros' || bill.type === 'multa_juros';
       return {
         ...bill,
-        displayType: bill.type === 'multa' ? 'Multa por Atraso' : bill.type === 'juros' ? 'Juros de Mora' : bill.type,
+        displayType: bill.type === 'multa' ? 'Multa por Atraso' : bill.type === 'juros' ? 'Juros de Mora' : bill.type === 'multa_juros' ? 'Multa e Juros' : bill.type,
         displayValue: Number(bill.total_value || bill.calculated_value || 0),
         isCharge
       };

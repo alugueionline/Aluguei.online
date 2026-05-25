@@ -58,7 +58,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
 
         // Filtrar para não aplicar juros sobre juros/multas já existentes
         const filteredBills = (billsRes.data || []).filter(
-          (b: any) => b.type !== 'multa' && b.type !== 'juros'
+          (b: any) => b.type !== 'multa' && b.type !== 'juros' && b.type !== 'multa_juros'
         );
 
         setBills(filteredBills);
@@ -129,7 +129,6 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
       if (!user) throw new Error('Não autenticado');
 
       const billsToUpdate = calculatedBills.filter(b => selectedBillIds.includes(b.id));
-      const newBillsToInsert: any[] = [];
 
       // 1. Preparar atualizações das faturas originais (apenas mudar status para atrasado)
       const updatePromises = billsToUpdate.map(b => {
@@ -141,51 +140,40 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
           .eq('id', b.id);
       });
 
-      // 2. Preparar novos lançamentos de multa e juros como novas dívidas separadas
-      billsToUpdate.forEach(b => {
-        if (b.calculatedFine > 0) {
-          newBillsToInsert.push({
-            user_id: user.id,
-            tenant_id: tenantId,
-            property_id: b.property_id,
-            type: 'multa',
-            month: b.month,
-            year: b.year,
-            total_value: b.calculatedFine,
-            calculated_value: b.calculatedFine,
-            status: 'pendente'
-          });
-        }
-
-        if (b.calculatedInterest > 0) {
-          newBillsToInsert.push({
-            user_id: user.id,
-            tenant_id: tenantId,
-            property_id: b.property_id,
-            type: 'juros',
-            month: b.month,
-            year: b.year,
-            total_value: b.calculatedInterest,
-            calculated_value: b.calculatedInterest,
-            status: 'pendente'
-          });
-        }
-      });
-
       // Executar atualizações das faturas originais
       const updateResults = await Promise.all(updatePromises);
       const updateError = updateResults.find(r => r.error);
       if (updateError) throw updateError.error;
 
-      // Inserir as novas dívidas de multa e juros
-      if (newBillsToInsert.length > 0) {
+      // 2. Calcular o total consolidado de multas e juros
+      const totalFines = billsToUpdate.reduce((acc, curr) => acc + curr.calculatedFine, 0);
+      const totalInterest = billsToUpdate.reduce((acc, curr) => acc + curr.calculatedInterest, 0);
+      const totalPenalty = totalFines + totalInterest;
+
+      // 3. Inserir apenas UMA fatura consolidada se o valor for maior que zero
+      if (totalPenalty > 0) {
+        const now = new Date();
+        const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
+        const currentYear = now.getFullYear();
+
         const { error: insertError } = await supabase
           .from('bills')
-          .insert(newBillsToInsert);
+          .insert([{
+            user_id: user.id,
+            tenant_id: tenantId,
+            property_id: activeContract?.property_id || billsToUpdate[0]?.property_id || null,
+            type: 'multa_juros',
+            month: currentMonth,
+            year: currentYear,
+            total_value: totalPenalty,
+            calculated_value: totalPenalty,
+            status: 'pendente'
+          }]);
+
         if (insertError) throw insertError;
       }
 
-      showSuccess('Novos lançamentos de multa e juros gerados com sucesso!');
+      showSuccess('Lançamento único de multa e juros gerado com sucesso!');
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -219,7 +207,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
             </div>
             <div>
               <DialogTitle className="text-2xl font-black tracking-tight">Multas e Juros de Mora</DialogTitle>
-              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Gerar novos lançamentos de penalidades</p>
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Gerar lançamento único de penalidades</p>
             </div>
           </div>
         </div>
@@ -356,7 +344,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
               className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-8 font-black h-12 shadow-lg shadow-rose-100 flex-1"
             >
               {updating ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-              Gerar Lançamentos de Penalidade
+              Gerar Lançamento Único de Penalidade
             </Button>
           </DialogFooter>
         </div>

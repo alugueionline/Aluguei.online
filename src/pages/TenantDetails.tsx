@@ -220,6 +220,7 @@ const TenantDetails = () => {
     const type = bill.type?.toLowerCase();
     if (type === 'multa') return 'Multa por atraso de pagamento';
     if (type === 'juros') return 'Juros de mora pro-rata die';
+    if (type === 'multa_juros') return 'Multa e Juros de Mora acumulados';
     if (type === 'manutencao') return 'Reparo ou manutenção de imóvel';
     if (type === 'aluguel') return 'Mensalidade de locação';
     return `Cobrança de ${bill.type}`;
@@ -310,7 +311,7 @@ const TenantDetails = () => {
                             {bill.month}/{bill.year}
                           </TableCell>
                           <TableCell className="p-6 text-slate-500 font-medium">
-                            <span className="capitalize block font-bold text-slate-800">{bill.type}</span>
+                            <span className="capitalize block font-bold text-slate-800">{bill.type === 'multa_juros' ? 'Multa e Juros' : bill.type}</span>
                             <span className="text-[10px] text-slate-400 block mt-0.5">{getBillDescription(bill)}</span>
                           </TableCell>
                           <TableCell className="p-6">

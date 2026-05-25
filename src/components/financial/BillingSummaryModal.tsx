@@ -79,6 +79,11 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
           totalFine += val;
         } else if (b.type === 'juros') {
           totalInterest += val;
+        } else if (b.type === 'multa_juros') {
+          extras.push({
+            label: `Multa e Juros Acumulados`,
+            value: val.toString()
+          });
         } else {
           let consumption = '';
           if (b.current_reading !== null && b.previous_reading !== null) {

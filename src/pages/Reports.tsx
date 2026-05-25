@@ -70,7 +70,7 @@ const Reports = () => {
       const { data: properties } = await supabase.from('properties').select('status');
 
       if (bills) {
-        const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'multa', 'juros'];
+        const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'multa', 'juros', 'multa_juros'];
         const now = new Date();
         const oneYearAgo = subMonths(now, 12);
         
@@ -109,7 +109,7 @@ const Reports = () => {
         }));
 
         const formattedCategories = Object.entries(categories).map(([name, data]) => ({
-          name: name.charAt(0).toUpperCase() + name.slice(1),
+          name: name === 'multa_juros' ? 'Multa e Juros' : name.charAt(0).toUpperCase() + name.slice(1),
           value: Math.round((data.amount / (totalRec || 1)) * 100),
           amount: data.amount,
           annualAmount: data.annualAmount,

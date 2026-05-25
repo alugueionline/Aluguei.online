@@ -49,7 +49,7 @@ const Dashboard = () => {
   // Tipos que são considerados Receita (Entrada) para o gráfico de Recebido vs Despesa
   const isIncomeType = (type: string) => {
     const t = type?.toLowerCase() || '';
-    return ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'taxa extra', 'luz', 'taxa'].includes(t);
+    return ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'taxa extra', 'luz', 'taxa', 'multa', 'juros', 'multa_juros'].includes(t);
   };
 
   const { data: tenants = [], isLoading: loadingTenants } = useQuery({
