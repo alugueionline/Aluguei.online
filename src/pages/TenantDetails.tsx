@@ -26,7 +26,8 @@ import {
   Trash2,
   Check,
   AlertTriangle,
-  CalendarClock
+  CalendarClock,
+  Percent
 } from 'lucide-react';
 import { 
   Table, 
@@ -40,6 +41,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { TenantModal } from '@/components/modals/TenantModal';
 import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
+import { ApplyInterestModal } from '@/components/modals/ApplyInterestModal';
 import { showSuccess, showError } from '@/utils/toast';
 import { isBillOverdue, getProjectedRent } from '@/utils/financial';
 
@@ -49,6 +51,7 @@ const TenantDetails = () => {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);
+  const [isInterestModalOpen, setIsInterestModalOpen] = useState(false);
   const [processingBillId, setProcessingBillId] = useState<string | null>(null);
 
   const { data: tenant, isLoading } = useQuery({
@@ -215,11 +218,27 @@ const TenantDetails = () => {
 
   return (
     <DashboardLayout title="Perfil do Inquilino">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <Button variant="ghost" className="gap-2 text-gray-500 hover:text-gray-900" onClick={() => navigate(-1)}><ArrowLeft className="w-4 h-4" /> Voltar</Button>
-        <div className="flex gap-3">
-          <Button onClick={() => setIsBillingModalOpen(true)} className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold gap-2 shadow-lg shadow-emerald-100"><MessageSquare className="w-4 h-4" /> Cobrar Inquilino</Button>
-          <Button onClick={() => setIsModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold gap-2"><Edit2 className="w-4 h-4" /> Editar Perfil</Button>
+        <div className="flex flex-wrap gap-3 w-full md:w-auto">
+          <Button 
+            onClick={() => setIsInterestModalOpen(true)} 
+            className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold gap-2 shadow-lg shadow-rose-100 flex-1 md:flex-none"
+          >
+            <Percent className="w-4 h-4" /> Multas e Juros
+          </Button>
+          <Button 
+            onClick={() => setIsBillingModalOpen(true)} 
+            className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold gap-2 shadow-lg shadow-emerald-100 flex-1 md:flex-none"
+          >
+            <MessageSquare className="w-4 h-4" /> Cobrar Inquilino
+          </Button>
+          <Button 
+            onClick={() => setIsModalOpen(true)} 
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold gap-2 flex-1 md:flex-none"
+          >
+            <Edit2 className="w-4 h-4" /> Editar Perfil
+          </Button>
         </div>
       </div>
 
@@ -326,6 +345,16 @@ const TenantDetails = () => {
       </div>
       <TenantModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); queryClient.invalidateQueries({ queryKey: ['tenant', id] }); }} tenant={tenant} />
       <BillingSummaryModal isOpen={isBillingModalOpen} onClose={() => setIsBillingModalOpen(false)} tenantId={id} />
+      <ApplyInterestModal 
+        isOpen={isInterestModalOpen} 
+        onClose={() => setIsInterestModalOpen(false)} 
+        tenantId={id || ''} 
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['tenant-financial-v6', id] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v6'] });
+          queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] });
+        }}
+      />
     </DashboardLayout>
   );
 };
