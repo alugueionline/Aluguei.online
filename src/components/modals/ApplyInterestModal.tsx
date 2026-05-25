@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Percent, Calendar, AlertCircle, CheckCircle2, Loader2, Info, Scale } from 'lucide-react';
+import { Percent, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { cn } from '@/lib/utils';
@@ -56,12 +56,17 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
         if (billsRes.error) throw billsRes.error;
         if (contractRes.error) throw contractRes.error;
 
-        setBills(billsRes.data || []);
+        // Filtrar para não aplicar juros sobre juros/multas já existentes
+        const filteredBills = (billsRes.data || []).filter(
+          (b: any) => b.type !== 'multa' && b.type !== 'juros'
+        );
+
+        setBills(filteredBills);
         setActiveContract(contractRes.data);
         
         // Selecionar todas por padrão
-        if (billsRes.data) {
-          setSelectedBillIds(billsRes.data.map((b: any) => b.id));
+        if (filteredBills) {
+          setSelectedBillIds(filteredBills.map((b: any) => b.id));
         }
       } catch (err: any) {
         showError('Erro ao carregar dados: ' + err.message);
@@ -79,8 +84,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
     const now = new Date();
 
     return bills.map(bill => {
-      // Valor base = total_value - fine_value - interest_value (para evitar juros sobre juros)
-      const baseValue = Number(bill.total_value) - (Number(bill.fine_value) || 0) - (Number(bill.interest_value) || 0);
+      const baseValue = Number(bill.total_value || bill.calculated_value || 0);
       
       // Data de vencimento estimada
       const dueDate = new Date(bill.year, parseInt(bill.month) - 1, dueDay);
@@ -121,25 +125,69 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
 
     setUpdating(true);
     try {
-      const billsToUpdate = calculatedBills.filter(b => selectedBillIds.includes(b.id));
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Não autenticado');
 
-      const promises = billsToUpdate.map(b => {
+      const billsToUpdate = calculatedBills.filter(b => selectedBillIds.includes(b.id));
+      const newBillsToInsert: any[] = [];
+
+      // 1. Preparar atualizações das faturas originais (apenas mudar status para atrasado)
+      const updatePromises = billsToUpdate.map(b => {
         return supabase
           .from('bills')
           .update({
-            fine_value: b.calculatedFine,
-            interest_value: b.calculatedInterest,
-            total_value: b.totalUpdated,
             status: b.daysLate > 0 ? 'atrasado' : b.status
           })
           .eq('id', b.id);
       });
 
-      const results = await Promise.all(promises);
-      const error = results.find(r => r.error);
-      if (error) throw error.error;
+      // 2. Preparar novos lançamentos de multa e juros como novas dívidas separadas
+      billsToUpdate.forEach(b => {
+        if (b.calculatedFine > 0) {
+          newBillsToInsert.push({
+            user_id: user.id,
+            tenant_id: tenantId,
+            property_id: b.property_id,
+            type: 'multa',
+            month: b.month,
+            year: b.year,
+            total_value: b.calculatedFine,
+            calculated_value: b.calculatedFine,
+            status: 'pendente',
+            description: `Multa por atraso - ${b.type} (${b.month}/${b.year})`
+          });
+        }
 
-      showSuccess('Multas e juros aplicados com sucesso!');
+        if (b.calculatedInterest > 0) {
+          newBillsToInsert.push({
+            user_id: user.id,
+            tenant_id: tenantId,
+            property_id: b.property_id,
+            type: 'juros',
+            month: b.month,
+            year: b.year,
+            total_value: b.calculatedInterest,
+            calculated_value: b.calculatedInterest,
+            status: 'pendente',
+            description: `Juros de mora - ${b.type} (${b.month}/${b.year})`
+          });
+        }
+      });
+
+      // Executar atualizações das faturas originais
+      const updateResults = await Promise.all(updatePromises);
+      const updateError = updateResults.find(r => r.error);
+      if (updateError) throw updateError.error;
+
+      // Inserir as novas dívidas de multa e juros
+      if (newBillsToInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('bills')
+          .insert(newBillsToInsert);
+        if (insertError) throw insertError;
+      }
+
+      showSuccess('Novos lançamentos de multa e juros gerados com sucesso!');
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -173,7 +221,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
             </div>
             <div>
               <DialogTitle className="text-2xl font-black tracking-tight">Multas e Juros de Mora</DialogTitle>
-              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Calcular penalidades por atraso</p>
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Gerar novos lançamentos de penalidades</p>
             </div>
           </div>
         </div>
@@ -275,7 +323,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
             ) : (
               <div className="py-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                 <AlertCircle className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                <p className="text-sm font-bold text-slate-400">Nenhuma fatura pendente encontrada.</p>
+                <p className="text-sm font-bold text-slate-400">Nenhuma fatura pendente elegível encontrada.</p>
               </div>
             )}
           </div>
@@ -288,15 +336,15 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
                 <span>R$ {totalOriginal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between text-xs font-bold text-rose-400">
-                <span>TOTAL MULTAS</span>
+                <span>NOVAS MULTAS A GERAR</span>
                 <span>+ R$ {totalFines.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between text-xs font-bold text-rose-400">
-                <span>TOTAL JUROS</span>
+                <span>NOVOS JUROS A GERAR</span>
                 <span>+ R$ {totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="pt-3 border-t border-white/10 flex justify-between items-center">
-                <span className="text-sm font-black uppercase tracking-wider">VALOR ATUALIZADO</span>
+                <span className="text-sm font-black uppercase tracking-wider">VALOR TOTAL ATUALIZADO</span>
                 <span className="text-2xl font-black text-blue-400">R$ {totalNew.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
@@ -310,7 +358,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
               className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-8 font-black h-12 shadow-lg shadow-rose-100 flex-1"
             >
               {updating ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-              Aplicar Multas e Juros
+              Gerar Lançamentos de Penalidade
             </Button>
           </DialogFooter>
         </div>

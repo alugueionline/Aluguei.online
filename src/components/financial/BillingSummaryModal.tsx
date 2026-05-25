@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Copy, Send, Calculator, Landmark, Trash2, Plus, Search, Loader2, Mail } from 'lucide-react';
+import { MessageSquare, Copy, Send, Calculator, Trash2, Plus, Search, Loader2, Mail } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -56,27 +56,29 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
 
-      const { data: bills } = await supabase
-        .from('bills')
-        .select('*')
-        .eq('tenant_id', id);
-        
-      const { data: contracts } = await supabase
-        .from('contracts')
-        .select('rent_value')
-        .eq('tenant_id', id)
-        .eq('status', 'ativo');
+      const [billsRes, contractsRes] = await Promise.all([
+        supabase.from('bills').select('*').eq('tenant_id', id).neq('status', 'pago'),
+        supabase.from('contracts').select('rent_value').eq('tenant_id', id).eq('status', 'ativo')
+      ]);
+
+      const bills = billsRes.data || [];
+      const contracts = contractsRes.data || [];
 
       let totalRent = 0;
+      let totalFine = 0;
+      let totalInterest = 0;
       const extras: ExtraValue[] = [];
-      const hasRentBillThisMonth = bills?.some(b => b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear);
+      const hasRentBillThisMonth = bills.some(b => b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear);
 
-      bills?.filter(b => b.status !== 'pago').forEach(b => {
-        const val = Number(b.calculated_value || b.total_value || 0);
+      bills.forEach(b => {
+        const val = Number(b.total_value || b.calculated_value || 0);
+        
         if (b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear) {
           totalRent += val;
-          setFineValue((b.fine_value || 0).toString());
-          setInterestValue((b.interest_value || 0).toString());
+        } else if (b.type === 'multa') {
+          totalFine += val;
+        } else if (b.type === 'juros') {
+          totalInterest += val;
         } else {
           let consumption = '';
           if (b.current_reading !== null && b.previous_reading !== null) {
@@ -93,12 +95,12 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       });
 
       if (!hasRentBillThisMonth) {
-        contracts?.forEach(c => totalRent += Number(c.rent_value || 0));
-        setFineValue('0');
-        setInterestValue('0');
+        contracts.forEach(c => totalRent += Number(c.rent_value || 0));
       }
 
       setRentValue(totalRent.toString());
+      setFineValue(totalFine.toString());
+      setInterestValue(totalInterest.toString());
       setExtraValues(extras);
     } catch (err) {
       showError('Erro ao carregar débitos.');
@@ -137,8 +139,8 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     
     let details = '';
     if (rent > 0) details += `• *Aluguel:* R$ ${rent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
-    if (fine > 0) details += `• *Multa:* R$ ${fine.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
-    if (interest > 0) details += `• *Juros:* R$ ${interest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+    if (fine > 0) details += `• *Multa por Atraso:* R$ ${fine.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+    if (interest > 0) details += `• *Juros de Mora:* R$ ${interest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
 
     extraValues.forEach(e => {
       const val = parseFloat(e.value) || 0;

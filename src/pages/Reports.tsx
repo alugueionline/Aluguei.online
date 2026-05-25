@@ -16,7 +16,6 @@ import {
   Zap,
   Droplets,
   Globe,
-  Wallet,
   Home,
   Loader2,
   BarChart3,
@@ -71,7 +70,7 @@ const Reports = () => {
       const { data: properties } = await supabase.from('properties').select('status');
 
       if (bills) {
-        const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio'];
+        const incomeTypes = ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'multa', 'juros'];
         const now = new Date();
         const oneYearAgo = subMonths(now, 12);
         
@@ -82,10 +81,6 @@ const Reports = () => {
 
         bills.forEach(b => {
           const totalVal = Number(b.total_value || b.calculated_value || 0);
-          const fineVal = Number(b.fine_value || 0);
-          const interestVal = Number(b.interest_value || 0);
-          const baseVal = Math.max(0, totalVal - fineVal - interestVal);
-          
           const type = b.type?.toLowerCase() || 'outros';
           const isIncome = incomeTypes.includes(type);
           
@@ -93,40 +88,13 @@ const Reports = () => {
           const isWithinLastYear = billDate >= oneYearAgo;
 
           if (isIncome) {
-            // Process base value
-            if (baseVal > 0) {
-              totalRec += baseVal;
-              if (isWithinLastYear) annualRec += baseVal;
+            totalRec += totalVal;
+            if (isWithinLastYear) annualRec += totalVal;
 
-              if (!categories[type]) categories[type] = { amount: 0, count: 0, annualAmount: 0 };
-              categories[type].amount += baseVal;
-              categories[type].count += 1;
-              if (isWithinLastYear) categories[type].annualAmount += baseVal;
-            }
-
-            // Process fine value separately
-            if (fineVal > 0) {
-              totalRec += fineVal;
-              if (isWithinLastYear) annualRec += fineVal;
-
-              const fineType = 'multa';
-              if (!categories[fineType]) categories[fineType] = { amount: 0, count: 0, annualAmount: 0 };
-              categories[fineType].amount += fineVal;
-              categories[fineType].count += 1;
-              if (isWithinLastYear) categories[fineType].annualAmount += fineVal;
-            }
-
-            // Process interest value separately
-            if (interestVal > 0) {
-              totalRec += interestVal;
-              if (isWithinLastYear) annualRec += interestVal;
-
-              const interestType = 'juros';
-              if (!categories[interestType]) categories[interestType] = { amount: 0, count: 0, annualAmount: 0 };
-              categories[interestType].amount += interestVal;
-              categories[interestType].count += 1;
-              if (isWithinLastYear) categories[interestType].annualAmount += interestVal;
-            }
+            if (!categories[type]) categories[type] = { amount: 0, count: 0, annualAmount: 0 };
+            categories[type].amount += totalVal;
+            categories[type].count += 1;
+            if (isWithinLastYear) categories[type].annualAmount += totalVal;
           } else {
             totalExp += totalVal;
           }

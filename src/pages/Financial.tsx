@@ -46,7 +46,7 @@ const Financial = () => {
   // Tipos que são considerados Receita (Entrada)
   const isIncomeType = (type: string) => {
     const t = type?.toLowerCase() || '';
-    return ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'taxa extra', 'luz'].includes(t);
+    return ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'taxa extra', 'luz', 'multa', 'juros'].includes(t);
   };
 
   // Busca de faturas com cache
@@ -122,19 +122,15 @@ const Financial = () => {
   }, [bills, contracts]);
 
   const displayItems = useMemo(() => {
-    const items: any[] = [];
-    bills.forEach(bill => {
-      const fine = Number(bill.fine_value) || 0;
-      const interest = Number(bill.interest_value) || 0;
-      const total = Number(bill.total_value) || 0;
-      const baseValue = bill.type === 'aluguel' ? (total - fine - interest) : total;
-      
-      if (baseValue > 0) items.push({ ...bill, displayType: bill.type, displayValue: baseValue, isCharge: false });
-      if (fine > 0) items.push({ ...bill, id: `${bill.id}-fine`, originalId: bill.id, displayType: 'Multa por Atraso', displayValue: fine, isCharge: true, chargeType: 'fine' });
-      if (interest > 0) items.push({ ...bill, id: `${bill.id}-interest`, originalId: bill.id, displayType: 'Juros de Mora', displayValue: interest, isCharge: true, chargeType: 'interest' });
-    });
-
-    return items.filter(item => 
+    return bills.map(bill => {
+      const isCharge = bill.type === 'multa' || bill.type === 'juros';
+      return {
+        ...bill,
+        displayType: bill.type === 'multa' ? 'Multa por Atraso' : bill.type === 'juros' ? 'Juros de Mora' : bill.type,
+        displayValue: Number(bill.total_value || bill.calculated_value || 0),
+        isCharge
+      };
+    }).filter(item => 
       item.displayType.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (item.tenants?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (item.properties?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -166,14 +162,7 @@ const Financial = () => {
   const handleDeleteItem = async (item: any) => {
     if (!window.confirm('Deseja excluir este registro?')) return;
     try {
-      if (item.isCharge) {
-        const updateData: any = { [item.chargeType === 'fine' ? 'fine_value' : 'interest_value']: 0 };
-        const originalBill = bills.find(b => b.id === item.originalId);
-        if (originalBill) updateData.total_value = Number(originalBill.total_value) - Number(item.displayValue);
-        await supabase.from('bills').update(updateData).eq('id', item.originalId);
-      } else {
-        await supabase.from('bills').delete().eq('id', item.id);
-      }
+      await supabase.from('bills').delete().eq('id', item.id);
       showSuccess('Excluído com sucesso.');
       queryClient.invalidateQueries({ queryKey: ['bills'] });
     } catch (err: any) {
@@ -245,7 +234,7 @@ const Financial = () => {
                           <td className="p-6 text-sm text-gray-500 font-medium">{item.month}/{item.year}</td>
                           <td className="p-6"><p className={cn("font-black", item.isCharge ? "text-rose-600" : "text-gray-900")}>R$ {Number(item.displayValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></td>
                           <td className="p-6"><Badge className={cn("border-none px-3 py-1 rounded-lg font-black text-[10px] uppercase", item.status === 'pago' ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>{item.status}</Badge></td>
-                          <td className="p-6 text-right"><div className="flex items-center justify-end gap-2">{item.status !== 'pago' && !item.isCharge ? (<Button size="sm" variant="outline" onClick={() => handleMarkAsPaid(item.id)} className="h-9 rounded-xl border-emerald-100 text-emerald-600 hover:bg-emerald-50 font-bold text-xs">Baixar</Button>) : item.status === 'pago' && !item.isCharge && (<Button size="sm" variant="ghost" onClick={() => handleRevertPayment(item.id)} className="h-9 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 font-bold text-xs gap-1.5" title="Reverter"><RotateCcw className="w-3.5 h-3.5" /> Reverter</Button>)}<Button size="icon" variant="ghost" onClick={() => handleDeleteItem(item)} className="h-9 w-9 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50"><Trash2 className="w-4 h-4" /></Button></div></td>
+                          <td className="p-6 text-right"><div className="flex items-center justify-end gap-2">{item.status !== 'pago' ? (<Button size="sm" variant="outline" onClick={() => handleMarkAsPaid(item.id)} className="h-9 rounded-xl border-emerald-100 text-emerald-600 hover:bg-emerald-50 font-bold text-xs">Baixar</Button>) : item.status === 'pago' && (<Button size="sm" variant="ghost" onClick={() => handleRevertPayment(item.id)} className="h-9 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 font-bold text-xs gap-1.5" title="Reverter"><RotateCcw className="w-3.5 h-3.5" /> Reverter</Button>)}<Button size="icon" variant="ghost" onClick={() => handleDeleteItem(item)} className="h-9 w-9 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50"><Trash2 className="w-4 h-4" /></Button></div></td>
                         </tr>
                       ))}
                     </tbody>
