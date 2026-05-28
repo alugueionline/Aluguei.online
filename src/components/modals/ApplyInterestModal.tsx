@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Percent, AlertCircle, CheckCircle2, Loader2, Clock } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Percent, AlertCircle, CheckCircle2, Loader2, Clock, Settings2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { cn } from '@/lib/utils';
@@ -27,7 +28,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
   const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
   const [manualAdjustments, setManualAdjustments] = useState<Record<string, { fine: string, interest: string }>>({});
 
-  // Configurações de cálculo carregadas do localStorage ou padrão
+  // Configurações de cálculo locais (ajustáveis diretamente no modal)
   const [config, setConfig] = useState({
     finePercent: 12,
     interestRate: 1,
@@ -35,7 +36,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
     gracePeriod: 0
   });
 
-  // Carregar configurações do localStorage
+  // Carregar configurações padrão do localStorage ao abrir o modal
   useEffect(() => {
     const savedConfig = localStorage.getItem('aluguei_financial_config');
     if (savedConfig) {
@@ -153,14 +154,11 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
         
         // Cálculo de juros baseado na frequência
         if (config.interestType === 'daily') {
-          // Juros diários (pro-rata die)
           autoInterest = Number((baseValue * (config.interestRate / 100) * daysLate).toFixed(2));
         } else if (config.interestType === 'weekly') {
-          // Juros semanais (a cada 7 dias completos de atraso)
           const weeksLate = Math.floor(daysLate / 7);
           autoInterest = Number((baseValue * (config.interestRate / 100) * weeksLate).toFixed(2));
         } else if (config.interestType === 'monthly') {
-          // Juros mensais (a cada 30 dias completos de atraso)
           const monthsLate = Math.floor(daysLate / 30);
           autoInterest = Number((baseValue * (config.interestRate / 100) * monthsLate).toFixed(2));
         }
@@ -332,21 +330,47 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
         </div>
 
         <div className="p-8 space-y-6 max-h-[75vh] overflow-y-auto">
-          {/* Configurações de Taxas Ativas */}
-          <div className="grid grid-cols-3 gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100">
-            <div className="space-y-1 text-center">
-              <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Multa Fixa</Label>
-              <p className="text-sm font-black text-slate-900">{config.finePercent}%</p>
+          {/* Configurações de Taxas Ajustáveis */}
+          <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-4">
+            <div className="flex items-center gap-2 text-slate-900 mb-1">
+              <Settings2 className="w-4 h-4 text-blue-600" />
+              <span className="text-xs font-black uppercase tracking-widest">Ajustar Taxas para esta Cobrança</span>
             </div>
-            <div className="space-y-1 text-center border-x border-slate-200">
-              <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Juros</Label>
-              <p className="text-sm font-black text-slate-900">
-                {config.interestRate}% {config.interestType === 'daily' ? 'ao dia' : config.interestType === 'weekly' ? 'por semana' : 'ao mês'}
-              </p>
-            </div>
-            <div className="space-y-1 text-center">
-              <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Carência</Label>
-              <p className="text-sm font-black text-slate-900">{config.gracePeriod} dias</p>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-500 uppercase">Multa Fixa (%)</Label>
+                <Input 
+                  type="number" 
+                  value={config.finePercent} 
+                  onChange={e => setConfig(prev => ({ ...prev, finePercent: parseFloat(e.target.value) || 0 }))}
+                  className="h-10 rounded-xl bg-white border-slate-200 font-bold text-center text-xs" 
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-500 uppercase">Juros (%)</Label>
+                <Input 
+                  type="number" 
+                  value={config.interestRate} 
+                  onChange={e => setConfig(prev => ({ ...prev, interestRate: parseFloat(e.target.value) || 0 }))}
+                  className="h-10 rounded-xl bg-white border-slate-200 font-bold text-center text-xs" 
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-500 uppercase">Frequência</Label>
+                <Select 
+                  value={config.interestType} 
+                  onValueChange={(v: any) => setConfig(prev => ({ ...prev, interestType: v }))}
+                >
+                  <SelectTrigger className="h-10 rounded-xl bg-white border-slate-200 font-bold text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Diário</SelectItem>
+                    <SelectItem value="weekly">Semanal</SelectItem>
+                    <SelectItem value="monthly">Mensal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
