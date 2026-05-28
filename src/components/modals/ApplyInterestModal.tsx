@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Percent, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { Percent, AlertCircle, CheckCircle2, Loader2, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { cn } from '@/lib/utils';
@@ -25,16 +25,33 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
   const [bills, setBills] = useState<any[]>([]);
   const [activeContract, setActiveContract] = useState<any>(null);
   const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
-  
-  // Estado para armazenar ajustes manuais de multa e juros por fatura
   const [manualAdjustments, setManualAdjustments] = useState<Record<string, { fine: string, interest: string }>>({});
 
-  // Configurações de cálculo (padrão do sistema - multa alterada para 12% e juros mensais removidos/zerados)
+  // Configurações de cálculo carregadas do localStorage ou padrão
   const [config, setConfig] = useState({
     finePercent: 12,
-    interestMonthly: 0,
+    interestRate: 1,
+    interestType: 'weekly' as 'daily' | 'weekly' | 'monthly',
     gracePeriod: 0
   });
+
+  // Carregar configurações do localStorage
+  useEffect(() => {
+    const savedConfig = localStorage.getItem('aluguei_financial_config');
+    if (savedConfig) {
+      try {
+        const parsed = JSON.parse(savedConfig);
+        setConfig({
+          finePercent: parsed.finePercent ?? 12,
+          interestRate: parsed.interestRate ?? 1,
+          interestType: parsed.interestType ?? 'weekly',
+          gracePeriod: parsed.gracePeriod ?? 0
+        });
+      } catch (e) {
+        console.error("Erro ao carregar configurações financeiras no modal:", e);
+      }
+    }
+  }, [isOpen]);
 
   // Carregar faturas pendentes, contratos ativos e projetar aluguéis do inquilino
   useEffect(() => {
@@ -61,12 +78,10 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
         const dbBills = billsRes.data || [];
         const activeContracts = contractRes.data || [];
 
-        // Filtrar para não aplicar juros sobre juros/multas já existentes
         const filteredBills = dbBills.filter(
           (b: any) => b.type !== 'multa' && b.type !== 'juros' && b.type !== 'multa_juros'
         );
 
-        // Projetar aluguel se não houver fatura no banco para o mês atual
         const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
         const currentYear = new Date().getFullYear();
 
@@ -99,13 +114,12 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
 
         const allBills = [...filteredBills, ...projectedBills];
         setBills(allBills);
-        setManualAdjustments({}); // Limpa ajustes anteriores
+        setManualAdjustments({});
         
         if (activeContracts.length > 0) {
-          setActiveContract(activeContracts[0]); // Para fins de configuração padrão de vencimento
+          setActiveContract(activeContracts[0]);
         }
         
-        // Selecionar todas por padrão
         setSelectedBillIds(allBills.map((b: any) => b.id));
       } catch (err: any) {
         showError('Erro ao carregar dados: ' + err.message);
@@ -117,36 +131,41 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
     fetchData();
   }, [isOpen, tenantId]);
 
-  // Calcular multas e juros para cada fatura
+  // Calcular multas e juros para cada fatura com base na frequência configurada
   const calculatedBills = useMemo(() => {
     const dueDay = activeContract?.due_day || 5;
     const now = new Date();
-    // Normaliza a data atual para meia-noite local
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     return bills.map(bill => {
       const baseValue = Number(bill.total_value || bill.calculated_value || 0);
-      
-      // Normaliza a data de vencimento estimada para meia-noite local
       const dueDateMidnight = new Date(Number(bill.year), Number(bill.month) - 1, dueDay);
       
-      // Dias de atraso exatos (usando arredondamento para evitar problemas de fuso horário)
       const diffTime = todayMidnight.getTime() - dueDateMidnight.getTime();
       const daysLate = Math.max(0, Math.round(diffTime / (1000 * 60 * 60 * 24)));
 
       let autoFine = 0;
       let autoInterest = 0;
 
-      // Se o atraso for maior que a carência configurada
       if (daysLate > config.gracePeriod) {
-        // Arredonda para 2 casas decimais para evitar dízimas periódicas
+        // Multa fixa
         autoFine = Number((baseValue * (config.finePercent / 100)).toFixed(2));
-        // Juros pro-rata die (diário) baseado na taxa mensal
-        const dailyInterestRate = (config.interestMonthly / 30) / 100;
-        autoInterest = Number((baseValue * dailyInterestRate * daysLate).toFixed(2));
+        
+        // Cálculo de juros baseado na frequência
+        if (config.interestType === 'daily') {
+          // Juros diários (pro-rata die)
+          autoInterest = Number((baseValue * (config.interestRate / 100) * daysLate).toFixed(2));
+        } else if (config.interestType === 'weekly') {
+          // Juros semanais (a cada 7 dias completos de atraso)
+          const weeksLate = Math.floor(daysLate / 7);
+          autoInterest = Number((baseValue * (config.interestRate / 100) * weeksLate).toFixed(2));
+        } else if (config.interestType === 'monthly') {
+          // Juros mensais (a cada 30 dias completos de atraso)
+          const monthsLate = Math.floor(daysLate / 30);
+          autoInterest = Number((baseValue * (config.interestRate / 100) * monthsLate).toFixed(2));
+        }
       }
 
-      // Aplica ajuste manual se existir, senão usa o valor calculado automaticamente
       const adjustment = manualAdjustments[bill.id];
       const fine = adjustment?.fine !== undefined ? (parseFloat(adjustment.fine) || 0) : autoFine;
       const interest = adjustment?.interest !== undefined ? (parseFloat(adjustment.interest) || 0) : autoInterest;
@@ -190,7 +209,6 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
 
       const billsToUpdate = calculatedBills.filter(b => selectedBillIds.includes(b.id));
 
-      // 1. Se houver faturas projetadas selecionadas, precisamos criá-las no banco primeiro
       const projectedBills = billsToUpdate.filter(b => b.isProjected);
       for (const proj of projectedBills) {
         const { error: insertProjError } = await supabase
@@ -209,7 +227,6 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
         if (insertProjError) throw insertProjError;
       }
 
-      // 2. Atualizar faturas que já existiam no banco para status 'atrasado' se tiverem dias de atraso
       const existingBills = billsToUpdate.filter(b => !b.isProjected);
       const updatePromises = existingBills.map(b => {
         return supabase
@@ -226,18 +243,15 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
         if (updateError) throw updateError.error;
       }
 
-      // 3. Calcular o total consolidado de multas e juros
       const totalFines = billsToUpdate.reduce((acc, curr) => acc + curr.calculatedFine, 0);
       const totalInterest = billsToUpdate.reduce((acc, curr) => acc + curr.calculatedInterest, 0);
       const totalPenalty = totalFines + totalInterest;
 
-      // 4. Criar ou atualizar a fatura consolidada de multa_juros
       if (totalPenalty > 0) {
         const now = new Date();
         const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
         const currentYear = now.getFullYear();
 
-        // Verificar se já existe uma fatura de multa_juros pendente para este inquilino
         const { data: existingPenaltyBill } = await supabase
           .from('bills')
           .select('id')
@@ -247,7 +261,6 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
           .maybeSingle();
 
         if (existingPenaltyBill) {
-          // Atualiza o valor da fatura existente
           const { error: updatePenaltyError } = await supabase
             .from('bills')
             .update({
@@ -260,7 +273,6 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
 
           if (updatePenaltyError) throw updatePenaltyError;
         } else {
-          // Cria uma nova fatura de multa_juros
           const { error: insertPenaltyError } = await supabase
             .from('bills')
             .insert([{
@@ -320,25 +332,21 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
         </div>
 
         <div className="p-8 space-y-6 max-h-[75vh] overflow-y-auto">
-          {/* Configurações de Taxas - Simplificado para Multa Fixa e Carência */}
-          <div className="grid grid-cols-2 gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100">
-            <div className="space-y-1.5">
-              <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Multa Fixa (%)</Label>
-              <Input 
-                type="number" 
-                value={config.finePercent} 
-                onChange={e => setConfig({ ...config, finePercent: Number(e.target.value) })}
-                className="h-10 rounded-xl bg-white border-slate-200 font-bold text-center text-sm"
-              />
+          {/* Configurações de Taxas Ativas */}
+          <div className="grid grid-cols-3 gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100">
+            <div className="space-y-1 text-center">
+              <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Multa Fixa</Label>
+              <p className="text-sm font-black text-slate-900">{config.finePercent}%</p>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Carência (Dias)</Label>
-              <Input 
-                type="number" 
-                value={config.gracePeriod} 
-                onChange={e => setConfig({ ...config, gracePeriod: Number(e.target.value) })}
-                className="h-10 rounded-xl bg-white border-slate-200 font-bold text-center text-sm"
-              />
+            <div className="space-y-1 text-center border-x border-slate-200">
+              <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Juros</Label>
+              <p className="text-sm font-black text-slate-900">
+                {config.interestRate}% {config.interestType === 'daily' ? 'ao dia' : config.interestType === 'weekly' ? 'por semana' : 'ao mês'}
+              </p>
+            </div>
+            <div className="space-y-1 text-center">
+              <Label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Carência</Label>
+              <p className="text-sm font-black text-slate-900">{config.gracePeriod} dias</p>
             </div>
           </div>
 
@@ -434,7 +442,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
             ) : (
               <div className="py-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                 <AlertCircle className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                <p className="text-sm font-bold text-slate-400">Nenhuma faturar pendente elegível encontrada.</p>
+                <p className="text-sm font-bold text-slate-400">Nenhuma fatura pendente elegível encontrada.</p>
               </div>
             )}
           </div>
@@ -455,7 +463,6 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
                 <span>+ R$ {totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
               
-              {/* Linha de Destaque com a Soma das Penalidades */}
               <div className="pt-2 border-t border-dashed border-white/10 flex justify-between text-xs font-black text-amber-400">
                 <span>TOTAL DE PENALIDADES (MULTA + JUROS)</span>
                 <span>+ R$ {totalPenalties.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>

@@ -1,25 +1,41 @@
 "use client";
 
 import React from 'react';
-import { Info, AlertCircle, Calendar, ArrowRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Info, AlertCircle, Calendar } from 'lucide-react';
 
 interface CalculationDetailProps {
   originalValue: number;
   daysLate: number;
   finePercent: number;
-  interestMonthly: number;
+  interestRate: number;
+  interestType: 'daily' | 'weekly' | 'monthly';
 }
 
 export const InterestCalculationDetail = ({ 
   originalValue, 
   daysLate, 
   finePercent, 
-  interestMonthly 
+  interestRate,
+  interestType
 }: CalculationDetailProps) => {
   const fineValue = originalValue * (finePercent / 100);
-  const dailyInterest = (interestMonthly / 30) / 100;
-  const totalInterest = originalValue * dailyInterest * daysLate;
+  
+  let totalInterest = 0;
+  let periodLabel = '';
+
+  if (interestType === 'daily') {
+    totalInterest = originalValue * (interestRate / 100) * daysLate;
+    periodLabel = `${interestRate}% ao dia`;
+  } else if (interestType === 'weekly') {
+    const weeksLate = Math.floor(daysLate / 7);
+    totalInterest = originalValue * (interestRate / 100) * weeksLate;
+    periodLabel = `${interestRate}% por semana (${weeksLate} sem. completas)`;
+  } else {
+    const monthsLate = Math.floor(daysLate / 30);
+    totalInterest = originalValue * (interestRate / 100) * monthsLate;
+    periodLabel = `${interestRate}% ao mês (${monthsLate} meses completos)`;
+  }
+
   const totalUpdated = originalValue + fineValue + totalInterest;
 
   return (
@@ -52,8 +68,7 @@ export const InterestCalculationDetail = ({
 
           <div className="flex justify-between items-center text-sm">
             <div className="flex items-center gap-2">
-              <span className="text-gray-600 font-medium">Juros ({interestMonthly}% mês)</span>
-              <span className="text-[10px] text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">pro-rata die</span>
+              <span className="text-gray-600 font-medium">Juros ({periodLabel})</span>
             </div>
             <span className="text-rose-600 font-bold">+ R$ {totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
           </div>
