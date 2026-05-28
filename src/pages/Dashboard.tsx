@@ -76,18 +76,24 @@ const Dashboard = () => {
         activeContracts.forEach((contract: any) => {
           const dueDay = contract.due_day || 5;
           
-          // Projeção de Aluguel
-          const hasRentBill = t.bills?.some((b: any) => b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id);
-          if (!hasRentBill) {
-            projectedTotal += Number(contract.rent_value || 0);
+          // Projeção de Aluguel Restante
+          const rentBills = t.bills?.filter((b: any) => b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id) || [];
+          const totalRentLaunched = rentBills.reduce((acc: number, b: any) => acc + Number(b.total_value || b.calculated_value || 0), 0);
+          const remainingRent = Math.max(0, Number(contract.rent_value || 0) - totalRentLaunched);
+
+          if (remainingRent > 0) {
+            projectedTotal += remainingRent;
             if (currentDay > dueDay) projectedIsOverdue = true;
           }
           
-          // Projeção de Condomínio
-          const hasCondoBill = t.bills?.some((b: any) => b.type === 'condominio' && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id);
+          // Projeção de Condomínio Restante
+          const condoBills = t.bills?.filter((b: any) => b.type === 'condominio' && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id) || [];
+          const totalCondoLaunched = condoBills.reduce((acc: number, b: any) => acc + Number(b.total_value || b.calculated_value || 0), 0);
           const condoFee = Number(contract.properties?.condo_fee || 0);
-          if (condoFee > 0 && !hasCondoBill) {
-            projectedTotal += condoFee;
+          const remainingCondo = Math.max(0, condoFee - totalCondoLaunched);
+
+          if (remainingCondo > 0) {
+            projectedTotal += remainingCondo;
             if (currentDay > dueDay) projectedIsOverdue = true;
           }
         });
@@ -151,18 +157,23 @@ const Dashboard = () => {
         const dueDay = c.due_day || 5;
         const isOverdue = currentDay > dueDay;
 
-        // Aluguel
-        const hasRentBill = bills.some(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear);
-        if (!hasRentBill) {
-          const val = Number(c.rent_value || 0);
-          if (isOverdue) atr += val; else pen += val;
+        // Aluguel Restante
+        const rentBills = bills.filter(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear);
+        const totalRentLaunched = rentBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
+        const remainingRent = Math.max(0, Number(c.rent_value || 0) - totalRentLaunched);
+
+        if (remainingRent > 0) {
+          if (isOverdue) atr += remainingRent; else pen += remainingRent;
         }
 
-        // Condomínio
+        // Condomínio Restante
         const condoFee = Number(c.properties?.condo_fee || 0);
-        const hasCondoBill = bills.some(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && b.type === 'condominio' && b.month === currentMonth && b.year === currentYear);
-        if (condoFee > 0 && !hasCondoBill) {
-          if (isOverdue) atr += condoFee; else pen += condoFee;
+        const condoBills = bills.filter(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && b.type === 'condominio' && b.month === currentMonth && b.year === currentYear);
+        const totalCondoLaunched = condoBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
+        const remainingCondo = Math.max(0, condoFee - totalCondoLaunched);
+
+        if (remainingCondo > 0) {
+          if (isOverdue) atr += remainingCondo; else pen += remainingCondo;
         }
       });
 

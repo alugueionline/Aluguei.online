@@ -26,42 +26,24 @@ export const isBillOverdue = (bill: any, dueDay: number = 5) => {
 };
 
 /**
- * Retorna o valor do aluguel projetado para o mês atual se ainda não houver fatura criada.
+ * Retorna o valor do aluguel projetado restante para o mês atual, abatendo qualquer pagamento parcial já lançado.
  */
 export const getProjectedRent = (contract: any, bills: any[]) => {
   const now = new Date();
   const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
   const currentYear = now.getFullYear();
 
-  // Verifica se já existe uma fatura de aluguel para este imóvel no mês atual
-  const hasRentBill = bills.some(b => 
+  // Filtra todos os lançamentos de aluguel deste imóvel para o mês atual (pagos ou pendentes)
+  const rentBills = bills.filter(b => 
     b.property_id === contract.property_id && 
     b.type === 'aluguel' && 
     b.month === currentMonth && 
     b.year === currentYear
   );
 
-  if (!hasRentBill) {
-    return Number(contract.rent_value || 0);
-  }
-
-  return 0;
-};
-
-/**
- * Calcula o valor projetado de aluguel que já deveria ter sido pago mas não foi faturado.
- * (Mantido para compatibilidade se necessário)
- */
-export const getProjectedOverdueRent = (contract: any, bills: any[]) => {
-  const now = new Date();
-  const currentDay = now.getDate();
-  const dueDay = contract.due_day || 5;
-
-  const projected = getProjectedRent(contract, bills);
+  // Soma todos os valores de aluguel já lançados para este mês
+  const totalRentLaunched = rentBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
   
-  if (projected > 0 && currentDay > dueDay) {
-    return projected;
-  }
-
-  return 0;
+  // Retorna a diferença restante do aluguel contratual
+  return Math.max(0, Number(contract.rent_value || 0) - totalRentLaunched);
 };
