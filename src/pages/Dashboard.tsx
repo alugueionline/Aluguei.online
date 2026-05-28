@@ -66,9 +66,39 @@ const Dashboard = () => {
 
       const processed = (data || []).map(t => {
         const activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
-        const pendingBills = t.bills?.filter((b: any) => b.status !== 'pago') || [];
+        const tenantBills = t.bills || [];
         
-        const existingBillsTotal = pendingBills.reduce((acc: number, b: any) => acc + Number(b.total_value || b.calculated_value || 0), 0);
+        // Agrupar faturas por propriedade, tipo, mês e ano para compensação de pagamentos parciais
+        const groups: Record<string, { paid: number, pending: number, bills: any[] }> = {};
+        tenantBills.forEach((b: any) => {
+          const key = `${b.property_id || 'none'}-${b.type}-${b.month}-${b.year}`;
+          if (!groups[key]) {
+            groups[key] = { paid: 0, pending: 0, bills: [] };
+          }
+          const val = Number(b.total_value || b.calculated_value || 0);
+          if (b.status === 'pago') {
+            groups[key].paid += val;
+          } else {
+            groups[key].pending += val;
+          }
+          groups[key].bills.push(b);
+        });
+
+        let existingBillsTotal = 0;
+        let existingIsOverdue = false;
+
+        Object.keys(groups).forEach(key => {
+          const group = groups[key];
+          const netPending = Math.max(0, group.pending - group.paid);
+          if (netPending > 0) {
+            existingBillsTotal += netPending;
+            const firstBill = group.bills.find(b => b.status !== 'pago') || group.bills[0];
+            const contract = activeContracts.find(c => c.property_id === firstBill.property_id);
+            if (isBillOverdue(firstBill, contract?.due_day || 5)) {
+              existingIsOverdue = true;
+            }
+          }
+        });
         
         let projectedTotal = 0;
         let projectedIsOverdue = false;
@@ -100,10 +130,7 @@ const Dashboard = () => {
 
         const totalDebt = existingBillsTotal + projectedTotal;
         
-        const hasOverdue = pendingBills.some((b: any) => {
-          const contract = activeContracts.find(c => c.property_id === b.property_id);
-          return isBillOverdue(b, contract?.due_day || 5);
-        }) || projectedIsOverdue;
+        const hasOverdue = existingIsOverdue || projectedIsOverdue;
 
         let status: 'atrasado' | 'pendente' | 'pago' = 'pendente';
         if (totalDebt === 0) status = 'pago';
@@ -135,20 +162,40 @@ const Dashboard = () => {
       const currentYear = new Date().getFullYear();
       const currentDay = new Date().getDate();
 
+      // Agrupar faturas por inquilino, propriedade, tipo, mês e ano para compensação de pagamentos parciais
+      const groups: Record<string, { paid: number, pending: number, bills: any[] }> = {};
       bills.forEach(b => {
+        const key = `${b.tenant_id || 'none'}-${b.property_id || 'none'}-${b.type}-${b.month}-${b.year}`;
+        if (!groups[key]) {
+          groups[key] = { paid: 0, pending: 0, bills: [] };
+        }
         const val = Number(b.total_value || b.calculated_value || 0);
-        
-        if (b.status === 'pago') { 
-          if (isIncomeType(b.type)) rec += val; else des += val; 
+        if (b.status === 'pago') {
+          groups[key].paid += val;
         } else {
-          if (b.tenant_id) {
-            const contract = contracts.find(c => c.tenant_id === b.tenant_id && c.property_id === b.property_id);
-            if (isBillOverdue(b, contract?.due_day || 5)) {
-              atr += val;
+          groups[key].pending += val;
+        }
+        groups[key].bills.push(b);
+      });
+
+      Object.keys(groups).forEach(key => {
+        const group = groups[key];
+        const firstBill = group.bills[0];
+        const isIncome = isIncomeType(firstBill.type);
+
+        if (isIncome) {
+          rec += group.paid;
+          const netPending = Math.max(0, group.pending - group.paid);
+          if (netPending > 0) {
+            const contract = contracts.find(c => c.tenant_id === firstBill.tenant_id && c.property_id === firstBill.property_id);
+            if (isBillOverdue(firstBill, contract?.due_day || 5)) {
+              atr += netPending;
             } else {
-              pen += val;
+              pen += netPending;
             }
           }
+        } else {
+          des += group.paid;
         }
       });
 
@@ -157,23 +204,18 @@ const Dashboard = () => {
         const dueDay = c.due_day || 5;
         const isOverdue = currentDay > dueDay;
 
-        // Aluguel Restante
-        const rentBills = bills.filter(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear);
-        const totalRentLaunched = rentBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
-        const remainingRent = Math.max(0, Number(c.rent_value || 0) - totalRentLaunched);
-
-        if (remainingRent > 0) {
-          if (isOverdue) atr += remainingRent; else pen += remainingRent;
+        // Aluguel
+        const hasRentBill = bills.some(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear);
+        if (!hasRentBill) {
+          const val = Number(c.rent_value || 0);
+          if (isOverdue) atr += val; else pen += val;
         }
 
-        // Condomínio Restante
+        // Condomínio
         const condoFee = Number(c.properties?.condo_fee || 0);
-        const condoBills = bills.filter(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && b.type === 'condominio' && b.month === currentMonth && b.year === currentYear);
-        const totalCondoLaunched = condoBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
-        const remainingCondo = Math.max(0, condoFee - totalCondoLaunched);
-
-        if (remainingCondo > 0) {
-          if (isOverdue) atr += remainingCondo; else pen += remainingCondo;
+        const hasCondoBill = bills.some(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && b.type === 'condominio' && b.month === currentMonth && b.year === currentYear);
+        if (condoFee > 0 && !hasCondoBill) {
+          if (isOverdue) atr += condoFee; else pen += condoFee;
         }
       });
 

@@ -83,16 +83,33 @@ const TenantDetails = () => {
       let totalOverdue = 0;
       let totalPaid = 0;
 
-      // 1. Processar faturas existentes no banco
+      // Agrupar faturas por propriedade, tipo, mês e ano para compensação de pagamentos parciais
+      const groups: Record<string, { paid: number, pending: number, bills: any[] }> = {};
       history.forEach(b => {
+        const key = `${b.property_id || 'none'}-${b.type}-${b.month}-${b.year}`;
+        if (!groups[key]) {
+          groups[key] = { paid: 0, pending: 0, bills: [] };
+        }
         const val = Number(b.total_value || b.calculated_value || 0);
         if (b.status === 'pago') {
+          groups[key].paid += val;
           totalPaid += val;
         } else {
-          totalDebt += val;
-          const contract = tenant?.contracts?.find((c: any) => c.property_id === b.property_id);
-          if (isBillOverdue(b, contract?.due_day || 5)) {
-            totalOverdue += val;
+          groups[key].pending += val;
+        }
+        groups[key].bills.push(b);
+      });
+
+      // Calcular dívida líquida compensada
+      Object.keys(groups).forEach(key => {
+        const group = groups[key];
+        const netPending = Math.max(0, group.pending - group.paid);
+        if (netPending > 0) {
+          totalDebt += netPending;
+          const firstBill = group.bills.find(b => b.status !== 'pago') || group.bills[0];
+          const contract = tenant?.contracts?.find((c: any) => c.property_id === firstBill.property_id);
+          if (isBillOverdue(firstBill, contract?.due_day || 5)) {
+            totalOverdue += netPending;
           }
         }
       });

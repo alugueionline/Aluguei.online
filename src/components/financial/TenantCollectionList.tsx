@@ -49,11 +49,46 @@ export const TenantCollectionList = () => {
       return (tenants || []).map(t => {
         const activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
         const tenantBills = (bills || []).filter(b => b.tenant_id === t.id);
-        const pendingBills = tenantBills.filter(b => b.status !== 'pago');
         
-        const existingBillsTotal = pendingBills.reduce((acc, b) => 
-          acc + Number(b.total_value || b.calculated_value || 0), 0
-        );
+        // Agrupar faturas por propriedade, tipo, mês e ano para compensação de pagamentos parciais
+        const groups: Record<string, { paid: number, pending: number, bills: any[] }> = {};
+        tenantBills.forEach((b: any) => {
+          const key = `${b.property_id || 'none'}-${b.type}-${b.month}-${b.year}`;
+          if (!groups[key]) {
+            groups[key] = { paid: 0, pending: 0, bills: [] };
+          }
+          const val = Number(b.total_value || b.calculated_value || 0);
+          if (b.status === 'pago') {
+            groups[key].paid += val;
+          } else {
+            groups[key].pending += val;
+          }
+          groups[key].bills.push(b);
+        });
+
+        let existingBillsTotal = 0;
+        let existingIsOverdue = false;
+        const pendingBillsList: any[] = [];
+
+        Object.keys(groups).forEach(key => {
+          const group = groups[key];
+          const netPending = Math.max(0, group.pending - group.paid);
+          if (netPending > 0) {
+            existingBillsTotal += netPending;
+            const firstBill = group.bills.find(b => b.status !== 'pago') || group.bills[0];
+            const contract = activeContracts.find(c => c.property_id === firstBill.property_id);
+            
+            if (isBillOverdue(firstBill, contract?.due_day || 5)) {
+              existingIsOverdue = true;
+            }
+
+            pendingBillsList.push({
+              ...firstBill,
+              total_value: netPending,
+              calculated_value: netPending
+            });
+          }
+        });
 
         let projectedTotal = 0;
         let projectedIsOverdue = false;
@@ -98,21 +133,17 @@ export const TenantCollectionList = () => {
         });
         
         const totalDebt = existingBillsTotal + projectedTotal;
-
-        const hasOverdue = pendingBills.some(b => {
-          const contract = activeContracts.find(c => c.property_id === b.property_id);
-          return isBillOverdue(b, contract?.due_day || 5);
-        }) || projectedIsOverdue;
+        const hasOverdue = existingIsOverdue || projectedIsOverdue;
 
         return {
           ...t,
           totalDebt,
-          pendingCount: pendingBills.length + projectedItems.length,
+          pendingCount: pendingBillsList.length + projectedItems.length,
           hasOverdue,
           bills: tenantBills,
           breakdown: {
             projectedItems,
-            pendingBills: pendingBills
+            pendingBills: pendingBillsList
           }
         };
       }).sort((a, b) => b.totalDebt - a.totalDebt);
