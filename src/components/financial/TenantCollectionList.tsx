@@ -48,7 +48,9 @@ export const TenantCollectionList = () => {
 
       return (tenants || []).map(t => {
         const activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
-        const pendingBills = (bills || []).filter(b => b.tenant_id === t.id && b.status !== 'pago');
+        const tenantBills = (bills || []).filter(b => b.tenant_id === t.id);
+        const pendingBills = tenantBills.filter(b => b.status !== 'pago');
+        
         const existingBillsTotal = pendingBills.reduce((acc, b) => 
           acc + Number(b.total_value || b.calculated_value || 0), 0
         );
@@ -61,8 +63,7 @@ export const TenantCollectionList = () => {
           const dueDay = contract.due_day || 5;
           const isOverdue = currentDay > dueDay;
 
-          const hasAnyRentBill = (bills || []).some(b => 
-            b.tenant_id === t.id && 
+          const hasAnyRentBill = tenantBills.some(b => 
             b.property_id === contract.property_id &&
             b.type === 'aluguel' && 
             b.month === currentMonth && 
@@ -76,8 +77,7 @@ export const TenantCollectionList = () => {
             if (isOverdue) projectedIsOverdue = true;
           }
 
-          const hasAnyCondoBill = (bills || []).some(b => 
-            b.tenant_id === t.id && 
+          const hasAnyCondoBill = tenantBills.some(b => 
             b.property_id === contract.property_id &&
             b.type === 'condominio' && 
             b.month === currentMonth && 
@@ -104,7 +104,7 @@ export const TenantCollectionList = () => {
           totalDebt,
           pendingCount: pendingBills.length + projectedItems.length,
           hasOverdue,
-          bills: pendingBills,
+          bills: tenantBills, // Passa a lista completa de faturas (incluindo as pagas) para o modal de pagamento
           breakdown: {
             projectedItems,
             pendingBills: pendingBills
@@ -125,15 +125,6 @@ export const TenantCollectionList = () => {
     setSelectedTenantForPayment(tenant);
     setIsPaymentModalOpen(true);
   };
-
-  if (isLoading) {
-    return (
-      <div className="py-20 text-center">
-        <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600" />
-        <p className="text-gray-400 mt-4 font-medium">Calculando débitos totais...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4">
@@ -251,9 +242,20 @@ export const TenantCollectionList = () => {
 
       <QuickPaymentModal 
         isOpen={isPaymentModalOpen}
-        onClose={() => { setIsPaymentModalOpen(false); queryClient.invalidateQueries({ queryKey: ['tenant-collection-list'] }); }}
+        onClose={() => { 
+          setIsPaymentModalOpen(false); 
+          queryClient.invalidateQueries({ queryKey: ['tenant-collection-list'] }); 
+          queryClient.invalidateQueries({ queryKey: ['bills'] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v6'] });
+          queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] });
+        }}
         tenant={selectedTenantForPayment}
-        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['tenant-collection-list'] })}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['tenant-collection-list'] });
+          queryClient.invalidateQueries({ queryKey: ['bills'] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v6'] });
+          queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] });
+        }}
       />
     </div>
   );

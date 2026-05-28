@@ -135,8 +135,6 @@ const Dashboard = () => {
         if (b.status === 'pago') { 
           if (isIncomeType(b.type)) rec += val; else des += val; 
         } else {
-          // Se a fatura está pendente e tem um inquilino, ela DEVE ser contada como recebível (atr ou pen)
-          // Independente do tipo de string, para bater com a lista de inquilinos
           if (b.tenant_id) {
             const contract = contracts.find(c => c.tenant_id === b.tenant_id && c.property_id === b.property_id);
             if (isBillOverdue(b, contract?.due_day || 5)) {
@@ -241,7 +239,17 @@ const Dashboard = () => {
           ))}
         </div>
       </div>
-      <QuickPaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} tenant={selectedTenantForPayment} onSuccess={() => { queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v6'] }); queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] }); }} />
+      <QuickPaymentModal 
+        isOpen={isPaymentModalOpen} 
+        onClose={() => setIsPaymentModalOpen(false)} 
+        tenant={selectedTenantForPayment} 
+        onSuccess={() => { 
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v6'] }); 
+          queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] }); 
+          queryClient.invalidateQueries({ queryKey: ['tenant-collection-list'] });
+          queryClient.invalidateQueries({ queryKey: ['bills'] });
+        }} 
+      />
       <BillingSummaryModal isOpen={isCollectionModalOpen} onClose={() => setIsCollectionModalOpen(false)} tenantId={selectedTenantForCollection} />
     </DashboardLayout>
   );
