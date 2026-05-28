@@ -3,15 +3,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Percent, AlertCircle, CheckCircle2, Loader2, Clock, Settings2 } from 'lucide-react';
+import { Percent, CheckCircle2, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
-import { cn } from '@/lib/utils';
+import { InterestSettingsForm } from './apply-interest/InterestSettingsForm';
+import { BillSelectionList } from './apply-interest/BillSelectionList';
+import { PenaltySummary } from './apply-interest/PenaltySummary';
 
 interface ApplyInterestModalProps {
   isOpen: boolean;
@@ -331,172 +329,30 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
 
         <div className="p-8 space-y-6 max-h-[75vh] overflow-y-auto">
           {/* Configurações de Taxas Ajustáveis */}
-          <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-4">
-            <div className="flex items-center gap-2 text-slate-900 mb-1">
-              <Settings2 className="w-4 h-4 text-blue-600" />
-              <span className="text-xs font-black uppercase tracking-widest">Ajustar Taxas para esta Cobrança</span>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold text-slate-500 uppercase">Multa Fixa (%)</Label>
-                <Input 
-                  type="number" 
-                  value={config.finePercent} 
-                  onChange={e => setConfig(prev => ({ ...prev, finePercent: parseFloat(e.target.value) || 0 }))}
-                  className="h-10 rounded-xl bg-white border-slate-200 font-bold text-center text-xs" 
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold text-slate-500 uppercase">Juros (%)</Label>
-                <Input 
-                  type="number" 
-                  value={config.interestRate} 
-                  onChange={e => setConfig(prev => ({ ...prev, interestRate: parseFloat(e.target.value) || 0 }))}
-                  className="h-10 rounded-xl bg-white border-slate-200 font-bold text-center text-xs" 
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold text-slate-500 uppercase">Frequência</Label>
-                <Select 
-                  value={config.interestType} 
-                  onValueChange={(v: any) => setConfig(prev => ({ ...prev, interestType: v }))}
-                >
-                  <SelectTrigger className="h-10 rounded-xl bg-white border-slate-200 font-bold text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">Diário</SelectItem>
-                    <SelectItem value="weekly">Semanal</SelectItem>
-                    <SelectItem value="monthly">Mensal</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
+          <InterestSettingsForm config={config} setConfig={setConfig} />
 
           {/* Lista de Faturas */}
           <div className="space-y-3">
             <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Selecione as faturas para aplicar</Label>
-            
-            {loading ? (
-              <div className="py-10 text-center">
-                <Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-600" />
-              </div>
-            ) : calculatedBills.length > 0 ? (
-              <div className="space-y-3">
-                {calculatedBills.map(bill => {
-                  const isSelected = selectedBillIds.includes(bill.id);
-                  const fineVal = manualAdjustments[bill.id]?.fine ?? bill.calculatedFine.toString();
-                  const interestVal = manualAdjustments[bill.id]?.interest ?? bill.calculatedInterest.toString();
-
-                  return (
-                    <div 
-                      key={bill.id} 
-                      className={cn(
-                        "p-4 rounded-2xl border transition-all flex flex-col gap-3",
-                        isSelected ? "bg-rose-50/30 border-rose-100" : "bg-slate-50 border-slate-100 opacity-60"
-                      )}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <Checkbox 
-                            checked={isSelected}
-                            onCheckedChange={(checked) => {
-                              setSelectedBillIds(prev => 
-                                checked ? [...prev, bill.id] : prev.filter(id => id !== bill.id)
-                              );
-                            }}
-                          />
-                          <div>
-                            <p className="text-sm font-black text-slate-900 capitalize">
-                              {bill.type} ({bill.month}/{bill.year})
-                              {bill.isProjected && <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded ml-2 uppercase">Projetado</span>}
-                            </p>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase">Vencimento: {bill.dueDate.toLocaleDateString('pt-BR')}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <Badge className={cn(
-                            "border-none text-[9px] font-black px-2 py-0.5 rounded-md",
-                            bill.daysLate > config.gracePeriod ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-600"
-                          )}>
-                            {bill.daysLate} dias de atraso
-                          </Badge>
-                        </div>
-                      </div>
-
-                      {isSelected && (
-                        <div className="grid grid-cols-3 gap-4 pt-3 border-t border-dashed border-rose-100/50 text-xs items-end">
-                          <div>
-                            <p className="text-[9px] text-slate-400 font-bold uppercase mb-1">Valor Base</p>
-                            <p className="font-bold text-slate-700 h-10 flex items-center">R$ {bill.baseValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                          </div>
-                          <div>
-                            <p className="text-[9px] text-rose-500 font-bold uppercase mb-1">Multa (R$)</p>
-                            <div className="relative">
-                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-rose-400">R$</span>
-                              <Input 
-                                type="number" 
-                                step="0.01"
-                                value={fineVal}
-                                onChange={e => handleSaveAdjustment(bill.id, 'fine', e.target.value)}
-                                className="h-10 pl-7 rounded-xl bg-white border-rose-100 font-bold text-rose-700 text-xs"
-                              />
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-[9px] text-rose-500 font-bold uppercase mb-1">Juros (R$)</p>
-                            <div className="relative">
-                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-rose-400">R$</span>
-                              <Input 
-                                type="number" 
-                                step="0.01"
-                                value={interestVal}
-                                onChange={e => handleSaveAdjustment(bill.id, 'interest', e.target.value)}
-                                className="h-10 pl-7 rounded-xl bg-white border-rose-100 font-bold text-rose-700 text-xs"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="py-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                <AlertCircle className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                <p className="text-sm font-bold text-slate-400">Nenhuma fatura pendente elegível encontrada.</p>
-              </div>
-            )}
+            <BillSelectionList 
+              loading={loading}
+              calculatedBills={calculatedBills}
+              selectedBillIds={selectedBillIds}
+              setSelectedBillIds={setSelectedBillIds}
+              manualAdjustments={manualAdjustments}
+              handleSaveAdjustment={handleSaveAdjustment}
+            />
           </div>
 
           {/* Resumo Geral */}
           {selectedBillIds.length > 0 && (
-            <div className="p-6 bg-slate-900 rounded-[2rem] text-white space-y-3 shadow-xl">
-              <div className="flex justify-between text-xs font-bold text-slate-400">
-                <span>VALOR ORIGINAL ACUMULADO</span>
-                <span>R$ {totalOriginal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div className="flex justify-between text-xs font-bold text-rose-400">
-                <span>NOVAS MULTAS A GERAR</span>
-                <span>+ R$ {totalFines.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div className="flex justify-between text-xs font-bold text-rose-400">
-                <span>NOVOS JUROS A GERAR</span>
-                <span>+ R$ {totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-              </div>
-              
-              <div className="pt-2 border-t border-dashed border-white/10 flex justify-between text-xs font-black text-amber-400">
-                <span>TOTAL DE PENALIDADES (MULTA + JUROS)</span>
-                <span>+ R$ {totalPenalties.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-              </div>
-
-              <div className="pt-3 border-t border-white/10 flex justify-between items-center">
-                <span className="text-sm font-black uppercase tracking-wider">VALOR TOTAL ATUALIZADO</span>
-                <span className="text-2xl font-black text-blue-400">R$ {totalNew.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-              </div>
-            </div>
+            <PenaltySummary 
+              totalOriginal={totalOriginal}
+              totalFines={totalFines}
+              totalInterest={totalInterest}
+              totalPenalties={totalPenalties}
+              totalNew={totalNew}
+            />
           )}
 
           <DialogFooter className="pt-4">
