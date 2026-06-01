@@ -55,53 +55,100 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       setLoading(true);
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
+      const currentDay = new Date().getDate();
 
+      // Buscamos TODAS as faturas para poder calcular o abatimento de pagamentos parciais
       const [billsRes, contractsRes] = await Promise.all([
-        supabase.from('bills').select('*').eq('tenant_id', id).neq('status', 'pago'),
-        supabase.from('contracts').select('rent_value').eq('tenant_id', id).eq('status', 'ativo')
+        supabase.from('bills').select('*').eq('tenant_id', id),
+        supabase.from('contracts').select('rent_value, due_day, property_id, properties(name)').eq('tenant_id', id).eq('status', 'ativo')
       ]);
 
       const bills = billsRes.data || [];
       const contracts = contractsRes.data || [];
 
+      // Agrupar faturas por propriedade, tipo, mês e ano para compensação de pagamentos parciais
+      const groups: Record<string, { paid: number, pending: number, type: string, month: string, year: string, property_id: string }> = {};
+      
+      bills.forEach(b => {
+        const key = `${b.property_id || 'none'}-${b.type}-${b.month}-${b.year}`;
+        if (!groups[key]) {
+          groups[key] = { paid: 0, pending: 0, type: b.type, month: b.month, year: b.year, property_id: b.property_id };
+        }
+        const val = Number(b.total_value || b.calculated_value || 0);
+        if (b.status === 'pago') {
+          groups[key].paid += val;
+        } else {
+          groups[key].pending += val;
+        }
+      });
+
       let totalRent = 0;
       let totalFine = 0;
       let totalInterest = 0;
       const extras: ExtraValue[] = [];
-      const hasRentBillThisMonth = bills.some(b => b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear);
 
-      bills.forEach(b => {
-        const val = Number(b.total_value || b.calculated_value || 0);
+      // Processar os grupos com saldo devedor líquido
+      Object.keys(groups).forEach(key => {
+        const group = groups[key];
+        const netPending = Math.max(0, group.pending - group.paid);
         
-        if (b.type === 'aluguel' && b.month === currentMonth && b.year === currentYear) {
-          totalRent += val;
-        } else if (b.type === 'multa') {
-          totalFine += val;
-        } else if (b.type === 'juros') {
-          totalInterest += val;
-        } else if (b.type === 'multa_juros') {
-          extras.push({
-            label: `Multa e Juros Acumulados`,
-            value: val.toString()
-          });
-        } else {
-          let consumption = '';
-          if (b.current_reading !== null && b.previous_reading !== null) {
-            consumption = (Number(b.current_reading) - Number(b.previous_reading)).toString();
-          }
+        if (netPending > 0) {
+          if (group.type === 'aluguel' && group.month === currentMonth && group.year === currentYear) {
+            totalRent += netPending;
+          } else if (group.type === 'multa') {
+            totalFine += netPending;
+          } else if (group.type === 'juros') {
+            totalInterest += netPending;
+          } else if (group.type === 'multa_juros') {
+            extras.push({
+              label: `Multa e Juros Acumulados`,
+              value: netPending.toString()
+            });
+          } else {
+            // Encontrar a fatura original para pegar leituras se houver
+            const originalBill = bills.find(b => 
+              b.property_id === group.property_id && 
+              b.type === group.type && 
+              b.month === group.month && 
+              b.year === group.year && 
+              b.status !== 'pago'
+            );
 
-          extras.push({
-            label: `${b.type.charAt(0).toUpperCase() + b.type.slice(1)} (${b.month}/${b.year})`,
-            value: val.toString(),
-            quantity: consumption,
-            unitPrice: b.kwh_price?.toString() || ''
-          });
+            let consumption = '';
+            if (originalBill && originalBill.current_reading !== null && originalBill.previous_reading !== null) {
+              consumption = (Number(originalBill.current_reading) - Number(originalBill.previous_reading)).toString();
+            }
+
+            extras.push({
+              label: `${group.type.charAt(0).toUpperCase() + group.type.slice(1)} (${group.month}/${group.year})`,
+              value: netPending.toString(),
+              quantity: consumption,
+              unitPrice: originalBill?.kwh_price?.toString() || ''
+            });
+          }
         }
       });
 
-      if (!hasRentBillThisMonth) {
-        contracts.forEach(c => totalRent += Number(c.rent_value || 0));
-      }
+      // Projeção inteligente do aluguel do mês atual:
+      // Só projeta se o dia atual for maior ou igual ao dia de vencimento do contrato
+      contracts.forEach(c => {
+        const dueDay = c.due_day || 5;
+        if (currentDay >= dueDay) {
+          // Verificar se já existe algum lançamento de aluguel (pago ou pendente) para este mês/imóvel
+          const rentBills = bills.filter(b => 
+            b.property_id === c.property_id && 
+            (b.type === 'aluguel' || b.type === 'receita') && 
+            b.month === currentMonth && 
+            b.year === currentYear
+          );
+          const totalRentLaunched = rentBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
+          const remainingRent = Math.max(0, Number(c.rent_value || 0) - totalRentLaunched);
+
+          if (remainingRent > 0) {
+            totalRent += remainingRent;
+          }
+        }
+      });
 
       setRentValue(totalRent.toString());
       setFineValue(totalFine.toString());
