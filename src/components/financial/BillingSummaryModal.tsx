@@ -129,24 +129,23 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         if (evalDate < contractStartDate) return;
 
         // Filtros de escopo
-        if (filterType === 'current' && (month !== currentMonth || Number(year) !== currentYear)) return;
+        if (filterType === 'current' && (Number(month) !== Number(currentMonth) || Number(year) !== currentYear)) return;
         if (filterType === 'overdue') {
-          const isCurrentOverdue = (month === currentMonth && Number(year) === currentYear && isOverdue);
+          const isCurrentOverdue = (Number(month) === Number(currentMonth) && Number(year) === currentYear && isOverdue);
           const isPastMonth = (Number(year) < currentYear || (Number(year) === currentYear && Number(month) < Number(currentMonth)));
           if (!isCurrentOverdue && !isPastMonth) return;
         }
 
-        // Busca faturas de aluguel lançadas para este mês
+        // Busca faturas de aluguel lançadas para este mês (usando Number para evitar erros de "02" vs "2")
         const rentBills = rawBills.filter(b => 
           b.property_id === c.property_id && 
-          (b.type === 'aluguel' || b.type === 'receita') && 
-          b.month === month && 
-          b.year === Number(year)
+          (b.type?.toLowerCase() === 'aluguel' || b.type?.toLowerCase() === 'receita') && 
+          Number(b.month) === Number(month) && 
+          Number(b.year) === Number(year)
         );
 
         const paidRent = rentBills.filter(b => b.status === 'pago').reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
-        const pendingRent = rentBills.filter(b => b.status !== 'pago').reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
-
+        
         // O que resta pagar é o valor do contrato menos o que já foi pago
         const remaining = Math.max(0, c.rent_value - paidRent);
         
@@ -160,7 +159,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     const filteredBills = rawBills.filter(b => {
       const contract = rawContracts.find(c => c.property_id === b.property_id);
       const isOverdue = isBillOverdue(b, contract?.due_day || 5);
-      const isCurrentMonth = b.month === currentMonth && b.year === currentYear;
+      const isCurrentMonth = Number(b.month) === Number(currentMonth) && Number(b.year) === Number(currentYear);
 
       if (filterType === 'overdue') return isOverdue;
       if (filterType === 'current') return isCurrentMonth;
@@ -170,7 +169,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     const groups: Record<string, { paid: number, pending: number, type: string, month: string, year: string, property_id: string }> = {};
     
     filteredBills.filter(b => b.type !== 'aluguel' && b.type !== 'receita').forEach(b => {
-      const key = `${b.property_id || 'none'}-${b.type}-${b.month}-${b.year}`;
+      const key = `${b.property_id || 'none'}-${b.type}-${Number(b.month)}-${b.year}`;
       if (!groups[key]) {
         groups[key] = { paid: 0, pending: 0, type: b.type, month: b.month, year: b.year, property_id: b.property_id };
       }
@@ -200,8 +199,8 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
           const originalBill = rawBills.find(b => 
             b.property_id === group.property_id && 
             b.type === group.type && 
-            b.month === group.month && 
-            b.year === group.year && 
+            Number(b.month) === Number(group.month) && 
+            Number(b.year) === Number(group.year) && 
             b.status !== 'pago'
           );
 
@@ -280,18 +279,18 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         const evalDate = new Date(Number(year), Number(month) - 1, dueDay);
         if (evalDate < contractStartDate) return;
 
-        if (filterType === 'current' && (month !== currentMonth || Number(year) !== currentYear)) return;
+        if (filterType === 'current' && (Number(month) !== Number(currentMonth) || Number(year) !== currentYear)) return;
         if (filterType === 'overdue') {
-          const isCurrentOverdue = (month === currentMonth && Number(year) === currentYear && isOverdue);
+          const isCurrentOverdue = (Number(month) === Number(currentMonth) && Number(year) === currentYear && isOverdue);
           const isPastMonth = (Number(year) < currentYear || (Number(year) === currentYear && Number(month) < Number(currentMonth)));
           if (!isCurrentOverdue && !isPastMonth) return;
         }
 
         const rentBills = rawBills.filter(b => 
           b.property_id === c.property_id && 
-          (b.type === 'aluguel' || b.type === 'receita') && 
-          b.month === month && 
-          b.year === Number(year)
+          (b.type?.toLowerCase() === 'aluguel' || b.type?.toLowerCase() === 'receita') && 
+          Number(b.month) === Number(month) && 
+          Number(b.year) === Number(year)
         );
 
         const paidRent = rentBills.filter(b => b.status === 'pago').reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
