@@ -95,25 +95,77 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     const currentYear = new Date().getFullYear();
     const currentDay = new Date().getDate();
 
-    // 1. Filtrar as faturas brutas de acordo com o escopo selecionado
+    // Coletar todos os meses únicos que possuem faturas ou o mês atual
+    const monthsToEvaluate = new Set<string>();
+    monthsToEvaluate.add(`${currentYear}-${currentMonth}`);
+    rawBills.forEach(b => {
+      if (b.month && b.year) {
+        monthsToEvaluate.add(`${b.year}-${b.month.toString().padStart(2, '0')}`);
+      }
+    });
+
+    let totalRentPending = 0;
+    let totalFine = 0;
+    let totalInterest = 0;
+    const extras: ExtraValue[] = [];
+
+    // 1. Processar Aluguéis de forma inteligente (com abatimento de pagamentos parciais)
+    monthsToEvaluate.forEach(ym => {
+      const [year, month] = ym.split('-');
+      
+      rawContracts.forEach(c => {
+        const dueDay = c.due_day || 5;
+        const isOverdue = currentDay > dueDay;
+        const isDueOrPast = currentDay >= dueDay;
+        
+        // Verifica se o mês avaliado é posterior ao início do contrato
+        const contractStartDate = new Date(c.start_date);
+        const evalDate = new Date(Number(year), Number(month) - 1, dueDay);
+        if (evalDate < contractStartDate) return;
+
+        // Filtros de escopo
+        if (filterType === 'current' && (month !== currentMonth || Number(year) !== currentYear)) return;
+        if (filterType === 'overdue') {
+          const isCurrentOverdue = (month === currentMonth && Number(year) === currentYear && isOverdue);
+          const isPastMonth = (Number(year) < currentYear || (Number(year) === currentYear && Number(month) < Number(currentMonth)));
+          if (!isCurrentOverdue && !isPastMonth) return;
+        }
+
+        // Busca faturas de aluguel lançadas para este mês
+        const rentBills = rawBills.filter(b => 
+          b.property_id === c.property_id && 
+          (b.type === 'aluguel' || b.type === 'receita') && 
+          b.month === month && 
+          b.year === Number(year)
+        );
+
+        const paidRent = rentBills.filter(b => b.status === 'pago').reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
+        const pendingRent = rentBills.filter(b => b.status !== 'pago').reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
+        const totalLaunched = paidRent + pendingRent;
+
+        // O que resta pagar é o valor do contrato menos o que já foi pago
+        const remaining = Math.max(0, c.rent_value - paidRent);
+        
+        if (remaining > 0) {
+          totalRentPending += remaining;
+        }
+      });
+    });
+
+    // 2. Processar outras faturas (utilidades, multas, juros)
     const filteredBills = rawBills.filter(b => {
       const contract = rawContracts.find(c => c.property_id === b.property_id);
       const isOverdue = isBillOverdue(b, contract?.due_day || 5);
       const isCurrentMonth = b.month === currentMonth && b.year === currentYear;
 
-      if (filterType === 'overdue') {
-        return isOverdue;
-      }
-      if (filterType === 'current') {
-        return isCurrentMonth;
-      }
-      return true; // 'all'
+      if (filterType === 'overdue') return isOverdue;
+      if (filterType === 'current') return isCurrentMonth;
+      return true;
     });
 
-    // Agrupar faturas filtradas por propriedade, tipo, mês e ano para compensação de pagamentos parciais
     const groups: Record<string, { paid: number, pending: number, type: string, month: string, year: string, property_id: string }> = {};
     
-    filteredBills.forEach(b => {
+    filteredBills.filter(b => b.type !== 'aluguel' && b.type !== 'receita').forEach(b => {
       const key = `${b.property_id || 'none'}-${b.type}-${b.month}-${b.year}`;
       if (!groups[key]) {
         groups[key] = { paid: 0, pending: 0, type: b.type, month: b.month, year: b.year, property_id: b.property_id };
@@ -126,20 +178,12 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       }
     });
 
-    let totalRent = 0;
-    let totalFine = 0;
-    let totalInterest = 0;
-    const extras: ExtraValue[] = [];
-
-    // Processar os grupos com saldo devedor líquido
     Object.keys(groups).forEach(key => {
       const group = groups[key];
       const netPending = Math.max(0, group.pending - group.paid);
       
       if (netPending > 0) {
-        if (group.type === 'aluguel' && group.month === currentMonth && group.year === currentYear) {
-          totalRent += netPending;
-        } else if (group.type === 'multa') {
+        if (group.type === 'multa') {
           totalFine += netPending;
         } else if (group.type === 'juros') {
           totalInterest += netPending;
@@ -149,7 +193,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
             value: netPending.toString()
           });
         } else {
-          // Encontrar a fatura original para pegar leituras se houver
           const originalBill = rawBills.find(b => 
             b.property_id === group.property_id && 
             b.type === group.type && 
@@ -173,37 +216,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       }
     });
 
-    // Projeção inteligente do aluguel do mês atual:
-    // Só projeta se o escopo permitir (mês atual ou todos) e se já passou do vencimento
-    if (filterType === 'all' || filterType === 'current' || filterType === 'overdue') {
-      rawContracts.forEach(c => {
-        const dueDay = c.due_day || 5;
-        const isOverdue = currentDay > dueDay;
-        const isDueOrPast = currentDay >= dueDay;
-
-        // Se o filtro for 'overdue', só projeta se já estiver de fato atrasado (passou do dia)
-        // Se for 'all' ou 'current', projeta se já chegou no dia de vencimento
-        const shouldProject = filterType === 'overdue' ? isOverdue : isDueOrPast;
-
-        if (shouldProject) {
-          // Verificar se já existe algum lançamento de aluguel (pago ou pendente) para este mês/imóvel
-          const rentBills = rawBills.filter(b => 
-            b.property_id === c.property_id && 
-            (b.type === 'aluguel' || b.type === 'receita') && 
-            b.month === currentMonth && 
-            b.year === currentYear
-          );
-          const totalRentLaunched = rentBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
-          const remainingRent = Math.max(0, Number(c.rent_value || 0) - totalRentLaunched);
-
-          if (remainingRent > 0) {
-            totalRent += remainingRent;
-          }
-        }
-      });
-    }
-
-    setRentValue(totalRent.toString());
+    setRentValue(totalRentPending.toString());
     setFineValue(totalFine.toString());
     setInterestValue(totalInterest.toString());
     setExtraValues(extras);
@@ -234,12 +247,63 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
   const generatedMessage = useMemo(() => {
     const tenantObj = tenants.find(t => t.id === selectedTenantId);
-    const rent = parseFloat(rentValue) || 0;
     const fine = parseFloat(fineValue) || 0;
     const interest = parseFloat(interestValue) || 0;
     
+    const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+    const currentYear = new Date().getFullYear();
+    const currentDay = new Date().getDate();
+
+    // Coletar todos os meses únicos para detalhar no preview
+    const monthsToEvaluate = new Set<string>();
+    monthsToEvaluate.add(`${currentYear}-${currentMonth}`);
+    rawBills.forEach(b => {
+      if (b.month && b.year) {
+        monthsToEvaluate.add(`${b.year}-${b.month.toString().padStart(2, '0')}`);
+      }
+    });
+
     let details = '';
-    if (rent > 0) details += `• *Aluguel:* R$ ${rent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+
+    monthsToEvaluate.forEach(ym => {
+      const [year, month] = ym.split('-');
+      
+      rawContracts.forEach(c => {
+        const dueDay = c.due_day || 5;
+        const isOverdue = currentDay > dueDay;
+        const isDueOrPast = currentDay >= dueDay;
+        
+        const contractStartDate = new Date(c.start_date);
+        const evalDate = new Date(Number(year), Number(month) - 1, dueDay);
+        if (evalDate < contractStartDate) return;
+
+        if (filterType === 'current' && (month !== currentMonth || Number(year) !== currentYear)) return;
+        if (filterType === 'overdue') {
+          const isCurrentOverdue = (month === currentMonth && Number(year) === currentYear && isOverdue);
+          const isPastMonth = (Number(year) < currentYear || (Number(year) === currentYear && Number(month) < Number(currentMonth)));
+          if (!isCurrentOverdue && !isPastMonth) return;
+        }
+
+        const rentBills = rawBills.filter(b => 
+          b.property_id === c.property_id && 
+          (b.type === 'aluguel' || b.type === 'receita') && 
+          b.month === month && 
+          b.year === Number(year)
+        );
+
+        const paidRent = rentBills.filter(b => b.status === 'pago').reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
+        const remaining = Math.max(0, c.rent_value - paidRent);
+
+        if (remaining > 0) {
+          if (paidRent > 0) {
+            details += `• *Aluguel (${month}/${year}):* R$ ${c.rent_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (Abatido: R$ ${paidRent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) -> *Restante:* R$ ${remaining.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+          } else {
+            details += `• *Aluguel (${month}/${year}):* R$ ${c.rent_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+          }
+        }
+      });
+    });
+
     if (fine > 0) details += `• *Multa por Atraso:* R$ ${fine.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
     if (interest > 0) details += `• *Juros de Mora:* R$ ${interest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
 
@@ -263,7 +327,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     const despedida = `Qualquer dúvida, estou à disposição!`;
 
     return `${saudacao}\n\n${intro}\n\n${details}\n${totalStr}\n\n${pixStr}\n\n${despedida}`;
-  }, [selectedTenantId, rentValue, fineValue, interestValue, extraValues, pixKey, total, tenants, filterType]);
+  }, [selectedTenantId, rentValue, fineValue, interestValue, extraValues, pixKey, total, tenants, filterType, rawBills, rawContracts]);
 
   const handleSend = () => {
     const tenantObj = tenants.find(t => t.id === selectedTenantId);
