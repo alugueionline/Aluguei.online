@@ -8,6 +8,9 @@ import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { isBillOverdue } from '@/utils/financial';
 import {
   Popover,
   PopoverContent,
@@ -24,6 +27,23 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const navigate = useNavigate();
   const [date, setDate] = useState<Date | undefined>(new Date());
   const formattedDate = date ? format(date, "dd 'de' MMMM", { locale: ptBR }) : "Selecione";
+
+  // Busca contagem real de notificações para o sino
+  const { data: alertCount = 0 } = useQuery({
+    queryKey: ['notification-count'],
+    queryFn: async () => {
+      const [billsRes, maintenanceRes] = await Promise.all([
+        supabase.from('bills').select('*, tenants(id), properties(id)').neq('status', 'pago'),
+        supabase.from('maintenances').select('id').eq('status', 'pendente')
+      ]);
+
+      const overdueCount = billsRes.data?.filter(b => isBillOverdue(b, 5)).length || 0;
+      const maintenanceCount = maintenanceRes.data?.length || 0;
+
+      return overdueCount + maintenanceCount;
+    },
+    refetchInterval: 60000 // Atualiza a cada minuto
+  });
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC] text-slate-900">
@@ -70,7 +90,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               title="Ver Avisos e Notificações"
             >
               <Bell className="w-4 h-4" />
-              <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-blue-600 rounded-full border-2 border-white"></span>
+              {alertCount > 0 && (
+                <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-rose-600 rounded-full border-2 border-white animate-pulse"></span>
+              )}
             </button>
           </div>
         </header>
