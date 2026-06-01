@@ -1,23 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Copy, Send, Calculator, Trash2, Plus, Search, Loader2, Mail } from 'lucide-react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
-import { cn } from '@/lib/utils';
 import { isBillOverdue } from '@/utils/financial';
-
-interface ExtraValue {
-  label: string;
-  value: string;
-  quantity?: string;
-  unitPrice?: string;
-}
+import { BillingSummaryForm } from './billing-summary/BillingSummaryForm';
+import { BillingSummaryPreview } from './billing-summary/BillingSummaryPreview';
+import { ExtraValue } from './billing-summary/ExtraValuesList';
 
 interface BillingSummaryModalProps {
   isOpen: boolean;
@@ -116,7 +106,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       rawContracts.forEach(c => {
         const dueDay = c.due_day || 5;
         const isOverdue = currentDay > dueDay;
-        const isDueOrPast = currentDay >= dueDay;
         
         // Verifica se o mês avaliado é posterior ao início do contrato
         const contractStartDate = new Date(c.start_date);
@@ -141,7 +130,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
         const paidRent = rentBills.filter(b => b.status === 'pago').reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
         const pendingRent = rentBills.filter(b => b.status !== 'pago').reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
-        const totalLaunched = paidRent + pendingRent;
 
         // O que resta pagar é o valor do contrato menos o que já foi pago
         const remaining = Math.max(0, c.rent_value - paidRent);
@@ -223,7 +211,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
   }, [rawBills, rawContracts, filterType]);
 
-  const updateExtra = (index: number, field: keyof ExtraValue, val: string) => {
+  const handleUpdateExtra = (index: number, field: keyof ExtraValue, val: string) => {
     const newExtras = [...extraValues];
     newExtras[index] = { ...newExtras[index], [field]: val };
     
@@ -271,7 +259,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       rawContracts.forEach(c => {
         const dueDay = c.due_day || 5;
         const isOverdue = currentDay > dueDay;
-        const isDueOrPast = currentDay >= dueDay;
         
         const contractStartDate = new Date(c.start_date);
         const evalDate = new Date(Number(year), Number(month) - 1, dueDay);
@@ -353,159 +340,33 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-[95vw] md:max-w-[900px] rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl">
         <div className="flex flex-col md:grid md:grid-cols-2 h-[90vh] md:h-[750px]">
-          <div className="p-6 md:p-8 space-y-6 bg-white overflow-y-auto">
-            <DialogTitle className="text-xl md:text-2xl font-black tracking-tight text-slate-900">Cobrança Detalhada</DialogTitle>
-            
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Inquilino</Label>
-                <Select onValueChange={(v) => handleSelectTenant(v)} value={selectedTenantId}>
-                  <SelectTrigger className="h-12 rounded-xl bg-blue-50/50 border-blue-100 font-bold text-blue-900">
-                    <div className="flex items-center gap-2">
-                      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                      <SelectValue placeholder="Escolha um inquilino..." />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>{tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
+          <BillingSummaryForm 
+            tenants={tenants}
+            selectedTenantId={selectedTenantId}
+            onSelectTenant={handleSelectTenant}
+            loading={loading}
+            filterType={filterType}
+            onFilterTypeChange={setFilterType}
+            rentValue={rentValue}
+            onRentValueChange={setRentValue}
+            fineValue={fineValue}
+            onFineValueChange={setFineValue}
+            interestValue={interestValue}
+            onInterestValueChange={setInterestValue}
+            extraValues={extraValues}
+            onAddExtra={() => setExtraValues([...extraValues, { label: '', value: '0' }])}
+            onRemoveExtra={(index) => setExtraValues(extraValues.filter((_, i) => i !== index))}
+            onUpdateExtra={handleUpdateExtra}
+            total={total}
+          />
 
-              {/* Seletor de Escopo de Cobrança */}
-              {selectedTenantId && (
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">O que cobrar?</Label>
-                  <div className="grid grid-cols-3 gap-2 p-1 bg-slate-50 rounded-xl border border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setFilterType('all')}
-                      className={cn(
-                        "py-2 rounded-lg text-xs font-bold transition-all",
-                        filterType === 'all' ? "bg-white shadow-sm text-blue-600" : "text-slate-400 hover:text-slate-600"
-                      )}
-                    >
-                      Tudo Pendente
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFilterType('overdue')}
-                      className={cn(
-                        "py-2 rounded-lg text-xs font-bold transition-all",
-                        filterType === 'overdue' ? "bg-white shadow-sm text-rose-600" : "text-slate-400 hover:text-slate-600"
-                      )}
-                    >
-                      Apenas Atrasados
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFilterType('current')}
-                      className={cn(
-                        "py-2 rounded-lg text-xs font-bold transition-all",
-                        filterType === 'current' ? "bg-white shadow-sm text-amber-600" : "text-slate-400 hover:text-slate-600"
-                      )}
-                    >
-                      Mês Atual
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluguel (R$)</Label>
-                  <Input type="number" className="h-11 rounded-xl bg-slate-50 border-none font-bold" value={rentValue} onChange={(e) => setRentValue(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Multa/Juros (R$)</Label>
-                  <div className="flex gap-2">
-                    <Input type="number" className="h-11 rounded-xl bg-rose-50/50 border-none font-bold text-rose-700" value={fineValue} onChange={(e) => setFineValue(e.target.value)} placeholder="Multa" />
-                    <Input type="number" className="h-11 rounded-xl bg-rose-50/50 border-none font-bold text-rose-700" value={interestValue} onChange={(e) => setInterestValue(e.target.value)} placeholder="Juros" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Outros Débitos / Energia</Label>
-                  <Button variant="ghost" size="sm" onClick={() => setExtraValues([...extraValues, { label: '', value: '0' }])} className="h-6 px-2 text-blue-600 font-bold text-[10px]">
-                    <Plus className="w-3 h-3 mr-1" /> ADICIONAR
-                  </Button>
-                </div>
-                
-                <div className="space-y-4 max-h-[250px] overflow-y-auto pr-1">
-                  {extraValues.map((extra, index) => (
-                    <div key={index} className="p-3 rounded-2xl bg-slate-50 space-y-3 border border-slate-100">
-                      <div className="flex gap-2">
-                        <Input placeholder="Ex: Energia" className="h-9 rounded-lg bg-white border-slate-200 text-xs font-bold flex-1" value={extra.label} onChange={(e) => updateExtra(index, 'label', e.target.value)} />
-                        <Button variant="ghost" size="icon" onClick={() => setExtraValues(extraValues.filter((_, i) => i !== index))} className="h-9 w-9 text-slate-300 hover:text-rose-500"><Trash2 className="w-4 h-4" /></Button>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-[9px] font-bold text-slate-400 uppercase">kWh</Label>
-                          <Input type="number" placeholder="Qtd" className="h-8 rounded-lg bg-white border-slate-200 text-xs" value={extra.quantity || ''} onChange={(e) => updateExtra(index, 'quantity', e.target.value)} />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] font-bold text-slate-400 uppercase">Preço Unit.</Label>
-                          <Input type="number" placeholder="R$" className="h-8 rounded-lg bg-white border-slate-200 text-xs" value={extra.unitPrice || ''} onChange={(e) => updateExtra(index, 'unitPrice', e.target.value)} />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] font-bold text-blue-600 uppercase">Total Item</Label>
-                          <Input type="number" className="h-8 rounded-lg bg-blue-50 border-none text-xs font-black text-blue-700" value={extra.value} onChange={(e) => updateExtra(index, 'value', e.target.value)} />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-slate-50">
-              <div className="flex justify-between items-center p-4 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-100">
-                <div className="flex items-center gap-2">
-                  <Calculator className="w-5 h-5" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Total Geral</span>
-                </div>
-                <span className="text-xl font-black">R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-slate-900 p-6 md:p-8 flex flex-col h-full">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2 text-blue-400">
-                <MessageSquare className="w-5 h-5" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Preview da Cobrança</span>
-              </div>
-              <div className="flex bg-slate-800 p-1 rounded-xl">
-                <button 
-                  onClick={() => setSendMethod('whatsapp')}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${sendMethod === 'whatsapp' ? 'bg-emerald-500 text-white' : 'text-slate-400'}`}
-                >
-                  WhatsApp
-                </button>
-                <button 
-                  onClick={() => setSendMethod('email')}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${sendMethod === 'email' ? 'bg-blue-500 text-white' : 'text-slate-400'}`}
-                >
-                  E-mail
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 bg-slate-800/50 rounded-3xl p-5 text-slate-300 text-sm font-medium whitespace-pre-wrap leading-relaxed border border-slate-700/50 overflow-y-auto mb-6">
-              {generatedMessage}
-            </div>
-            <div className="grid grid-cols-2 gap-3 mt-auto">
-              <Button variant="ghost" className="rounded-xl h-12 font-bold text-slate-400 hover:bg-slate-800 hover:text-white gap-2" onClick={() => { navigator.clipboard.writeText(generatedMessage); showSuccess('Copiado!'); }}>
-                <Copy className="w-4 h-4" /> Copiar
-              </Button>
-              <Button 
-                className={`rounded-xl h-12 font-bold gap-2 shadow-lg ${sendMethod === 'whatsapp' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-blue-600 hover:bg-blue-700'} text-white`} 
-                onClick={handleSend}
-              >
-                {sendMethod === 'whatsapp' ? <Send className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
-                Enviar por {sendMethod === 'whatsapp' ? 'WhatsApp' : 'E-mail'}
-              </Button>
-            </div>
-          </div>
+          <BillingSummaryPreview 
+            generatedMessage={generatedMessage}
+            sendMethod={sendMethod}
+            onSendMethodChange={setSendMethod}
+            onSend={handleSend}
+            onCopy={() => { navigator.clipboard.writeText(generatedMessage); showSuccess('Copiado!'); }}
+          />
         </div>
       </DialogContent>
     </Dialog>
