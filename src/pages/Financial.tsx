@@ -26,7 +26,8 @@ import {
   Percent,
   RotateCcw,
   ArrowRightLeft,
-  Calendar
+  Calendar,
+  TrendingUp
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TransactionModal } from '@/components/modals/TransactionModal';
@@ -46,7 +47,6 @@ const Financial = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   
-  // Novos estados para filtros de período
   const [filterMonth, setFilterMonth] = useState<string>('all');
   const [filterYear, setFilterYear] = useState<string>('all');
 
@@ -73,13 +73,11 @@ const Financial = () => {
     { value: '2026', label: '2026' },
   ];
 
-  // Tipos que são considerados Receita (Entrada)
   const isIncomeType = (type: string) => {
     const t = type?.toLowerCase() || '';
     return ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'taxa extra', 'luz', 'taxa', 'multa', 'juros', 'multa_juros'].includes(t);
   };
 
-  // Busca de faturas com cache
   const { data: bills = [], isLoading: loadingBills } = useQuery({
     queryKey: ['bills'],
     queryFn: async () => {
@@ -92,7 +90,6 @@ const Financial = () => {
     }
   });
 
-  // Busca de contratos para cálculo de pendências
   const { data: contracts = [] } = useQuery({
     queryKey: ['contracts-active-financial'],
     queryFn: async () => {
@@ -105,7 +102,6 @@ const Financial = () => {
     }
   });
 
-  // Cálculos de estatísticas otimizados com useMemo
   const stats = useMemo(() => {
     const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
     const currentYear = new Date().getFullYear();
@@ -130,14 +126,11 @@ const Financial = () => {
       }
     });
 
-    // Projeções de Aluguel e Condomínio para o mês atual
     contracts.forEach(c => {
       const dueDay = c.due_day || 5;
       const isOverdue = currentDay > dueDay;
 
-      // Só projeta se já estiver na data de vencimento ou depois
       if (currentDay >= dueDay) {
-        // Aluguel
         const rentBills = bills.filter(b => 
           b.tenant_id === c.tenant_id && 
           b.property_id === c.property_id &&
@@ -153,7 +146,6 @@ const Financial = () => {
           else pen += remainingRent;
         }
 
-        // Condomínio
         const condoFee = Number(c.properties?.condo_fee || 0);
         const hasCondoBill = bills.some(b => 
           b.tenant_id === c.tenant_id && 
@@ -182,15 +174,11 @@ const Financial = () => {
         isCharge
       };
     }).filter(item => {
-      // Filtro por termo de busca
       const matchesSearch = item.displayType.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (item.tenants?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (item.properties?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
       
-      // Filtro por mês
       const matchesMonth = filterMonth === 'all' || item.month === filterMonth;
-      
-      // Filtro por ano
       const matchesYear = filterYear === 'all' || item.year?.toString() === filterYear;
 
       return matchesSearch && matchesMonth && matchesYear;
@@ -212,7 +200,7 @@ const Financial = () => {
     try {
       const { error } = await supabase.from('bills').update({ status: 'pendente', payment_date: null }).eq('id', id);
       if (error) throw error;
-      showSuccess('Pagamento revertido.');
+      showSuccess('Pagamento reverted.');
       queryClient.invalidateQueries({ queryKey: ['bills'] });
     } catch (err: any) {
       showError('Erro ao reverter: ' + err.message);
@@ -232,11 +220,109 @@ const Financial = () => {
 
   return (
     <DashboardLayout title="Gestão Financeira">
+      {/* Redesenhando os cartões de KPI para ficarem extremamente premium e claros */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-        <StatCard label="Receitas (Pago)" value={`R$ ${stats.income.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<CheckCircle2 className="text-emerald-500" />} color="emerald" />
-        <StatCard label="Despesas (Pago)" value={`R$ ${stats.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<ArrowDownCircle className="text-rose-500" />} color="rose" />
-        <StatCard label="Atrasado" value={`R$ ${stats.overdue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Clock className={stats.overdue > 0 ? "text-rose-500" : "text-slate-400"} />} color={stats.overdue > 0 ? "rose" : "slate"} highlight={stats.overdue > 0} />
-        <StatCard label="Pendente" value={`R$ ${stats.pending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Clock className="text-amber-500" />} color="amber" />
+        {/* Cartão Herói: Saldo Líquido (Lucro Real) */}
+        <Card className="relative overflow-hidden rounded-[2rem] border-none bg-slate-900 text-white p-6 shadow-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-600/10 rounded-full -mr-16 -mt-16 blur-2xl" />
+          <div className="relative z-10 flex flex-col h-full justify-between">
+            <div className="flex justify-between items-start mb-4">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center shadow-md">
+                <TrendingUp className="w-5 h-5 text-white" />
+              </div>
+              <Badge className="bg-emerald-500/20 text-emerald-300 border-none text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg">
+                Resultado Real
+              </Badge>
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Líquido</p>
+              <h3 className={cn(
+                "text-2xl font-black mt-1 tracking-tight",
+                stats.balance >= 0 ? "text-emerald-400" : "text-rose-400"
+              )}>
+                R$ {stats.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </h3>
+              <p className="text-[9px] text-slate-500 font-bold mt-2 uppercase tracking-wider">
+                [ Receitas - Despesas ]
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Cartão Receitas */}
+        <Card className="premium-card p-6 rounded-[2rem] border-none bg-white transition-all duration-300 hover:scale-[1.02]">
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-sm">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <Badge className="bg-emerald-50 text-emerald-700 border-none text-[10px] font-black px-2.5 py-1 rounded-lg">
+              Entradas
+            </Badge>
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receitas (Pago)</p>
+            <h3 className="text-2xl font-black mt-1 tracking-tight text-slate-900">
+              R$ {stats.income.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </h3>
+            <p className="text-[9px] text-slate-400 font-bold mt-3 uppercase tracking-wider">
+              Total de entradas confirmadas
+            </p>
+          </div>
+        </Card>
+
+        {/* Cartão Despesas */}
+        <Card className="premium-card p-6 rounded-[2rem] border-none bg-white transition-all duration-300 hover:scale-[1.02]">
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shadow-sm">
+              <ArrowDownCircle className="w-5 h-5" />
+            </div>
+            <Badge className="bg-rose-50 text-rose-700 border-none text-[10px] font-black px-2.5 py-1 rounded-lg">
+              Saídas
+            </Badge>
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Despesas (Pago)</p>
+            <h3 className="text-2xl font-black mt-1 tracking-tight text-slate-900">
+              R$ {stats.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </h3>
+            <p className="text-[9px] text-slate-400 font-bold mt-3 uppercase tracking-wider">
+              Total de saídas e manutenções pagas
+            </p>
+          </div>
+        </Card>
+
+        {/* Cartão Atrasado */}
+        <Card className={cn(
+          "premium-card p-6 rounded-[2rem] border-none transition-all duration-300 hover:scale-[1.02]",
+          stats.overdue > 0 ? "bg-rose-50/30 ring-2 ring-rose-100 shadow-lg shadow-rose-50" : "bg-white"
+        )}>
+          <div className="flex justify-between items-start mb-4">
+            <div className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center shadow-sm",
+              stats.overdue > 0 ? "bg-rose-100 text-rose-600 animate-pulse" : "bg-slate-50 text-slate-400"
+            )}>
+              <Clock className="w-5 h-5" />
+            </div>
+            <Badge className={cn(
+              "border-none text-[10px] font-black px-2.5 py-1 rounded-lg",
+              stats.overdue > 0 ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-500"
+            )}>
+              {stats.overdue > 0 ? "Atrasado" : "Em dia"}
+            </Badge>
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Atrasado</p>
+            <h3 className={cn(
+              "text-2xl font-black mt-1 tracking-tight",
+              stats.overdue > 0 ? "text-rose-600" : "text-slate-900"
+            )}>
+              R$ {stats.overdue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </h3>
+            <p className="text-[9px] text-slate-400 font-bold mt-3 uppercase tracking-wider">
+              Faturas vencidas não pagas
+            </p>
+          </div>
+        </Card>
       </div>
 
       <Tabs defaultValue="collections" className="space-y-8">
@@ -268,7 +354,6 @@ const Financial = () => {
               <Input placeholder="Buscar transação..." className="pl-12 h-12 rounded-2xl border-none premium-shadow bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
             
-            {/* Filtro de Mês */}
             <div className="w-full md:w-48">
               <Select value={filterMonth} onValueChange={setFilterMonth}>
                 <SelectTrigger className="h-12 rounded-2xl border-none premium-shadow bg-white font-bold">
@@ -282,7 +367,6 @@ const Financial = () => {
               </Select>
             </div>
 
-            {/* Filtro de Ano */}
             <div className="w-full md:w-40">
               <Select value={filterYear} onValueChange={setFilterYear}>
                 <SelectTrigger className="h-12 rounded-2xl border-none premium-shadow bg-white font-bold">

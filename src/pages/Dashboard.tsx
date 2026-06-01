@@ -21,7 +21,8 @@ import {
   PartyPopper,
   ArrowRight,
   AlertTriangle,
-  CalendarDays
+  CalendarDays,
+  HelpCircle
 } from 'lucide-react';
 import { 
   PieChart,
@@ -46,7 +47,6 @@ const Dashboard = () => {
   const [selectedTenantForCollection, setSelectedTenantForCollection] = useState<string | undefined>(undefined);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
 
-  // Tipos que são considerados Receita (Entrada) para o gráfico de Recebido vs Despesa
   const isIncomeType = (type: string) => {
     const t = type?.toLowerCase() || '';
     return ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'taxa extra', 'luz', 'taxa', 'multa', 'juros', 'multa_juros'].includes(t);
@@ -67,7 +67,6 @@ const Dashboard = () => {
       const processed = (data || []).map(t => {
         let activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
         
-        // FALLBACK: Se não houver contrato ativo mas houver imóvel vinculado diretamente
         if (activeContracts.length === 0 && t.property_id) {
           activeContracts = [{
             property_id: t.property_id,
@@ -83,7 +82,6 @@ const Dashboard = () => {
 
         const tenantBills = t.bills || [];
         
-        // Agrupar faturas por propriedade, tipo, mês e ano para compensação de pagamentos parciais
         const groups: Record<string, { paid: number, pending: number, bills: any[] }> = {};
         tenantBills.forEach((b: any) => {
           const key = `${b.property_id || 'none'}-${b.type}-${b.month}-${b.year}`;
@@ -121,8 +119,6 @@ const Dashboard = () => {
         activeContracts.forEach((contract: any) => {
           const dueDay = contract.due_day || 5;
           
-          // Projeta o aluguel desde o dia 1º do mês atual
-          // Projeção de Aluguel Restante
           const rentBills = t.bills?.filter((b: any) => (b.type === 'aluguel' || b.type === 'receita') && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id) || [];
           const totalRentLaunched = rentBills.reduce((acc: number, b: any) => acc + Number(b.total_value || b.calculated_value || 0), 0);
           const remainingRent = Math.max(0, Number(contract.rent_value || 0) - totalRentLaunched);
@@ -132,7 +128,6 @@ const Dashboard = () => {
             if (currentDay > dueDay) projectedIsOverdue = true;
           }
           
-          // Projeção de Condomínio Restante
           const condoBills = t.bills?.filter((b: any) => b.type === 'condominio' && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id) || [];
           const totalCondoLaunched = condoBills.reduce((acc: number, b: any) => acc + Number(b.total_value || b.calculated_value || 0), 0);
           const condoFee = Number(contract.properties?.condo_fee || 0);
@@ -177,7 +172,6 @@ const Dashboard = () => {
       const currentYear = new Date().getFullYear();
       const currentDay = new Date().getDate();
 
-      // Agrupar faturas por inquilino, propriedade, tipo, mês e ano para compensação de pagamentos parciais
       const groups: Record<string, { paid: number, pending: number, bills: any[] }> = {};
       bills.forEach(b => {
         const key = `${b.tenant_id || 'none'}-${b.property_id || 'none'}-${b.type}-${b.month}-${b.year}`;
@@ -214,12 +208,10 @@ const Dashboard = () => {
         }
       });
 
-      // Projeções de Aluguel e Condomínio para o mês atual (desde o dia 1º)
       contracts.forEach(c => {
         const dueDay = c.due_day || 5;
         const isOverdue = currentDay > dueDay;
 
-        // Aluguel
         const rentBills = bills.filter(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && (b.type === 'aluguel' || b.type === 'receita') && b.month === currentMonth && b.year === currentYear);
         const totalRentLaunched = rentBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
         const remainingRent = Math.max(0, Number(c.rent_value || 0) - totalRentLaunched);
@@ -227,7 +219,6 @@ const Dashboard = () => {
           if (isOverdue) atr += remainingRent; else pen += remainingRent;
         }
 
-        // Condomínio
         const condoFee = Number(c.properties?.condo_fee || 0);
         const hasCondoBill = bills.some(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && b.type === 'condominio' && b.month === currentMonth && b.year === currentYear);
         if (condoFee > 0 && !hasCondoBill) {
@@ -262,11 +253,114 @@ const Dashboard = () => {
         <div className="flex gap-3 w-full md:w-auto"><Button onClick={() => navigate('/financial')} variant="outline" className="rounded-xl h-11 px-5 font-bold border-slate-200 text-slate-600 hover:bg-slate-50 flex-1 md:flex-none">Ver Extrato</Button><Button onClick={() => navigate('/tenants')} className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl h-11 px-6 font-bold shadow-lg gap-2 flex-1 md:flex-none"><Users className="w-4 h-4" /> Inquilinos</Button></div>
       </div>
 
+      {/* Redesenhando os cartões de KPI para ficarem extremamente premium e claros */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
-        <KPIContainer label="Total Previsto" value={`R$ ${stats.totalExpected.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<TrendingUp className="w-4 h-4" />} color="blue" trend="Expectativa" />
-        <KPIContainer label="Recebido" value={`R$ ${stats.receitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<CheckCircle2 className="w-4 h-4" />} color="emerald" trend={`${((stats.receitas / (stats.totalExpected || 1)) * 100).toFixed(0)}%`} />
-        <KPIContainer label="Atrasado" value={`R$ ${stats.atrasado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<AlertTriangle className="w-4 h-4" />} color="rose" trend={stats.atrasado > 0 ? "Urgente" : "Em dia"} highlight={stats.atrasado > 0} />
-        <KPIContainer label="Pendente" value={`R$ ${stats.pendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={<Clock className="text-amber-500" />} color="amber" />
+        {/* Cartão Herói: Total Previsto */}
+        <Card className="relative overflow-hidden rounded-[2rem] border-none bg-slate-900 text-white p-6 shadow-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 rounded-full -mr-16 -mt-16 blur-2xl" />
+          <div className="relative z-10 flex flex-col h-full justify-between">
+            <div className="flex justify-between items-start mb-4">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-md">
+                <TrendingUp className="w-5 h-5 text-white" />
+              </div>
+              <Badge className="bg-blue-500/20 text-blue-300 border-none text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg">
+                Meta do Mês
+              </Badge>
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Previsto</p>
+              <h3 className="text-2xl font-black mt-1 tracking-tight text-white">
+                R$ {stats.totalExpected.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </h3>
+              <p className="text-[9px] text-slate-500 font-bold mt-2 uppercase tracking-wider">
+                [ Recebido + Pendente + Atrasado ]
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Cartão Recebido com Barra de Progresso */}
+        <Card className="premium-card p-6 rounded-[2rem] border-none bg-white transition-all duration-300 hover:scale-[1.02]">
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-sm">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <Badge className="bg-emerald-50 text-emerald-700 border-none text-[10px] font-black px-2.5 py-1 rounded-lg">
+              {((stats.receitas / (stats.totalExpected || 1)) * 100).toFixed(0)}% Concluído
+            </Badge>
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Recebido</p>
+            <h3 className="text-2xl font-black mt-1 tracking-tight text-slate-900">
+              R$ {stats.receitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </h3>
+            
+            {/* Barra de progresso visual */}
+            <div className="mt-3 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, (stats.receitas / (stats.totalExpected || 1)) * 100)}%` }}
+              />
+            </div>
+            <p className="text-[9px] text-slate-400 font-bold mt-2 uppercase tracking-wider">
+              Valores já confirmados em caixa
+            </p>
+          </div>
+        </Card>
+
+        {/* Cartão Atrasado com Alerta Pulsante */}
+        <Card className={cn(
+          "premium-card p-6 rounded-[2rem] border-none transition-all duration-300 hover:scale-[1.02]",
+          stats.atrasado > 0 ? "bg-rose-50/30 ring-2 ring-rose-100 shadow-lg shadow-rose-50" : "bg-white"
+        )}>
+          <div className="flex justify-between items-start mb-4">
+            <div className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center shadow-sm",
+              stats.atrasado > 0 ? "bg-rose-100 text-rose-600 animate-pulse" : "bg-slate-50 text-slate-400"
+            )}>
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <Badge className={cn(
+              "border-none text-[10px] font-black px-2.5 py-1 rounded-lg",
+              stats.atrasado > 0 ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-500"
+            )}>
+              {stats.atrasado > 0 ? "Ação Urgente" : "Tudo em dia"}
+            </Badge>
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Atrasado</p>
+            <h3 className={cn(
+              "text-2xl font-black mt-1 tracking-tight",
+              stats.atrasado > 0 ? "text-rose-600" : "text-slate-900"
+            )}>
+              R$ {stats.atrasado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </h3>
+            <p className="text-[9px] text-slate-400 font-bold mt-3 uppercase tracking-wider">
+              Faturas vencidas pendentes de cobrança
+            </p>
+          </div>
+        </Card>
+
+        {/* Cartão Pendente */}
+        <Card className="premium-card p-6 rounded-[2rem] border-none bg-white transition-all duration-300 hover:scale-[1.02]">
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-sm">
+              <Clock className="w-5 h-5" />
+            </div>
+            <Badge className="bg-amber-50 text-amber-700 border-none text-[10px] font-black px-2.5 py-1 rounded-lg">
+              Dentro do Prazo
+            </Badge>
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pendente</p>
+            <h3 className="text-2xl font-black mt-1 tracking-tight text-slate-900">
+              R$ {stats.pendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </h3>
+            <p className="text-[9px] text-slate-400 font-bold mt-3 uppercase tracking-wider">
+              A vencer até o final do mês corrente
+            </p>
+          </div>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 mb-12">
