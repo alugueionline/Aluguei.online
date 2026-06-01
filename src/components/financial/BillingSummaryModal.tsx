@@ -57,13 +57,29 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     setSelectedTenantId(id);
     try {
       setLoading(true);
-      const [billsRes, contractsRes] = await Promise.all([
+      const [billsRes, contractsRes, tenantRes] = await Promise.all([
         supabase.from('bills').select('*').eq('tenant_id', id),
-        supabase.from('contracts').select('rent_value, due_day, property_id, properties(name, condo_fee)').eq('tenant_id', id).eq('status', 'ativo')
+        supabase.from('contracts').select('rent_value, due_day, property_id, properties(name, condo_fee)').eq('tenant_id', id).eq('status', 'ativo'),
+        supabase.from('tenants').select('*, properties(*)').eq('id', id).single()
       ]);
 
       setRawBills(billsRes.data || []);
-      setRawContracts(contractsRes.data || []);
+      
+      let contracts = contractsRes.data || [];
+      // FALLBACK: Se não houver contrato ativo mas houver imóvel vinculado diretamente
+      if (contracts.length === 0 && tenantRes.data?.property_id) {
+        contracts = [{
+          property_id: tenantRes.data.property_id,
+          rent_value: tenantRes.data.properties?.base_rent || 0,
+          due_day: tenantRes.data.due_day || 5,
+          status: 'ativo',
+          properties: {
+            name: tenantRes.data.properties?.name || 'Imóvel',
+            condo_fee: tenantRes.data.properties?.condo_fee || 0
+          }
+        }];
+      }
+      setRawContracts(contracts);
     } catch (err) {
       showError('Erro ao carregar débitos.');
     } finally {
@@ -108,7 +124,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         const isOverdue = currentDay > dueDay;
         
         // Verifica se o mês avaliado é posterior ao início do contrato
-        const contractStartDate = new Date(c.start_date);
+        const contractStartDate = c.start_date ? new Date(c.start_date) : new Date();
         const evalDate = new Date(Number(year), Number(month) - 1, dueDay);
         if (evalDate < contractStartDate) return;
 
@@ -260,7 +276,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         const dueDay = c.due_day || 5;
         const isOverdue = currentDay > dueDay;
         
-        const contractStartDate = new Date(c.start_date);
+        const contractStartDate = c.start_date ? new Date(c.start_date) : new Date();
         const evalDate = new Date(Number(year), Number(month) - 1, dueDay);
         if (evalDate < contractStartDate) return;
 

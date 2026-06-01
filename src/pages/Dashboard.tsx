@@ -61,11 +61,26 @@ const Dashboard = () => {
       
       const { data } = await supabase
         .from('tenants')
-        .select(`*, properties(name, condo_fee), bills(*), contracts(rent_value, status, property_id, due_day, properties(condo_fee))`)
+        .select(`*, properties(name, condo_fee, base_rent), bills(*), contracts(rent_value, status, property_id, due_day, properties(condo_fee))`)
         .eq('status', 'ativo');
 
       const processed = (data || []).map(t => {
-        const activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
+        let activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
+        
+        // FALLBACK: Se não houver contrato ativo mas houver imóvel vinculado diretamente
+        if (activeContracts.length === 0 && t.property_id) {
+          activeContracts = [{
+            property_id: t.property_id,
+            rent_value: t.properties?.base_rent || 0,
+            due_day: t.due_day || 5,
+            status: 'ativo',
+            properties: {
+              condo_fee: t.properties?.condo_fee || 0,
+              name: t.properties?.name || 'Imóvel'
+            }
+          }];
+        }
+
         const tenantBills = t.bills || [];
         
         // Agrupar faturas por propriedade, tipo, mês e ano para compensação de pagamentos parciais
@@ -151,7 +166,7 @@ const Dashboard = () => {
     queryFn: async () => {
       const [billsRes, contractsRes] = await Promise.all([
         supabase.from('bills').select('*'), 
-        supabase.from('contracts').select('*, properties(condo_fee)').eq('status', 'ativo')
+        supabase.from('contracts').select('*, properties(condo_fee, base_rent)').eq('status', 'ativo')
       ]);
       
       const bills = billsRes.data || [];

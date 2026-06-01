@@ -58,7 +58,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
       if (!isOpen || !tenantId) return;
       setLoading(true);
       try {
-        const [billsRes, contractRes] = await Promise.all([
+        const [billsRes, contractRes, tenantRes] = await Promise.all([
           supabase
             .from('bills')
             .select('*, properties(name)')
@@ -68,14 +68,33 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
             .from('contracts')
             .select('*, properties(name)')
             .eq('tenant_id', tenantId)
-            .eq('status', 'ativo')
+            .eq('status', 'ativo'),
+          supabase
+            .from('tenants')
+            .select('*, properties(*)')
+            .eq('id', tenantId)
+            .single()
         ]);
 
         if (billsRes.error) throw billsRes.error;
         if (contractRes.error) throw contractRes.error;
+        if (tenantRes.error) throw tenantRes.error;
 
         const dbBills = billsRes.data || [];
-        const activeContracts = contractRes.data || [];
+        let activeContracts = contractRes.data || [];
+
+        // FALLBACK: Se não houver contrato ativo mas houver imóvel vinculado diretamente
+        if (activeContracts.length === 0 && tenantRes.data?.property_id) {
+          activeContracts = [{
+            property_id: tenantRes.data.property_id,
+            rent_value: tenantRes.data.properties?.base_rent || 0,
+            due_day: tenantRes.data.due_day || 5,
+            status: 'ativo',
+            properties: {
+              name: tenantRes.data.properties?.name || 'Imóvel'
+            }
+          }];
+        }
 
         const filteredBills = dbBills.filter(
           (b: any) => b.type !== 'multa' && b.type !== 'juros' && b.type !== 'multa_juros'
@@ -95,7 +114,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
 
           if (!hasRentBill) {
             projectedBills.push({
-              id: `projected-rent-${contract.id}`,
+              id: `projected-rent-${contract.id || 'fallback'}`,
               tenant_id: tenantId,
               property_id: contract.property_id,
               type: 'aluguel',
@@ -287,7 +306,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
         }
       }
 
-      showSuccess('Lançamento de multa e juros atualizado com sucesso!');
+      showSuccess('Lançamento de multa e juros updated com sucesso!');
       onSuccess();
       onClose();
     } catch (err: any) {

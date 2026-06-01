@@ -37,7 +37,9 @@ export const TenantCollectionList = () => {
           id, 
           name, 
           phone, 
-          properties(name, condo_fee),
+          property_id,
+          due_day,
+          properties(name, condo_fee, base_rent),
           contracts(rent_value, status, property_id, due_day, properties(condo_fee))
         `)
         .eq('status', 'ativo');
@@ -47,7 +49,22 @@ export const TenantCollectionList = () => {
         .select('*');
 
       return (tenants || []).map(t => {
-        const activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
+        let activeContracts = t.contracts?.filter((c: any) => c.status === 'ativo') || [];
+        
+        // FALLBACK: Se não houver contrato ativo mas houver imóvel vinculado diretamente
+        if (activeContracts.length === 0 && t.property_id) {
+          activeContracts = [{
+            property_id: t.property_id,
+            rent_value: t.properties?.base_rent || 0,
+            due_day: t.due_day || 5,
+            status: 'ativo',
+            properties: {
+              condo_fee: t.properties?.condo_fee || 0,
+              name: t.properties?.name || 'Imóvel'
+            }
+          }];
+        }
+
         const tenantBills = (bills || []).filter(b => b.tenant_id === t.id);
         
         // Agrupar faturas por propriedade, tipo, mês e ano para compensação de pagamentos parciais
