@@ -19,8 +19,8 @@ export const isBillOverdue = (bill: any, dueDay: number = 5) => {
   if (billYear < currentYear) return true;
   // Se o ano for igual mas o mês for anterior, está atrasado
   if (billYear === currentYear && billMonth < currentMonth) return true;
-  // Se for o mês atual e o dia de hoje passou do vencimento, está atrasado
-  if (billYear === currentYear && billMonth === currentMonth && currentDay > dueDay) return true;
+  // Se for o mês atual e o dia de hoje chegou ou passou do vencimento, está atrasado
+  if (billYear === currentYear && billMonth === currentMonth && currentDay >= dueDay) return true;
 
   return false;
 };

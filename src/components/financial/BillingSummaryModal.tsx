@@ -121,7 +121,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       
       rawContracts.forEach(c => {
         const dueDay = c.due_day || 5;
-        const isOverdue = currentDay > dueDay;
+        const isOverdue = currentDay >= dueDay;
         
         // Verifica se o mês avaliado é posterior ao início do contrato
         const contractStartDate = c.start_date ? new Date(c.start_date) : new Date();
@@ -274,7 +274,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       
       rawContracts.forEach(c => {
         const dueDay = c.due_day || 5;
-        const isOverdue = currentDay > dueDay;
+        const isOverdue = currentDay >= dueDay;
         
         const contractStartDate = c.start_date ? new Date(c.start_date) : new Date();
         const evalDate = new Date(Number(year), Number(month) - 1, dueDay);
