@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Search, 
   Plus, 
@@ -24,7 +25,8 @@ import {
   Trash2,
   Percent,
   RotateCcw,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Calendar
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TransactionModal } from '@/components/modals/TransactionModal';
@@ -43,6 +45,33 @@ const Financial = () => {
   const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  
+  // Novos estados para filtros de período
+  const [filterMonth, setFilterMonth] = useState<string>('all');
+  const [filterYear, setFilterYear] = useState<string>('all');
+
+  const months = [
+    { value: 'all', label: 'Todos os meses' },
+    { value: '01', label: 'Janeiro' },
+    { value: '02', label: 'Fevereiro' },
+    { value: '03', label: 'Março' },
+    { value: '04', label: 'Abril' },
+    { value: '05', label: 'Maio' },
+    { value: '06', label: 'Junho (Mês 06)' },
+    { value: '07', label: 'Julho' },
+    { value: '08', label: 'Agosto' },
+    { value: '09', label: 'Setembro' },
+    { value: '10', label: 'Outubro' },
+    { value: '11', label: 'Novembro' },
+    { value: '12', label: 'Dezembro' },
+  ];
+
+  const years = [
+    { value: 'all', label: 'Todos os anos' },
+    { value: '2024', label: '2024' },
+    { value: '2025', label: '2025' },
+    { value: '2026', label: '2026' },
+  ];
 
   // Tipos que são considerados Receita (Entrada)
   const isIncomeType = (type: string) => {
@@ -152,12 +181,21 @@ const Financial = () => {
         displayValue: Number(bill.total_value || bill.calculated_value || 0),
         isCharge
       };
-    }).filter(item => 
-      item.displayType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.tenants?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.properties?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [bills, searchTerm]);
+    }).filter(item => {
+      // Filtro por termo de busca
+      const matchesSearch = item.displayType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.tenants?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.properties?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Filtro por mês
+      const matchesMonth = filterMonth === 'all' || item.month === filterMonth;
+      
+      // Filtro por ano
+      const matchesYear = filterYear === 'all' || item.year?.toString() === filterYear;
+
+      return matchesSearch && matchesMonth && matchesYear;
+    });
+  }, [bills, searchTerm, filterMonth, filterYear]);
 
   const handleMarkAsPaid = async (id: string) => {
     try {
@@ -224,9 +262,39 @@ const Financial = () => {
         <TabsContent value="collections"><TenantCollectionList /></TabsContent>
         <TabsContent value="shared"><SharedBillsTab /></TabsContent>
         <TabsContent value="transactions" className="space-y-6">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input placeholder="Buscar transação..." className="pl-12 h-12 rounded-2xl border-none premium-shadow bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input placeholder="Buscar transação..." className="pl-12 h-12 rounded-2xl border-none premium-shadow bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            </div>
+            
+            {/* Filtro de Mês */}
+            <div className="w-full md:w-48">
+              <Select value={filterMonth} onValueChange={setFilterMonth}>
+                <SelectTrigger className="h-12 rounded-2xl border-none premium-shadow bg-white font-bold">
+                  <SelectValue placeholder="Filtrar por Mês" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-none shadow-2xl">
+                  {months.map(m => (
+                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filtro de Ano */}
+            <div className="w-full md:w-40">
+              <Select value={filterYear} onValueChange={setFilterYear}>
+                <SelectTrigger className="h-12 rounded-2xl border-none premium-shadow bg-white font-bold">
+                  <SelectValue placeholder="Filtrar por Ano" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-none shadow-2xl">
+                  {years.map(y => (
+                    <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <Card className="premium-card border-none rounded-[2.5rem] overflow-hidden">
