@@ -3,18 +3,17 @@
 import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { MobileNav } from './MobileNav';
-import { Search, Bell, ChevronDown, Calendar as CalendarIcon, Plus } from 'lucide-react';
+import { Search, Bell, ChevronDown, Calendar as CalendarIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useNavigate } from 'react-router-dom';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Button } from '@/components/ui/button';
-import { cn } from "@/lib/utils";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -22,6 +21,7 @@ interface DashboardLayoutProps {
 }
 
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
+  const navigate = useNavigate();
   const [date, setDate] = useState<Date | undefined>(new Date());
   const formattedDate = date ? format(date, "dd 'de' MMMM", { locale: ptBR }) : "Selecione";
 
@@ -64,7 +64,11 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
             <div className="h-8 w-px bg-slate-100 mx-1" />
 
-            <button className="relative p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+            <button 
+              onClick={() => navigate('/alerts')}
+              className="relative p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+              title="Ver Avisos e Notificações"
+            >
               <Bell className="w-4 h-4" />
               <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-blue-600 rounded-full border-2 border-white"></span>
             </button>
