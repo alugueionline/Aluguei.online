@@ -59,7 +59,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       setLoading(true);
       const [billsRes, contractsRes, tenantRes] = await Promise.all([
         supabase.from('bills').select('*').eq('tenant_id', id),
-        supabase.from('contracts').select('rent_value, due_day, property_id, properties(name, condo_fee)').eq('tenant_id', id).eq('status', 'ativo'),
+        supabase.from('contracts').select('rent_value, due_day, property_id, start_date, properties(name, condo_fee)').eq('tenant_id', id).eq('status', 'ativo'),
         supabase.from('tenants').select('*, properties(*)').eq('id', id).single()
       ]);
 
@@ -73,6 +73,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
           rent_value: tenantRes.data.properties?.base_rent || 0,
           due_day: tenantRes.data.due_day || 5,
           status: 'ativo',
+          start_date: tenantRes.data.contract_start_date,
           properties: {
             name: tenantRes.data.properties?.name || 'Imóvel',
             condo_fee: tenantRes.data.properties?.condo_fee || 0
@@ -123,10 +124,13 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         const dueDay = c.due_day || 5;
         const isOverdue = currentDay >= dueDay;
         
-        // Verifica se o mês avaliado é posterior ao início do contrato
-        const contractStartDate = c.start_date ? new Date(c.start_date) : new Date();
-        const evalDate = new Date(Number(year), Number(month) - 1, dueDay);
-        if (evalDate < contractStartDate) return;
+        // Comparação de ano e mês direta para evitar bugs de fuso horário (timezone-safe)
+        if (c.start_date) {
+          const [cYear, cMonth] = c.start_date.split('-').map(Number);
+          if (Number(year) < cYear || (Number(year) === cYear && Number(month) < cMonth)) {
+            return;
+          }
+        }
 
         // Filtros de escopo
         if (filterType === 'current' && (Number(month) !== Number(currentMonth) || Number(year) !== currentYear)) return;
@@ -276,9 +280,13 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         const dueDay = c.due_day || 5;
         const isOverdue = currentDay >= dueDay;
         
-        const contractStartDate = c.start_date ? new Date(c.start_date) : new Date();
-        const evalDate = new Date(Number(year), Number(month) - 1, dueDay);
-        if (evalDate < contractStartDate) return;
+        // Comparação de ano e mês direta para evitar bugs de fuso horário (timezone-safe)
+        if (c.start_date) {
+          const [cYear, cMonth] = c.start_date.split('-').map(Number);
+          if (Number(year) < cYear || (Number(year) === cYear && Number(month) < cMonth)) {
+            return;
+          }
+        }
 
         if (filterType === 'current' && (Number(month) !== Number(currentMonth) || Number(year) !== currentYear)) return;
         if (filterType === 'overdue') {
