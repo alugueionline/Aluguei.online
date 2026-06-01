@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { MessageSquare, Copy, Send, Calculator, Trash2, Plus, Search, Loader2, Mail } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
+import { isBillOverdue } from '@/utils/financial';
 
 interface ExtraValue {
   label: string;
@@ -23,11 +25,20 @@ interface BillingSummaryModalProps {
   tenantId?: string;
 }
 
+type FilterType = 'all' | 'overdue' | 'current';
+
 export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummaryModalProps) => {
   const [loading, setLoading] = useState(false);
   const [tenants, setTenants] = useState<any[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [pixKey, setPixKey] = useState('seu-pix@email.com');
+  
+  // Dados brutos para cálculo reativo
+  const [rawBills, setRawBills] = useState<any[]>([]);
+  const [rawContracts, setRawContracts] = useState<any[]>([]);
+  const [filterType, setFilterType] = useState<FilterType>('all');
+
+  // Valores calculados exibidos nos inputs
   const [rentValue, setRentValue] = useState('0');
   const [fineValue, setFineValue] = useState('0');
   const [interestValue, setInterestValue] = useState('0');
@@ -46,96 +57,137 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
       setLoading(false);
       if (tenantId) handleSelectTenant(tenantId);
     };
-    if (isOpen) fetchInitialData();
+    if (isOpen) {
+      fetchInitialData();
+      setFilterType('all');
+    }
   }, [isOpen, tenantId]);
 
   const handleSelectTenant = async (id: string) => {
     setSelectedTenantId(id);
     try {
       setLoading(true);
-      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
-      const currentYear = new Date().getFullYear();
-      const currentDay = new Date().getDate();
-
-      // Buscamos TODAS as faturas para poder calcular o abatimento de pagamentos parciais
       const [billsRes, contractsRes] = await Promise.all([
         supabase.from('bills').select('*').eq('tenant_id', id),
-        supabase.from('contracts').select('rent_value, due_day, property_id, properties(name)').eq('tenant_id', id).eq('status', 'ativo')
+        supabase.from('contracts').select('rent_value, due_day, property_id, properties(name, condo_fee)').eq('tenant_id', id).eq('status', 'ativo')
       ]);
 
-      const bills = billsRes.data || [];
-      const contracts = contractsRes.data || [];
+      setRawBills(billsRes.data || []);
+      setRawContracts(contractsRes.data || []);
+    } catch (err) {
+      showError('Erro ao carregar débitos.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      // Agrupar faturas por propriedade, tipo, mês e ano para compensação de pagamentos parciais
-      const groups: Record<string, { paid: number, pending: number, type: string, month: string, year: string, property_id: string }> = {};
+  // Recalcula os valores de cobrança sempre que os dados brutos ou o filtro mudarem
+  useEffect(() => {
+    if (rawBills.length === 0 && rawContracts.length === 0) {
+      setRentValue('0');
+      setFineValue('0');
+      setInterestValue('0');
+      setExtraValues([]);
+      return;
+    }
+
+    const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
+    const currentYear = new Date().getFullYear();
+    const currentDay = new Date().getDate();
+
+    // 1. Filtrar as faturas brutas de acordo com o escopo selecionado
+    const filteredBills = rawBills.filter(b => {
+      const contract = rawContracts.find(c => c.property_id === b.property_id);
+      const isOverdue = isBillOverdue(b, contract?.due_day || 5);
+      const isCurrentMonth = b.month === currentMonth && b.year === currentYear;
+
+      if (filterType === 'overdue') {
+        return isOverdue;
+      }
+      if (filterType === 'current') {
+        return isCurrentMonth;
+      }
+      return true; // 'all'
+    });
+
+    // Agrupar faturas filtradas por propriedade, tipo, mês e ano para compensação de pagamentos parciais
+    const groups: Record<string, { paid: number, pending: number, type: string, month: string, year: string, property_id: string }> = {};
+    
+    filteredBills.forEach(b => {
+      const key = `${b.property_id || 'none'}-${b.type}-${b.month}-${b.year}`;
+      if (!groups[key]) {
+        groups[key] = { paid: 0, pending: 0, type: b.type, month: b.month, year: b.year, property_id: b.property_id };
+      }
+      const val = Number(b.total_value || b.calculated_value || 0);
+      if (b.status === 'pago') {
+        groups[key].paid += val;
+      } else {
+        groups[key].pending += val;
+      }
+    });
+
+    let totalRent = 0;
+    let totalFine = 0;
+    let totalInterest = 0;
+    const extras: ExtraValue[] = [];
+
+    // Processar os grupos com saldo devedor líquido
+    Object.keys(groups).forEach(key => {
+      const group = groups[key];
+      const netPending = Math.max(0, group.pending - group.paid);
       
-      bills.forEach(b => {
-        const key = `${b.property_id || 'none'}-${b.type}-${b.month}-${b.year}`;
-        if (!groups[key]) {
-          groups[key] = { paid: 0, pending: 0, type: b.type, month: b.month, year: b.year, property_id: b.property_id };
-        }
-        const val = Number(b.total_value || b.calculated_value || 0);
-        if (b.status === 'pago') {
-          groups[key].paid += val;
+      if (netPending > 0) {
+        if (group.type === 'aluguel' && group.month === currentMonth && group.year === currentYear) {
+          totalRent += netPending;
+        } else if (group.type === 'multa') {
+          totalFine += netPending;
+        } else if (group.type === 'juros') {
+          totalInterest += netPending;
+        } else if (group.type === 'multa_juros') {
+          extras.push({
+            label: `Multa e Juros Acumulados`,
+            value: netPending.toString()
+          });
         } else {
-          groups[key].pending += val;
-        }
-      });
+          // Encontrar a fatura original para pegar leituras se houver
+          const originalBill = rawBills.find(b => 
+            b.property_id === group.property_id && 
+            b.type === group.type && 
+            b.month === group.month && 
+            b.year === group.year && 
+            b.status !== 'pago'
+          );
 
-      let totalRent = 0;
-      let totalFine = 0;
-      let totalInterest = 0;
-      const extras: ExtraValue[] = [];
-
-      // Processar os grupos com saldo devedor líquido
-      Object.keys(groups).forEach(key => {
-        const group = groups[key];
-        const netPending = Math.max(0, group.pending - group.paid);
-        
-        if (netPending > 0) {
-          if (group.type === 'aluguel' && group.month === currentMonth && group.year === currentYear) {
-            totalRent += netPending;
-          } else if (group.type === 'multa') {
-            totalFine += netPending;
-          } else if (group.type === 'juros') {
-            totalInterest += netPending;
-          } else if (group.type === 'multa_juros') {
-            extras.push({
-              label: `Multa e Juros Acumulados`,
-              value: netPending.toString()
-            });
-          } else {
-            // Encontrar a fatura original para pegar leituras se houver
-            const originalBill = bills.find(b => 
-              b.property_id === group.property_id && 
-              b.type === group.type && 
-              b.month === group.month && 
-              b.year === group.year && 
-              b.status !== 'pago'
-            );
-
-            let consumption = '';
-            if (originalBill && originalBill.current_reading !== null && originalBill.previous_reading !== null) {
-              consumption = (Number(originalBill.current_reading) - Number(originalBill.previous_reading)).toString();
-            }
-
-            extras.push({
-              label: `${group.type.charAt(0).toUpperCase() + group.type.slice(1)} (${group.month}/${group.year})`,
-              value: netPending.toString(),
-              quantity: consumption,
-              unitPrice: originalBill?.kwh_price?.toString() || ''
-            });
+          let consumption = '';
+          if (originalBill && originalBill.current_reading !== null && originalBill.previous_reading !== null) {
+            consumption = (Number(originalBill.current_reading) - Number(originalBill.previous_reading)).toString();
           }
-        }
-      });
 
-      // Projeção inteligente do aluguel do mês atual:
-      // Só projeta se o dia atual for maior ou igual ao dia de vencimento do contrato
-      contracts.forEach(c => {
+          extras.push({
+            label: `${group.type.charAt(0).toUpperCase() + group.type.slice(1)} (${group.month}/${group.year})`,
+            value: netPending.toString(),
+            quantity: consumption,
+            unitPrice: originalBill?.kwh_price?.toString() || ''
+          });
+        }
+      }
+    });
+
+    // Projeção inteligente do aluguel do mês atual:
+    // Só projeta se o escopo permitir (mês atual ou todos) e se já passou do vencimento
+    if (filterType === 'all' || filterType === 'current' || filterType === 'overdue') {
+      rawContracts.forEach(c => {
         const dueDay = c.due_day || 5;
-        if (currentDay >= dueDay) {
+        const isOverdue = currentDay > dueDay;
+        const isDueOrPast = currentDay >= dueDay;
+
+        // Se o filtro for 'overdue', só projeta se já estiver de fato atrasado (passou do dia)
+        // Se for 'all' ou 'current', projeta se já chegou no dia de vencimento
+        const shouldProject = filterType === 'overdue' ? isOverdue : isDueOrPast;
+
+        if (shouldProject) {
           // Verificar se já existe algum lançamento de aluguel (pago ou pendente) para este mês/imóvel
-          const rentBills = bills.filter(b => 
+          const rentBills = rawBills.filter(b => 
             b.property_id === c.property_id && 
             (b.type === 'aluguel' || b.type === 'receita') && 
             b.month === currentMonth && 
@@ -149,17 +201,14 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
           }
         }
       });
-
-      setRentValue(totalRent.toString());
-      setFineValue(totalFine.toString());
-      setInterestValue(totalInterest.toString());
-      setExtraValues(extras);
-    } catch (err) {
-      showError('Erro ao carregar débitos.');
-    } finally {
-      setLoading(false);
     }
-  };
+
+    setRentValue(totalRent.toString());
+    setFineValue(totalFine.toString());
+    setInterestValue(totalInterest.toString());
+    setExtraValues(extras);
+
+  }, [rawBills, rawContracts, filterType]);
 
   const updateExtra = (index: number, field: keyof ExtraValue, val: string) => {
     const newExtras = [...extraValues];
@@ -203,13 +252,18 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     });
 
     const saudacao = `Olá ${tenantObj?.name || 'Inquilino'}! 👋`;
-    const intro = `Estou enviando o resumo do aluguel e demais valores pendentes:`;
+    const intro = filterType === 'overdue' 
+      ? `Estou enviando o resumo dos seus valores em atraso pendentes de regularização:`
+      : filterType === 'current'
+      ? `Estou enviando o resumo do aluguel e utilidades deste mês:`
+      : `Estou enviando o resumo consolidado de todos os seus valores pendentes:`;
+
     const totalStr = `💰 *Total a pagar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*`;
     const pixStr = `🔑 *Chave PIX:* ${pixKey}`;
     const despedida = `Qualquer dúvida, estou à disposição!`;
 
     return `${saudacao}\n\n${intro}\n\n${details}\n${totalStr}\n\n${pixStr}\n\n${despedida}`;
-  }, [selectedTenantId, rentValue, fineValue, interestValue, extraValues, pixKey, total, tenants]);
+  }, [selectedTenantId, rentValue, fineValue, interestValue, extraValues, pixKey, total, tenants, filterType]);
 
   const handleSend = () => {
     const tenantObj = tenants.find(t => t.id === selectedTenantId);
@@ -251,6 +305,45 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
                   <SelectContent>{tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
+
+              {/* Seletor de Escopo de Cobrança */}
+              {selectedTenantId && (
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">O que cobrar?</Label>
+                  <div className="grid grid-cols-3 gap-2 p-1 bg-slate-50 rounded-xl border border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setFilterType('all')}
+                      className={cn(
+                        "py-2 rounded-lg text-xs font-bold transition-all",
+                        filterType === 'all' ? "bg-white shadow-sm text-blue-600" : "text-slate-400 hover:text-slate-600"
+                      )}
+                    >
+                      Tudo Pendente
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilterType('overdue')}
+                      className={cn(
+                        "py-2 rounded-lg text-xs font-bold transition-all",
+                        filterType === 'overdue' ? "bg-white shadow-sm text-rose-600" : "text-slate-400 hover:text-slate-600"
+                      )}
+                    >
+                      Apenas Atrasados
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilterType('current')}
+                      className={cn(
+                        "py-2 rounded-lg text-xs font-bold transition-all",
+                        filterType === 'current' ? "bg-white shadow-sm text-amber-600" : "text-slate-400 hover:text-slate-600"
+                      )}
+                    >
+                      Mês Atual
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
