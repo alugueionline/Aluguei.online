@@ -25,7 +25,6 @@ export const QuickPaymentModal = ({ isOpen, onClose, tenant, onSuccess }: QuickP
     if (isOpen && tenant) {
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
       const currentYear = new Date().getFullYear();
-      const currentDay = new Date().getDate();
       
       const pendingBills = tenant.bills?.filter((b: any) => b.status !== 'pago') || [];
       const formattedItems = pendingBills.map((b: any) => ({
@@ -38,34 +37,29 @@ export const QuickPaymentModal = ({ isOpen, onClose, tenant, onSuccess }: QuickP
         year: b.year
       }));
 
-      // Verificar se o aluguel do mês atual precisa ser projetado para cada contrato ativo
+      // Verificar se o aluguel do mês atual precisa ser projetado para cada contrato ativo (desde o dia 1º)
       const activeContracts = tenant.contracts?.filter((c: any) => c.status === 'ativo') || [];
       
       activeContracts.forEach((contract: any) => {
-        const dueDay = contract.due_day || 5;
-        
-        // Só projeta se já estiver na data de vencimento ou depois
-        if (currentDay >= dueDay) {
-          const hasRentBill = tenant.bills?.some((b: any) => 
-            b.type === 'aluguel' && 
-            b.month === currentMonth && 
-            b.year === currentYear && 
-            b.property_id === contract.property_id
-          );
+        const hasRentBill = tenant.bills?.some((b: any) => 
+          b.type === 'aluguel' && 
+          b.month === currentMonth && 
+          b.year === currentYear && 
+          b.property_id === contract.property_id
+        );
 
-          if (!hasRentBill) {
-            // ID único incluindo o property_id para evitar conflitos em múltiplos contratos
-            formattedItems.unshift({
-              id: `projected-rent-${tenant.id}-${contract.property_id}`,
-              label: `Aluguel (${currentMonth}/${currentYear}) - ${contract.properties?.name || 'Imóvel'}`,
-              value: Number(contract.rent_value),
-              isExisting: false,
-              type: 'aluguel',
-              month: currentMonth,
-              year: currentYear,
-              property_id: contract.property_id
-            });
-          }
+        if (!hasRentBill) {
+          // ID único incluindo o property_id para evitar conflitos em múltiplos contratos
+          formattedItems.unshift({
+            id: `projected-rent-${tenant.id}-${contract.property_id}`,
+            label: `Aluguel (${currentMonth}/${currentYear}) - ${contract.properties?.name || 'Imóvel'}`,
+            value: Number(contract.rent_value),
+            isExisting: false,
+            type: 'aluguel',
+            month: currentMonth,
+            year: currentYear,
+            property_id: contract.property_id
+          });
         }
       });
 
