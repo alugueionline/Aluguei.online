@@ -36,7 +36,7 @@ export const getProjectedRent = (contract: any, bills: any[]) => {
   // Filtra todos os lançamentos de aluguel deste imóvel para o mês atual (pagos ou pendentes)
   const rentBills = bills.filter(b => 
     b.property_id === contract.property_id && 
-    b.type === 'aluguel' && 
+    (b.type === 'aluguel' || b.type === 'receita') && 
     b.month === currentMonth && 
     b.year === currentYear
   );

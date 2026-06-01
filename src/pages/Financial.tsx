@@ -47,7 +47,7 @@ const Financial = () => {
   // Tipos que são considerados Receita (Entrada)
   const isIncomeType = (type: string) => {
     const t = type?.toLowerCase() || '';
-    return ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'taxa extra', 'luz', 'multa', 'juros', 'multa_juros'].includes(t);
+    return ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'taxa extra', 'luz', 'taxa', 'multa', 'juros', 'multa_juros'].includes(t);
   };
 
   // Busca de faturas com cache
@@ -106,32 +106,37 @@ const Financial = () => {
       const dueDay = c.due_day || 5;
       const isOverdue = currentDay > dueDay;
 
-      // Aluguel
-      const hasRentBill = bills.some(b => 
-        b.tenant_id === c.tenant_id && 
-        b.property_id === c.property_id &&
-        b.type === 'aluguel' && 
-        b.month === currentMonth && 
-        b.year === currentYear
-      );
-      if (!hasRentBill) {
-        const val = Number(c.rent_value || 0);
-        if (isOverdue) atr += val;
-        else pen += val;
-      }
+      // Só projeta se já estiver na data de vencimento ou depois
+      if (currentDay >= dueDay) {
+        // Aluguel
+        const rentBills = bills.filter(b => 
+          b.tenant_id === c.tenant_id && 
+          b.property_id === c.property_id &&
+          (b.type === 'aluguel' || b.type === 'receita') && 
+          b.month === currentMonth && 
+          b.year === currentYear
+        );
+        const totalRentLaunched = rentBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
+        const remainingRent = Math.max(0, Number(c.rent_value || 0) - totalRentLaunched);
 
-      // Condomínio
-      const condoFee = Number(c.properties?.condo_fee || 0);
-      const hasCondoBill = bills.some(b => 
-        b.tenant_id === c.tenant_id && 
-        b.property_id === c.property_id &&
-        b.type === 'condominio' && 
-        b.month === currentMonth && 
-        b.year === currentYear
-      );
-      if (condoFee > 0 && !hasCondoBill) {
-        if (isOverdue) atr += condoFee;
-        else pen += condoFee;
+        if (remainingRent > 0) {
+          if (isOverdue) atr += remainingRent;
+          else pen += remainingRent;
+        }
+
+        // Condomínio
+        const condoFee = Number(c.properties?.condo_fee || 0);
+        const hasCondoBill = bills.some(b => 
+          b.tenant_id === c.tenant_id && 
+          b.property_id === c.property_id &&
+          b.type === 'condominio' && 
+          b.month === currentMonth && 
+          b.year === currentYear
+        );
+        if (condoFee > 0 && !hasCondoBill) {
+          if (isOverdue) atr += condoFee;
+          else pen += condoFee;
+        }
       }
     });
 

@@ -98,37 +98,40 @@ export const TenantCollectionList = () => {
           const dueDay = contract.due_day || 5;
           const isOverdue = currentDay > dueDay;
 
-          // Calcula o aluguel restante projetado
-          const rentBills = tenantBills.filter(b => 
-            b.property_id === contract.property_id &&
-            b.type === 'aluguel' && 
-            b.month === currentMonth && 
-            b.year === currentYear
-          );
-          const totalRentLaunched = rentBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
-          const remainingRent = Math.max(0, Number(contract.rent_value || 0) - totalRentLaunched);
+          // Só projeta o aluguel se já estiver na data de vencimento ou depois
+          if (currentDay >= dueDay) {
+            // Calcula o aluguel restante projetado
+            const rentBills = tenantBills.filter(b => 
+              b.property_id === contract.property_id &&
+              (b.type === 'aluguel' || b.type === 'receita') && 
+              b.month === currentMonth && 
+              b.year === currentYear
+            );
+            const totalRentLaunched = rentBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
+            const remainingRent = Math.max(0, Number(contract.rent_value || 0) - totalRentLaunched);
 
-          if (remainingRent > 0) {
-            projectedTotal += remainingRent;
-            projectedItems.push({ type: 'Aluguel Restante (Projetado)', value: remainingRent });
-            if (isOverdue) projectedIsOverdue = true;
-          }
+            if (remainingRent > 0) {
+              projectedTotal += remainingRent;
+              projectedItems.push({ type: 'Aluguel Restante (Projetado)', value: remainingRent });
+              if (isOverdue) projectedIsOverdue = true;
+            }
 
-          // Calcula o condomínio restante projetado
-          const condoBills = tenantBills.filter(b => 
-            b.property_id === contract.property_id &&
-            b.type === 'condominio' && 
-            b.month === currentMonth && 
-            b.year === currentYear
-          );
-          const totalCondoLaunched = condoBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
-          const condoFee = Number(contract.properties?.condo_fee || 0);
-          const remainingCondo = Math.max(0, condoFee - totalCondoLaunched);
+            // Calcula o condomínio restante projetado
+            const condoBills = tenantBills.filter(b => 
+              b.property_id === contract.property_id &&
+              b.type === 'condominio' && 
+              b.month === currentMonth && 
+              b.year === currentYear
+            );
+            const totalCondoLaunched = condoBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
+            const condoFee = Number(contract.properties?.condo_fee || 0);
+            const remainingCondo = Math.max(0, condoFee - totalCondoLaunched);
 
-          if (remainingCondo > 0) {
-            projectedTotal += remainingCondo;
-            projectedItems.push({ type: 'Condomínio Restante (Projetado)', value: remainingCondo });
-            if (isOverdue) projectedIsOverdue = true;
+            if (remainingCondo > 0) {
+              projectedTotal += remainingCondo;
+              projectedItems.push({ type: 'Condomínio Restante (Projetado)', value: remainingCondo });
+              if (isOverdue) projectedIsOverdue = true;
+            }
           }
         });
         
