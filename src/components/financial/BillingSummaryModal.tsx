@@ -1,3 +1,4 @@
+=) em todos os pontos do modal de cobrança, garantindo que o aluguel do mês atual seja incluído no filtro de atrasados no próprio dia do vencimento.">
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
