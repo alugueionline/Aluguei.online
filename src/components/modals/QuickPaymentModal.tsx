@@ -8,6 +8,7 @@ import { Loader2, CheckCircle2, DollarSign, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 import { cn } from '@/lib/utils';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface QuickPaymentModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const QuickPaymentModal = ({ isOpen, onClose, tenant, onSuccess }: QuickP
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<any[]>([]);
   const [selectedIds, setSelectedSelectedIds] = useState<string[]>([]);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (isOpen && tenant) {
@@ -37,7 +39,6 @@ export const QuickPaymentModal = ({ isOpen, onClose, tenant, onSuccess }: QuickP
         year: b.year
       }));
 
-      // Verificar se o aluguel do mês atual precisa ser projetado para cada contrato ativo (desde o dia 1º)
       const activeContracts = tenant.contracts?.filter((c: any) => c.status === 'ativo') || [];
       
       activeContracts.forEach((contract: any) => {
@@ -49,7 +50,6 @@ export const QuickPaymentModal = ({ isOpen, onClose, tenant, onSuccess }: QuickP
         );
 
         if (!hasRentBill) {
-          // ID único incluindo o property_id para evitar conflitos em múltiplos contratos
           formattedItems.unshift({
             id: `projected-rent-${tenant.id}-${contract.property_id}`,
             label: `Aluguel (${currentMonth}/${currentYear}) - ${contract.properties?.name || 'Imóvel'}`,
@@ -79,7 +79,6 @@ export const QuickPaymentModal = ({ isOpen, onClose, tenant, onSuccess }: QuickP
       const { data: { user } } = await supabase.auth.getUser();
       const selectedItems = items.filter(i => selectedIds.includes(i.id));
       
-      // 1. Atualizar contas que já existem
       const existingIds = selectedItems.filter(i => i.isExisting).map(i => i.id);
       if (existingIds.length > 0) {
         const { error } = await supabase
@@ -89,7 +88,6 @@ export const QuickPaymentModal = ({ isOpen, onClose, tenant, onSuccess }: QuickP
         if (error) throw error;
       }
 
-      // 2. Criar e pagar contas projetadas
       const projectedItems = selectedItems.filter(i => !i.isExisting);
       if (projectedItems.length > 0) {
         const billsToInsert = projectedItems.map(i => ({
@@ -108,7 +106,13 @@ export const QuickPaymentModal = ({ isOpen, onClose, tenant, onSuccess }: QuickP
         if (error) throw error;
       }
 
-      showSuccess("Pagamentos confirmados com sucesso!");
+      showSuccess("Pagamento confirmado com sucesso!");
+      
+      // Invalidações globais e específicas do inquilino
+      queryClient.invalidateQueries({ queryKey: ['bills'] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-financial-v6', tenant.id] });
+      queryClient.invalidateQueries({ queryKey: ['tenant', tenant.id] });
+      
       onSuccess();
       onClose();
     } catch (err: any) {

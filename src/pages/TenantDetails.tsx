@@ -62,7 +62,6 @@ const TenantDetails = () => {
 
       let activeContracts = tenant?.contracts?.filter((c: any) => c.status === 'ativo') || [];
       
-      // FALLBACK: Se não houver contrato ativo mas houver imóvel vinculado diretamente
       if (activeContracts.length === 0 && tenant?.property_id) {
         activeContracts = [{
           property_id: tenant.property_id,
@@ -76,7 +75,6 @@ const TenantDetails = () => {
         }];
       }
 
-      // Agrupar faturas por propriedade, tipo, mês e ano para compensação de pagamentos parciais
       const groups: Record<string, { paid: number, pending: number, bills: any[] }> = {};
       history.forEach(b => {
         const key = `${b.property_id || 'none'}-${b.type}-${b.month}-${b.year}`;
@@ -93,7 +91,6 @@ const TenantDetails = () => {
         groups[key].bills.push(b);
       });
 
-      // Calcular dívida líquida compensada
       Object.keys(groups).forEach(key => {
         const group = groups[key];
         const netPending = Math.max(0, group.pending - group.paid);
@@ -107,28 +104,23 @@ const TenantDetails = () => {
         }
       });
 
-      // 2. Incluir o aluguel do mês atual se ainda não foi gerado/pago (desde o dia 1º)
       if (activeContracts.length > 0) {
         const now = new Date();
         const currentDay = now.getDate();
-        const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
-        const currentYear = new Date().getFullYear();
+        const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
+        const currentYear = now.getFullYear();
 
         activeContracts.forEach((contract: any) => {
           const dueDay = contract.due_day || 5;
           const projected = getProjectedRent(contract, history);
+          
           if (projected > 0) {
             totalDebt += projected;
-            
             const isOverdue = currentDay > dueDay;
+            if (isOverdue) totalOverdue += projected;
             
-            if (isOverdue) {
-              totalOverdue += projected;
-            }
-            
-            // Adiciona como um item normal na lista para o usuário
             displayHistory.unshift({
-              id: `auto-rent-${contract.id || 'fallback'}`,
+              id: `auto-rent-${contract.id || 'fallback'}-${currentMonth}-${currentYear}`,
               type: 'aluguel',
               month: currentMonth,
               year: currentYear,
@@ -141,7 +133,6 @@ const TenantDetails = () => {
         });
       }
 
-      // Re-ordenar por data
       displayHistory.sort((a, b) => {
         if (a.year !== b.year) return b.year - a.year;
         return parseInt(b.month) - parseInt(a.month);
@@ -152,7 +143,6 @@ const TenantDetails = () => {
     enabled: !!tenant
   });
 
-  // Agrupamento inteligente do histórico por Mês/Ano
   const groupedHistory = useMemo(() => {
     if (!financialData?.history) return [];
 
@@ -188,18 +178,11 @@ const TenantDetails = () => {
       }
     });
 
-    // Determinar o status consolidado de cada mês e aplicar filtros rápidos
     return Object.values(groups).map(group => {
       const hasUnpaid = group.bills.some(b => b.status !== 'pago');
-      
       let activeContracts = tenant?.contracts?.filter((c: any) => c.status === 'ativo') || [];
       if (activeContracts.length === 0 && tenant?.property_id) {
-        activeContracts = [{
-          property_id: tenant.property_id,
-          rent_value: tenant.properties?.base_rent || 0,
-          due_day: tenant.due_day || 5,
-          status: 'ativo'
-        }];
+        activeContracts = [{ property_id: tenant.property_id, due_day: tenant.due_day || 5, status: 'ativo' }];
       }
 
       const contract = activeContracts[0];
@@ -221,7 +204,6 @@ const TenantDetails = () => {
     });
   }, [financialData?.history, tenant, historyFilter]);
 
-  // Inicializa o primeiro mês como expandido por padrão
   useEffect(() => {
     if (groupedHistory.length > 0 && Object.keys(expandedMonths).length === 0) {
       setExpandedMonths({ [groupedHistory[0].key]: true });
@@ -259,8 +241,7 @@ const TenantDetails = () => {
       
       showSuccess("Pagamento confirmado!");
       queryClient.invalidateQueries({ queryKey: ['tenant-financial-v6', id] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v6'] });
-      queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] });
+      queryClient.invalidateQueries({ queryKey: ['bills'] });
     } catch (err: any) {
       showError("Erro ao dar baixa: " + err.message);
     } finally {
@@ -275,6 +256,7 @@ const TenantDetails = () => {
       if (error) throw error;
       showSuccess("Pagamento revertido.");
       queryClient.invalidateQueries({ queryKey: ['tenant-financial-v6', id] });
+      queryClient.invalidateQueries({ queryKey: ['bills'] });
     } catch (err: any) {
       showError("Erro ao reverter: " + err.message);
     } finally {
@@ -290,6 +272,7 @@ const TenantDetails = () => {
       if (error) throw error;
       showSuccess("Registro excluído.");
       queryClient.invalidateQueries({ queryKey: ['tenant-financial-v6', id] });
+      queryClient.invalidateQueries({ queryKey: ['bills'] });
     } catch (err: any) {
       showError("Erro ao excluir: " + err.message);
     } finally {
@@ -302,17 +285,7 @@ const TenantDetails = () => {
 
   let activeContracts = tenant.contracts?.filter((c: any) => c.status === 'ativo') || [];
   if (activeContracts.length === 0 && tenant.property_id) {
-    activeContracts = [{
-      id: 'fallback',
-      property_id: tenant.property_id,
-      rent_value: tenant.properties?.base_rent || 0,
-      due_day: tenant.due_day || 5,
-      status: 'ativo',
-      properties: {
-        name: tenant.properties?.name || 'Imóvel',
-        condo_fee: tenant.properties?.condo_fee || 0
-      }
-    }];
+    activeContracts = [{ id: 'fallback', property_id: tenant.property_id, rent_value: tenant.properties?.base_rent || 0, due_day: tenant.due_day || 5, status: 'ativo', properties: { name: tenant.properties?.name || 'Imóvel', condo_fee: tenant.properties?.condo_fee || 0 } }];
   }
 
   return (
@@ -320,48 +293,17 @@ const TenantDetails = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <Button variant="ghost" className="gap-2 text-gray-500 hover:text-gray-900" onClick={() => navigate(-1)}><ArrowLeft className="w-4 h-4" /> Voltar</Button>
         <div className="flex flex-wrap gap-3 w-full md:w-auto">
-          <Button 
-            onClick={() => setIsInterestModalOpen(true)} 
-            className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold gap-2 shadow-lg shadow-rose-100 flex-1 md:flex-none"
-          >
-            <Percent className="w-4 h-4" /> Multas e Juros
-          </Button>
-          <Button 
-            onClick={() => setIsBillingModalOpen(true)} 
-            className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold gap-2 shadow-lg shadow-emerald-100 flex-1 md:flex-none"
-          >
-            <MessageSquare className="w-4 h-4" /> Cobrar Inquilino
-          </Button>
-          <Button 
-            onClick={() => setIsModalOpen(true)} 
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold gap-2 flex-1 md:flex-none"
-          >
-            <Edit2 className="w-4 h-4" /> Editar Perfil
-          </Button>
+          <Button onClick={() => setIsInterestModalOpen(true)} className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold gap-2 shadow-lg shadow-rose-100 flex-1 md:flex-none"><Percent className="w-4 h-4" /> Multas e Juros</Button>
+          <Button onClick={() => setIsBillingModalOpen(true)} className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold gap-2 shadow-lg shadow-emerald-100 flex-1 md:flex-none"><MessageSquare className="w-4 h-4" /> Cobrar Inquilino</Button>
+          <Button onClick={() => setIsModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold gap-2 flex-1 md:flex-none"><Edit2 className="w-4 h-4" /> Editar Perfil</Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-1">
-          <TenantProfileCard tenant={tenant} financialData={financialData} />
-        </div>
-
+        <div className="lg:col-span-1"><TenantProfileCard tenant={tenant} financialData={financialData} /></div>
         <div className="lg:col-span-2 space-y-6">
           <TenantPropertiesList activeContracts={activeContracts} />
-
-          <TenantPaymentHistory 
-            groupedHistory={groupedHistory}
-            expandedMonths={expandedMonths}
-            onToggleMonth={toggleMonth}
-            historyFilter={historyFilter}
-            onFilterChange={setHistoryFilter}
-            processingBillId={processingBillId}
-            onMarkAsPaid={handleMarkAsPaid}
-            onRevertPayment={handleRevertPayment}
-            onDeleteBill={handleDeleteBill}
-            activeContracts={activeContracts}
-            isBillOverdue={isBillOverdue}
-          />
+          <TenantPaymentHistory groupedHistory={groupedHistory} expandedMonths={expandedMonths} onToggleMonth={toggleMonth} historyFilter={historyFilter} onFilterChange={setHistoryFilter} processingBillId={processingBillId} onMarkAsPaid={handleMarkAsPaid} onRevertPayment={handleRevertPayment} onDeleteBill={handleDeleteBill} activeContracts={activeContracts} isBillOverdue={isBillOverdue} />
         </div>
       </div>
       <TenantModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); queryClient.invalidateQueries({ queryKey: ['tenant', id] }); }} tenant={tenant} />
@@ -372,8 +314,7 @@ const TenantDetails = () => {
         tenantId={id || ''} 
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ['tenant-financial-v6', id] });
-          queryClient.invalidateQueries({ queryKey: ['dashboard-stats-v6'] });
-          queryClient.invalidateQueries({ queryKey: ['tenants-dashboard-active'] });
+          queryClient.invalidateQueries({ queryKey: ['bills'] });
         }}
       />
     </DashboardLayout>
