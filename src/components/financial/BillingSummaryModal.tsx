@@ -137,8 +137,9 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         }
 
         // Busca faturas de aluguel lançadas para este mês (usando Number para evitar erros de "02" vs "2")
+        // Permite correspondência mesmo se o property_id for nulo no lançamento
         const rentBills = rawBills.filter(b => 
-          b.property_id === c.property_id && 
+          (b.property_id === c.property_id || !b.property_id || !c.property_id) && 
           (b.type?.toLowerCase() === 'aluguel' || b.type?.toLowerCase() === 'receita') && 
           Number(b.month) === Number(month) && 
           Number(b.year) === Number(year)
@@ -287,7 +288,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
         }
 
         const rentBills = rawBills.filter(b => 
-          b.property_id === c.property_id && 
+          (b.property_id === c.property_id || !b.property_id || !c.property_id) && 
           (b.type?.toLowerCase() === 'aluguel' || b.type?.toLowerCase() === 'receita') && 
           Number(b.month) === Number(month) && 
           Number(b.year) === Number(year)
