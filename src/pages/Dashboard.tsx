@@ -22,7 +22,8 @@ import {
   AlertTriangle,
   CalendarDays,
   Percent,
-  ChevronRight
+  ChevronRight,
+  PieChart as PieIcon
 } from 'lucide-react';
 import { 
   BarChart,
@@ -31,7 +32,10 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -303,6 +307,15 @@ const Dashboard = () => {
     return maxDays;
   };
 
+  // Dados para o gráfico de rosca (Mix de Recebimento)
+  const donutData = useMemo(() => {
+    return [
+      { name: 'Recebido', value: stats.receitas, color: '#10B981' },
+      { name: 'Pendente', value: stats.pendente, color: '#F59E0B' },
+      { name: 'Atrasado', value: stats.atrasado, color: '#EF4444' }
+    ].filter(d => d.value > 0);
+  }, [stats]);
+
   if (loadingBills || loadingTenants) {
     return (
       <DashboardLayout>
@@ -414,61 +427,179 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Linha 2: Gráfico de Evolução Mensal */}
-      <div className="mb-10">
-        <Card className="premium-card border-none rounded-[2.5rem] overflow-hidden bg-white">
-          <CardHeader className="p-8 pb-4">
-            <CardTitle className="text-xl font-black text-slate-900 tracking-tight">Recebimentos dos últimos 6 meses</CardTitle>
-            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Evolução mensal de receitas confirmadas</p>
-          </CardHeader>
-          <CardContent className="px-4 pb-8">
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={revenueHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                  <XAxis 
-                    dataKey="month" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94A3B8', fontSize: 12, fontWeight: 700 }} 
-                    dy={10} 
-                  />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94A3B8', fontSize: 12, fontWeight: 700 }} 
-                    tickFormatter={(v) => `R$ ${v >= 1000 ? (v/1000).toFixed(1) + 'k' : v}`} 
-                  />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', padding: '12px' }}
-                    formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Recebido']}
-                  />
-                  <Bar 
-                    dataKey="value" 
-                    fill="#2563FF" 
-                    radius={[8, 8, 0, 0]} 
-                    maxBarSize={50}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+      {/* Linha 2: Gráfico de Evolução Mensal + Gráfico de Rosca & Total Previsto */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+        {/* Gráfico de Evolução Mensal */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="premium-card border-none rounded-[2.5rem] overflow-hidden bg-white">
+            <CardHeader className="p-8 pb-4">
+              <CardTitle className="text-xl font-black text-slate-900 tracking-tight">Recebimentos dos últimos 6 meses</CardTitle>
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Evolução mensal de receitas confirmadas</p>
+            </CardHeader>
+            <CardContent className="px-4 pb-8">
+              <div className="h-[280px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={revenueHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                    <XAxis 
+                      dataKey="month" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#94A3B8', fontSize: 12, fontWeight: 700 }} 
+                      dy={10} 
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#94A3B8', fontSize: 12, fontWeight: 700 }} 
+                      tickFormatter={(v) => `R$ ${v >= 1000 ? (v/1000).toFixed(1) + 'k' : v}`} 
+                    />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', padding: '12px' }}
+                      formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Recebido']}
+                    />
+                    <Bar 
+                      dataKey="value" 
+                      fill="#2563FF" 
+                      radius={[8, 8, 0, 0]} 
+                      maxBarSize={50}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Sub-grid com Total Previsto e Gráfico de Rosca Compacto */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {/* Card Total Previsto Compacto */}
+            <Card className="relative overflow-hidden rounded-[2rem] border-none bg-slate-900 text-white p-6 shadow-xl flex flex-col justify-between">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-600/10 rounded-full -mr-12 -mt-12 blur-2xl" />
+              <div className="relative z-10">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-md">
+                    <TrendingUp className="w-4 h-4 text-white" />
+                  </div>
+                  <Badge className="bg-blue-500/20 text-blue-300 border-none text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md">
+                    Projeção
+                  </Badge>
+                </div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Previsto</p>
+                <h3 className="text-xl font-black mt-1 tracking-tight text-white">
+                  R$ {stats.totalExpected.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </h3>
+                <p className="text-[9px] text-slate-500 font-bold mt-2 uppercase tracking-wider">
+                  [ Recebido + Pendente + Atrasado ]
+                </p>
+              </div>
+            </Card>
+
+            {/* Gráfico de Rosca Compacto */}
+            <Card className="premium-card border-none rounded-[2rem] bg-white p-6 flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Mix de Recebimento</p>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">
+                    <div className="w-2 h-2 rounded-full bg-[#10B981]" /> Recebido
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">
+                    <div className="w-2 h-2 rounded-full bg-[#F59E0B]" /> Pendente
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">
+                    <div className="w-2 h-2 rounded-full bg-[#EF4444]" /> Atrasado
+                  </div>
+                </div>
+              </div>
+              <div className="w-24 h-24 relative shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={donutData}
+                      innerRadius="65%"
+                      outerRadius="90%"
+                      paddingAngle={3}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {donutData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-xs font-black text-slate-900">{collectionRate}%</span>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* Coluna Direita: Ações Urgentes Compacto e Prático */}
+        <div className="lg:col-span-1">
+          <Card className="premium-card border-none rounded-[2.5rem] bg-white p-6 flex flex-col justify-between h-full min-h-[400px]">
+            <div className="space-y-6">
+              <div className="flex items-center gap-3 border-b border-slate-50 pb-4">
+                <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shadow-sm">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 tracking-tight">Ações Urgentes</h3>
+                  <p className="text-xs text-slate-400 font-medium">Cobranças pendentes de atenção imediata</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {overdueTenants.length > 0 ? (
+                  overdueTenants.slice(0, 3).map((t) => (
+                    <div 
+                      key={t.id} 
+                      className="flex items-center justify-between p-3 rounded-2xl bg-rose-50/30 border border-rose-100/50 hover:bg-rose-50/50 transition-colors cursor-pointer"
+                      onClick={() => navigate(`/tenants/${t.id}`)}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar className="w-8 h-8 rounded-xl border border-white shadow-sm">
+                          <AvatarImage src={getTenantAvatar(t.name)} />
+                          <AvatarFallback className="bg-blue-50 text-blue-600 font-black text-xs">
+                            {t.name.substring(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black text-slate-900 truncate">{t.name}</p>
+                          <p className="text-[9px] text-rose-600 font-bold uppercase tracking-wider">{getDaysOverdue(t)} dias vencido</p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-black text-rose-700 whitespace-nowrap">
+                        R$ {t.totalDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-10 text-center text-slate-400">
+                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500" />
+                    <p className="text-xs font-bold">Nenhuma pendência urgente!</p>
+                  </div>
+                )}
+              </div>
             </div>
-          </CardContent>
-        </Card>
+
+            <div className="pt-6 border-t border-slate-50 mt-6">
+              <Button 
+                onClick={() => setIsCollectionModalOpen(true)}
+                className="w-full bg-rose-600 hover:bg-rose-700 text-white rounded-xl h-11 font-bold text-xs gap-2 shadow-lg shadow-rose-100"
+              >
+                <MessageSquare className="w-4 h-4" /> Abrir Central de Cobrança
+              </Button>
+            </div>
+          </Card>
+        </div>
       </div>
 
       {/* Linha 3: Inquilinos em Atraso */}
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-2">
-          <div>
-            <h3 className="text-2xl font-black text-slate-900 tracking-tight">Inquilinos em atraso</h3>
-            <p className="text-slate-500 text-sm font-medium">Lista de inadimplentes ativos que necessitam de cobrança.</p>
-          </div>
-          <Button 
-            onClick={() => setIsCollectionModalOpen(true)}
-            className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl h-11 px-6 font-bold shadow-lg gap-2 w-full sm:w-auto"
-          >
-            <MessageSquare className="w-4 h-4" /> Abrir Central de Cobrança
-          </Button>
+        <div className="px-2">
+          <h3 className="text-2xl font-black text-slate-900 tracking-tight">Inquilinos em atraso</h3>
+          <p className="text-slate-500 text-sm font-medium">Lista de inadimplentes ativos que necessitam de cobrança.</p>
         </div>
 
         <div className="grid grid-cols-1 gap-4">
