@@ -18,16 +18,18 @@ import {
   MessageSquare,
   TrendingUp,
   Check,
-  PartyPopper,
   ArrowRight,
   AlertTriangle,
   CalendarDays,
-  HelpCircle
+  Percent,
+  ChevronRight
 } from 'lucide-react';
 import { 
-  PieChart,
-  Pie,
-  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
   Tooltip,
   ResponsiveContainer
 } from 'recharts';
@@ -38,6 +40,8 @@ import { QuickPaymentModal } from '@/components/modals/QuickPaymentModal';
 import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
 import { getTenantAvatar } from '@/utils/avatar';
 import { isBillOverdue } from '@/utils/financial';
+import { format, subMonths, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -52,6 +56,7 @@ const Dashboard = () => {
     return ['aluguel', 'receita', 'agua', 'energia', 'iptu', 'extra', 'internet', 'condominio', 'taxa extra', 'luz', 'taxa', 'multa', 'juros', 'multa_juros'].includes(t);
   };
 
+  // Busca inquilinos ativos e calcula débitos
   const { data: tenants = [], isLoading: loadingTenants } = useQuery({
     queryKey: ['tenants-dashboard-active'],
     queryFn: async () => {
@@ -156,6 +161,7 @@ const Dashboard = () => {
     }
   });
 
+  // Busca estatísticas financeiras e histórico de 6 meses
   const { data: financialData, isLoading: loadingBills } = useQuery({
     queryKey: ['dashboard-stats-v6'],
     queryFn: async () => {
@@ -227,181 +233,323 @@ const Dashboard = () => {
       });
 
       const totalExpected = rec + pen + atr;
-      const collectionData = [
-        { name: 'Recebido', value: rec, color: '#10b981' }, 
-        { name: 'Pendente', value: pen, color: '#f59e0b' }, 
-        { name: 'Atrasado', value: atr, color: '#f43f5e' }
-      ];
+
+      // Cálculo do histórico dos últimos 6 meses
+      const now = new Date();
+      const last6Months = Array.from({ length: 6 }).map((_, i) => {
+        const date = subMonths(now, i);
+        return {
+          monthName: format(date, 'MMM', { locale: ptBR }),
+          monthNum: format(date, 'MM'),
+          year: format(date, 'yyyy'),
+          value: 0
+        };
+      }).reverse();
+
+      last6Months.forEach(monthData => {
+        const monthBills = bills.filter(b => {
+          const isIncome = isIncomeType(b.type);
+          const isPaid = b.status === 'pago';
+          if (b.payment_date) {
+            const pDate = parseISO(b.payment_date);
+            return isIncome && isPaid && 
+                   format(pDate, 'MM') === monthData.monthNum && 
+                   format(pDate, 'yyyy') === monthData.year;
+          }
+          return isIncome && isPaid && b.month === monthData.monthNum && b.year === monthData.year;
+        });
+
+        monthData.value = monthBills.reduce((acc, curr) => acc + Number(curr.total_value || curr.calculated_value || 0), 0);
+      });
+
+      const revenueHistory = last6Months.map(m => ({ month: m.monthName, value: m.value }));
 
       return { 
         stats: { receitas: rec, despesas: des, lucro: rec - des, pendente: pen, atrasado: atr, totalExpected }, 
-        collectionData 
+        revenueHistory 
       };
     }
   });
 
   const stats = financialData?.stats || { receitas: 0, despesas: 0, lucro: 0, pendente: 0, atrasado: 0, totalExpected: 0 };
-  const collectionData = financialData?.collectionData || [];
-  const isAllPaid = stats.totalExpected > 0 && stats.receitas >= stats.totalExpected;
+  const revenueHistory = financialData?.revenueHistory || [];
+  
+  // Taxa de recebimento
+  const collectionRate = stats.totalExpected > 0 
+    ? Math.round((stats.receitas / stats.totalExpected) * 100) 
+    : 0;
 
-  if (loadingBills || loadingTenants) return <DashboardLayout><div className="h-[60vh] flex flex-col items-center justify-center gap-4"><Loader2 className="w-8 h-8 text-blue-600 animate-spin" /><p className="text-slate-400 font-medium text-sm">Sincronizando...</p></div></DashboardLayout>;
+  // Filtra inquilinos em atraso
+  const overdueTenants = useMemo(() => {
+    return tenants.filter(t => t.dashboardStatus === 'atrasado' && t.totalDebt > 0);
+  }, [tenants]);
+
+  // Calcula dias de atraso para o inquilino (baseado na fatura mais antiga)
+  const getDaysOverdue = (tenant: any) => {
+    const dueDay = tenant.activeContracts?.[0]?.due_day || 5;
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    const overdueBills = tenant.bills?.filter((b: any) => b.status !== 'pago' && isBillOverdue(b, dueDay)) || [];
+    if (overdueBills.length === 0) return 0;
+    
+    let maxDays = 0;
+    overdueBills.forEach((b: any) => {
+      const dueDateMidnight = new Date(Number(b.year), Number(b.month) - 1, dueDay);
+      const diffTime = todayMidnight.getTime() - dueDateMidnight.getTime();
+      const days = Math.max(0, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+      if (days > maxDays) maxDays = days;
+    });
+    return maxDays;
+  };
+
+  if (loadingBills || loadingTenants) {
+    return (
+      <DashboardLayout>
+        <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
+          <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+          <p className="text-slate-400 font-medium text-sm">Sincronizando...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
+      {/* Topo */}
       <div className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div><h1 className="text-3xl font-black text-slate-900 tracking-tight">Central de Recebimento</h1><p className="text-slate-500 mt-1 font-medium">Gerencie quem deve e quem já pagou em tempo real.</p></div>
-        <div className="flex gap-3 w-full md:w-auto"><Button onClick={() => navigate('/financial')} variant="outline" className="rounded-xl h-11 px-5 font-bold border-slate-200 text-slate-600 hover:bg-slate-50 flex-1 md:flex-none">Ver Extrato</Button><Button onClick={() => navigate('/tenants')} className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl h-11 px-6 font-bold shadow-lg gap-2 flex-1 md:flex-none"><Users className="w-4 h-4" /> Inquilinos</Button></div>
+        <div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Central de Recebimento</h1>
+          <p className="text-slate-500 mt-1 font-medium">Gerencie recebimentos, pendências e cobranças em tempo real.</p>
+        </div>
+        <div className="flex gap-3 w-full md:w-auto">
+          <Button 
+            onClick={() => navigate('/financial')} 
+            variant="outline" 
+            className="rounded-xl h-11 px-5 font-bold border-slate-200 text-slate-600 hover:bg-slate-50 flex-1 md:flex-none"
+          >
+            Ver Extrato
+          </Button>
+          <Button 
+            onClick={() => navigate('/tenants')} 
+            className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl h-11 px-6 font-bold shadow-lg gap-2 flex-1 md:flex-none"
+          >
+            <Users className="w-4 h-4" /> Inquilinos
+          </Button>
+        </div>
       </div>
 
-      {/* Redesenhando os cartões de KPI para ficarem extremamente premium e claros */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
-        {/* Cartão Herói: Total Previsto */}
-        <Card className="relative overflow-hidden rounded-[2rem] border-none bg-slate-900 text-white p-6 shadow-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 rounded-full -mr-16 -mt-16 blur-2xl" />
-          <div className="relative z-10 flex flex-col h-full justify-between">
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-md">
-                <TrendingUp className="w-5 h-5 text-white" />
-              </div>
-              <Badge className="bg-blue-500/20 text-blue-300 border-none text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg">
-                Meta do Mês
-              </Badge>
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Previsto</p>
-              <h3 className="text-2xl font-black mt-1 tracking-tight text-white">
-                R$ {stats.totalExpected.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </h3>
-              <p className="text-[9px] text-slate-500 font-bold mt-2 uppercase tracking-wider">
-                [ Recebido + Pendente + Atrasado ]
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Cartão Recebido com Barra de Progresso */}
-        <Card className="premium-card p-6 rounded-[2rem] border-none bg-white transition-all duration-300 hover:scale-[1.02]">
+      {/* Linha 1: 4 Cards de KPI iguais */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+        {/* Card Recebido */}
+        <Card className="premium-card p-6 rounded-[2rem] border-none bg-white transition-all duration-300 hover:shadow-md">
           <div className="flex justify-between items-start mb-4">
             <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-sm">
               <CheckCircle2 className="w-5 h-5" />
             </div>
-            <Badge className="bg-emerald-50 text-emerald-700 border-none text-[10px] font-black px-2.5 py-1 rounded-lg">
-              {((stats.receitas / (stats.totalExpected || 1)) * 100).toFixed(0)}% Concluído
-            </Badge>
           </div>
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Recebido</p>
             <h3 className="text-2xl font-black mt-1 tracking-tight text-slate-900">
               R$ {stats.receitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </h3>
-            
-            {/* Barra de progresso visual */}
-            <div className="mt-3 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                style={{ width: `${Math.min(100, (stats.receitas / (stats.totalExpected || 1)) * 100)}%` }}
-              />
-            </div>
-            <p className="text-[9px] text-slate-400 font-bold mt-2 uppercase tracking-wider">
-              Valores já confirmados em caixa
+            <p className="text-[10px] text-slate-400 font-bold mt-2">
+              Valores confirmados em caixa
             </p>
           </div>
         </Card>
 
-        {/* Cartão Atrasado com Alerta Pulsante */}
-        <Card className={cn(
-          "premium-card p-6 rounded-[2rem] border-none transition-all duration-300 hover:scale-[1.02]",
-          stats.atrasado > 0 ? "bg-rose-50/30 ring-2 ring-rose-100 shadow-lg shadow-rose-50" : "bg-white"
-        )}>
-          <div className="flex justify-between items-start mb-4">
-            <div className={cn(
-              "w-10 h-10 rounded-xl flex items-center justify-center shadow-sm",
-              stats.atrasado > 0 ? "bg-rose-100 text-rose-600 animate-pulse" : "bg-slate-50 text-slate-400"
-            )}>
-              <AlertTriangle className="w-5 h-5" />
-            </div>
-            <Badge className={cn(
-              "border-none text-[10px] font-black px-2.5 py-1 rounded-lg",
-              stats.atrasado > 0 ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-500"
-            )}>
-              {stats.atrasado > 0 ? "Ação Urgente" : "Tudo em dia"}
-            </Badge>
-          </div>
-          <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Atrasado</p>
-            <h3 className={cn(
-              "text-2xl font-black mt-1 tracking-tight",
-              stats.atrasado > 0 ? "text-rose-600" : "text-slate-900"
-            )}>
-              R$ {stats.atrasado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </h3>
-            <p className="text-[9px] text-slate-400 font-bold mt-3 uppercase tracking-wider">
-              Faturas vencidas pendentes de cobrança
-            </p>
-          </div>
-        </Card>
-
-        {/* Cartão Pendente */}
-        <Card className="premium-card p-6 rounded-[2rem] border-none bg-white transition-all duration-300 hover:scale-[1.02]">
+        {/* Card Pendente */}
+        <Card className="premium-card p-6 rounded-[2rem] border-none bg-white transition-all duration-300 hover:shadow-md">
           <div className="flex justify-between items-start mb-4">
             <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-sm">
               <Clock className="w-5 h-5" />
             </div>
-            <Badge className="bg-amber-50 text-amber-700 border-none text-[10px] font-black px-2.5 py-1 rounded-lg">
-              Dentro do Prazo
-            </Badge>
           </div>
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pendente</p>
             <h3 className="text-2xl font-black mt-1 tracking-tight text-slate-900">
               R$ {stats.pendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </h3>
-            <p className="text-[9px] text-slate-400 font-bold mt-3 uppercase tracking-wider">
-              A vencer até o final do mês corrente
+            <p className="text-[10px] text-slate-400 font-bold mt-2">
+              A vencer até o fim do mês
+            </p>
+          </div>
+        </Card>
+
+        {/* Card Atrasado */}
+        <Card className="premium-card p-6 rounded-[2rem] border-none bg-white transition-all duration-300 hover:shadow-md">
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shadow-sm">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Atrasado</p>
+            <h3 className="text-2xl font-black mt-1 tracking-tight text-rose-600">
+              R$ {stats.atrasado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </h3>
+            <p className="text-[10px] text-slate-400 font-bold mt-2">
+              Faturas vencidas não pagas
+            </p>
+          </div>
+        </Card>
+
+        {/* Card Taxa de Recebimento */}
+        <Card className="premium-card p-6 rounded-[2rem] border-none bg-white transition-all duration-300 hover:shadow-md">
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm">
+              <Percent className="w-5 h-5" />
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Taxa de Recebimento</p>
+            <h3 className="text-2xl font-black mt-1 tracking-tight text-blue-600">
+              {collectionRate}%
+            </h3>
+            <p className="text-[10px] text-slate-400 font-bold mt-2">
+              Eficiência de cobrança
             </p>
           </div>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 mb-12">
-        <div className="xl:col-span-7">
-          <Card className="premium-card rounded-[2.5rem] overflow-hidden border-none h-full">
-            <CardHeader className="p-8 border-b border-slate-50 flex flex-row items-center justify-between"><div><CardTitle className="text-xl font-black tracking-tight">Resumo de Recebimento</CardTitle><p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Mês atual</p></div><div className="text-right"><p className="text-[10px] font-black text-slate-400 uppercase">Taxa</p><p className="text-xl font-black text-emerald-600">{((stats.receitas / (stats.totalExpected || 1)) * 100).toFixed(0)}%</p></div></CardHeader>
-            <CardContent className="p-8 flex flex-col md:flex-row items-center gap-12">
-              <div className="h-[220px] w-[220px] relative shrink-0"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={collectionData} innerRadius={65} outerRadius={85} paddingAngle={8} dataKey="value">{collectionData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} stroke="none" />))}</Pie><Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} /></PieChart></ResponsiveContainer><div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"><DollarSign className="w-6 h-6 text-slate-200 mb-1" /><p className="text-[10px] font-black text-slate-400 uppercase">Total</p></div></div>
-              <div className="flex-1 space-y-4 w-full">{collectionData.map((item) => (<div key={item.name} className="flex justify-between items-center p-4 rounded-2xl bg-slate-50/50 border border-slate-100/50"><div className="flex items-center gap-3"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} /><span className="text-sm font-bold text-slate-600">{item.name}</span></div><span className="text-sm font-black text-slate-900">R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div>))}</div>
-            </CardContent>
-          </Card>
-        </div>
-        <div className="xl:col-span-5">
-          <Card className={cn("premium-card rounded-[2.5rem] p-8 border-none relative overflow-hidden h-full transition-all duration-500", isAllPaid ? "bg-emerald-600 text-white" : "bg-slate-900 text-white")}>
-            <div className="relative z-10 flex flex-col h-full">
-              <div className="flex items-center gap-3 mb-8"><div className={cn("p-3 rounded-2xl shadow-lg", isAllPaid ? "bg-white text-emerald-600" : "bg-blue-600 text-white")}>{isAllPaid ? <PartyPopper className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}</div><div><h3 className="text-xl font-black tracking-tight">{isAllPaid ? "Tudo em Dia!" : "Ações Urgentes"}</h3><p className={cn("text-xs font-bold uppercase tracking-widest mt-1", isAllPaid ? "text-emerald-100" : "text-slate-400")}>{isAllPaid ? "Parabéns!" : "Atenção"}</p></div></div>
-              <div className="space-y-4 flex-1"><div className={cn("p-6 rounded-3xl border transition-colors", isAllPaid ? "bg-white/10 border-white/20" : "bg-white/5 border-white/10")}>{isAllPaid ? (<p className="text-sm font-medium text-emerald-50 leading-relaxed">Todos os aluguéis e contas deste mês foram recebidos.</p>) : (<><p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Inadimplência Real</p><p className="text-2xl font-black text-white">R$ {stats.atrasado.toLocaleString('pt-BR')}</p><p className="text-xs font-medium text-slate-400 mt-2">Valor total acumulado em faturas vencidas.</p></>)}</div></div>
-              {!isAllPaid && <Button className="w-full bg-white text-slate-900 hover:bg-blue-50 rounded-2xl font-black text-sm h-14 shadow-xl mt-6" onClick={() => navigate('/financial')}>Abrir Central de Cobrança <ArrowRight className="w-4 h-4 ml-2" /></Button>}
+      {/* Linha 2: Gráfico de Evolução Mensal */}
+      <div className="mb-10">
+        <Card className="premium-card border-none rounded-[2.5rem] overflow-hidden bg-white">
+          <CardHeader className="p-8 pb-4">
+            <CardTitle className="text-xl font-black text-slate-900 tracking-tight">Recebimentos dos últimos 6 meses</CardTitle>
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Evolução mensal de receitas confirmadas</p>
+          </CardHeader>
+          <CardContent className="px-4 pb-8">
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={revenueHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis 
+                    dataKey="month" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#94A3B8', fontSize: 12, fontWeight: 700 }} 
+                    dy={10} 
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#94A3B8', fontSize: 12, fontWeight: 700 }} 
+                    tickFormatter={(v) => `R$ ${v >= 1000 ? (v/1000).toFixed(1) + 'k' : v}`} 
+                  />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', padding: '12px' }}
+                    formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Recebido']}
+                  />
+                  <Bar 
+                    dataKey="value" 
+                    fill="#2563FF" 
+                    radius={[8, 8, 0, 0]} 
+                    maxBarSize={50}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          </Card>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Linha 3: Inquilinos em Atraso */}
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-2">
+          <div>
+            <h3 className="text-2xl font-black text-slate-900 tracking-tight">Inquilinos em atraso</h3>
+            <p className="text-slate-500 text-sm font-medium">Lista de inadimplentes ativos que necessitam de cobrança.</p>
+          </div>
+          <Button 
+            onClick={() => setIsCollectionModalOpen(true)}
+            className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl h-11 px-6 font-bold shadow-lg gap-2 w-full sm:w-auto"
+          >
+            <MessageSquare className="w-4 h-4" /> Abrir Central de Cobrança
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4">
+          {overdueTenants.length > 0 ? (
+            overdueTenants.map((t) => {
+              const daysOverdue = getDaysOverdue(t);
+              return (
+                <Card key={t.id} className="premium-card rounded-[2rem] p-6 border-none bg-rose-50/30 ring-1 ring-rose-100">
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="flex items-center gap-4 cursor-pointer w-full md:w-auto" onClick={() => navigate(`/tenants/${t.id}`)}>
+                      <Avatar className="w-14 h-14 rounded-2xl border-2 border-white shadow-sm">
+                        <AvatarImage src={getTenantAvatar(t.name)} />
+                        <AvatarFallback className="bg-blue-50 text-blue-600 font-black">
+                          {t.name.substring(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <h4 className="font-black text-slate-900 tracking-tight hover:text-blue-600 transition-colors">{t.name}</h4>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5 mt-1">
+                          <Home className="w-3 h-3 text-blue-500" /> {t.properties?.name || 'Sem imóvel'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between md:justify-end gap-8 w-full md:w-auto border-t md:border-none pt-4 md:pt-0">
+                      <div className="text-left md:text-right">
+                        <p className="text-[10px] text-slate-400 font-black uppercase">Valor em Atraso</p>
+                        <p className="text-lg font-black text-rose-600">
+                          R$ {t.totalDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+
+                      <div className="text-left md:text-right">
+                        <p className="text-[10px] text-slate-400 font-black uppercase">Tempo de Atraso</p>
+                        <Badge className="bg-rose-100 text-rose-700 border-none font-black text-[10px] uppercase mt-1">
+                          {daysOverdue} {daysOverdue === 1 ? 'dia vencido' : 'dias vencidos'}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-11 px-5 rounded-xl border-blue-200 text-blue-600 font-bold gap-2 hover:bg-blue-50" 
+                          onClick={() => { setSelectedTenantForCollection(t.id); setIsCollectionModalOpen(true); }}
+                        >
+                          <MessageSquare className="w-4 h-4" /> Cobrar
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black px-5 h-11 gap-2 shadow-lg shadow-emerald-100" 
+                          onClick={() => { setSelectedTenantForPayment(t); setIsPaymentModalOpen(true); }}
+                        >
+                          <Check className="w-4 h-4" /> Baixar
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="rounded-xl text-slate-300 hover:text-blue-600" 
+                          onClick={() => navigate(`/tenants/${t.id}`)}
+                        >
+                          <ChevronRight className="w-5 h-5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })
+          ) : (
+            <div className="py-16 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-200">
+              <div className="w-16 h-16 bg-slate-50 rounded-3xl flex items-center justify-center mx-auto mb-4 text-slate-200">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+              </div>
+              <h3 className="text-lg font-black text-slate-900">Nenhum inquilino em atraso!</h3>
+              <p className="text-slate-400 font-medium mt-1">Excelente! Todos os recebimentos estão em dia.</p>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="space-y-6">
-        <div className="flex justify-between items-center px-2"><h3 className="text-2xl font-black text-slate-900 tracking-tight">Status por Inquilino</h3><Badge className="bg-slate-100 text-slate-500 border-none font-bold px-4 py-1.5 rounded-full">{tenants.length} Ativos</Badge></div>
-        <div className="grid grid-cols-1 gap-4">
-          {tenants.map((t) => (
-            <Card key={t.id} className={cn("premium-card rounded-[2rem] p-6 group transition-all border-none", t.dashboardStatus === 'atrasado' ? "bg-rose-50/50 ring-1 ring-rose-100" : "bg-white")}>
-              <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="flex items-center gap-4 cursor-pointer group/tenant w-full md:w-auto" onClick={() => navigate(`/tenants/${t.id}`)}><div className="relative"><Avatar className="w-14 h-14 rounded-2xl border-2 border-white shadow-sm group-hover/tenant:border-blue-200 transition-all"><AvatarImage src={getTenantAvatar(t.name)} /><AvatarFallback className="bg-blue-50 text-blue-600 font-black">{t.name.substring(0, 2).toUpperCase()}</AvatarFallback></Avatar>{t.dashboardStatus === 'pago' && <div className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border-2 border-white"><Check className="w-3 h-3" /></div>}</div><div><h4 className="font-black text-slate-900 tracking-tight group-hover/tenant:text-blue-600 transition-colors">{t.name}</h4><div className="flex flex-col gap-0.5"><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5"><Home className="w-3 h-3" /> {t.properties?.name || 'Sem imóvel'}</p><p className="text-[10px] text-blue-500 font-black uppercase tracking-widest flex items-center gap-1.5"><CalendarDays className="w-3 h-3" /> Vencimento: Dia {t.activeContracts?.[0]?.due_day || 5}</p></div></div></div>
-                <div className="flex items-center justify-between md:justify-end gap-8 w-full md:w-auto"><div className="text-left md:text-right"><p className="text-[10px] text-slate-400 font-black uppercase">Dívida Atual</p><p className={cn("text-lg font-black", t.dashboardStatus === 'atrasado' ? "text-rose-600" : t.dashboardStatus === 'pendente' ? "text-amber-600" : "text-emerald-600")}>R$ {t.totalDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div>
-                  <div className="flex items-center gap-2">
-                    {t.dashboardStatus !== 'pago' ? (<><Button size="sm" variant="outline" className="h-11 px-4 rounded-xl border-blue-200 text-blue-600 font-bold gap-2 hover:bg-blue-50" onClick={() => { setSelectedTenantForCollection(t.id); setIsCollectionModalOpen(true); }}><MessageSquare className="w-4 h-4" /> Cobrar</Button><Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black px-5 h-11 gap-2 shadow-lg shadow-emerald-100" onClick={() => { setSelectedTenantForPayment(t); setIsPaymentModalOpen(true); }}><Check className="w-4 h-4" /> Baixar</Button></>) : (<Badge className="bg-emerald-50 text-emerald-600 border-none px-4 py-2 rounded-xl font-black text-[10px] uppercase">Tudo Pago</Badge>)}
-                    <Button variant="ghost" size="icon" className="rounded-xl text-slate-300 hover:text-blue-600" onClick={() => navigate(`/tenants/${t.id}`)}><ArrowRight className="w-5 h-5" /></Button>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
       <QuickPaymentModal 
         isOpen={isPaymentModalOpen} 
         onClose={() => setIsPaymentModalOpen(false)} 
@@ -413,15 +561,13 @@ const Dashboard = () => {
           queryClient.invalidateQueries({ queryKey: ['bills'] });
         }} 
       />
-      <BillingSummaryModal isOpen={isCollectionModalOpen} onClose={() => setIsCollectionModalOpen(false)} tenantId={selectedTenantForCollection} />
+      <BillingSummaryModal 
+        isOpen={isCollectionModalOpen} 
+        onClose={() => setIsCollectionModalOpen(false)} 
+        tenantId={selectedTenantForCollection} 
+      />
     </DashboardLayout>
   );
 };
-
-const KPIContainer = ({ label, value, icon, color, trend, highlight }: any) => (
-  <Card className={cn("premium-card p-6 rounded-[1.5rem] border-none relative overflow-hidden group", highlight && "ring-2 ring-rose-500 shadow-lg shadow-rose-100")}>
-    <div className="relative z-10"><div className="flex justify-between items-start mb-4"><div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-transform group-hover:scale-110", color === 'blue' ? 'bg-blue-50 text-blue-600' : color === 'rose' ? 'bg-rose-50 text-rose-600' : color === 'emerald' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600')}>{icon}</div><Badge className={cn("border-none text-[10px] font-black px-2 py-0.5 rounded-lg", highlight ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-600")}>{trend}</Badge></div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</p><h3 className={cn("text-xl font-black mt-1 tracking-tight", highlight ? "text-rose-600" : "text-slate-900")}>{value}</h3></div>
-  </Card>
-);
 
 export default Dashboard;
