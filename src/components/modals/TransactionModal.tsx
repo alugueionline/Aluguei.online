@@ -60,6 +60,7 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
     const category = formData.get('category') as string;
     const value = parseFloat(formData.get('value') as string);
     const dateStr = formData.get('date') as string;
+    const description = formData.get('description') as string;
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -69,13 +70,14 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
 
       const payload = {
         user_id: user.id,
-        property_id: selectedPropertyId,
+        property_id: selectedPropertyId || null,
         tenant_id: selectedTenantId === 'none' ? null : selectedTenantId,
         type: category === 'Aluguel' ? 'aluguel' : type,
         month,
         year: parseInt(year),
         total_value: value,
-        status: 'pago'
+        status: 'pago',
+        description: description || null
       };
 
       const { error } = await supabase.from('bills').insert([payload]);
@@ -106,7 +108,7 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase text-slate-400">Tipo</Label>
               <Select name="type" defaultValue="receita">
-                <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
+                <SelectTrigger className="h-12 rounded-xl bg-slate-50/50 border-none font-bold">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -118,7 +120,7 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase text-slate-400">Categoria</Label>
               <Select name="category" defaultValue="Aluguel">
-                <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
+                <SelectTrigger className="h-12 rounded-xl bg-slate-50/50 border-none font-bold">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -139,7 +141,7 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
           <div className="space-y-2">
             <Label className="text-xs font-bold uppercase text-slate-400">Inquilino</Label>
             <Select value={selectedTenantId} onValueChange={handleTenantChange}>
-              <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
+              <SelectTrigger className="h-12 rounded-xl bg-slate-50/50 border-none font-bold">
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4 text-slate-300" />
                   <SelectValue placeholder="Selecione o inquilino" />
@@ -156,8 +158,8 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
 
           <div className="space-y-2">
             <Label className="text-xs font-bold uppercase text-slate-400">Imóvel</Label>
-            <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId} required>
-              <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none font-bold">
+            <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId}>
+              <SelectTrigger className="h-12 rounded-xl bg-slate-50/50 border-none font-bold">
                 <div className="flex items-center gap-2">
                   <Building2 className="w-4 h-4 text-slate-300" />
                   <SelectValue placeholder="Selecione o imóvel" />
@@ -176,16 +178,21 @@ export const TransactionModal = ({ isOpen, onClose, onSave }: TransactionModalPr
               <Label className="text-xs font-bold uppercase text-slate-400">Valor (R$)</Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                <Input name="value" type="number" step="0.01" placeholder="0,00" className="pl-10 h-12 rounded-xl bg-slate-50 border-none font-bold" required />
+                <Input name="value" type="number" step="0.01" placeholder="0,00" className="pl-10 h-12 rounded-xl bg-slate-50/50 border-none font-bold" required />
               </div>
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase text-slate-400">Data</Label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                <Input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="pl-10 h-12 rounded-xl bg-slate-50 border-none font-bold" required />
+                <Input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="pl-10 h-12 rounded-xl bg-slate-50/50 border-none font-bold" required />
               </div>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-bold uppercase text-slate-400">Observação / Descrição</Label>
+            <Input name="description" placeholder="Ex: Saldo devedor pendente de Maio" className="h-12 rounded-xl bg-slate-50/50 border-none font-bold" />
           </div>
 
           <DialogFooter className="pt-6">

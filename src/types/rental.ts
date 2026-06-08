@@ -73,4 +73,5 @@ export interface Bill {
   residents?: number;
   payment_date?: string;
   created_at?: string;
+  description?: string;
 }

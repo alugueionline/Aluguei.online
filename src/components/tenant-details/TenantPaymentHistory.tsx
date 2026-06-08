@@ -57,6 +57,8 @@ export const TenantPaymentHistory = ({
 }: TenantPaymentHistoryProps) => {
 
   const getBillDescription = (bill: any) => {
+    if (bill.description) return bill.description; // Exibe a observação personalizada se houver!
+    
     const type = bill.type?.toLowerCase();
     if (type === 'multa') return 'Multa por atraso de pagamento';
     if (type === 'juros') return 'Juros de mora pro-rata die';

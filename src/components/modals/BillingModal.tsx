@@ -38,6 +38,7 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
   
   const [residents, setResidents] = useState('1');
   const [status, setStatus] = useState('pendente');
+  const [description, setDescription] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -51,13 +52,9 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
     if (isOpen) fetchData();
   }, [isOpen]);
 
-  // Busca automática da última leitura aprimorada
   useEffect(() => {
     const fetchLastReading = async () => {
-      // Só buscamos se for energia por kWh e não for edição
       if (type === 'energia' && billingMethod === 'consumo_kwh' && !isEdit) {
-        
-        // Se não tiver inquilino nem imóvel selecionado, não busca
         if (!tenantId || tenantId === 'none') {
           if (!propertyId) return;
         }
@@ -68,10 +65,9 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
             .select('current_reading')
             .eq('type', 'energia')
             .not('current_reading', 'is', null)
-            .order('created_at', { ascending: false }) // Pega o registro criado por último
+            .order('created_at', { ascending: false })
             .limit(1);
 
-          // Filtra por inquilino se selecionado, senão por imóvel
           if (tenantId && tenantId !== 'none') {
             query = query.eq('tenant_id', tenantId);
           } else if (propertyId) {
@@ -110,6 +106,7 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
       setKwhPrice(bill.kwh_price?.toString() || '0.95');
       setResidents(bill.residents?.toString() || '1');
       setStatus(bill.status || 'pendente');
+      setDescription(bill.description || '');
     } else if (isOpen && !bill) {
       setType('energia');
       setTotalValue('');
@@ -118,6 +115,7 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
       setStatus('pendente');
       setPrevReading('');
       setCurrReading('');
+      setDescription('');
     }
   }, [isOpen, bill]);
 
@@ -167,7 +165,8 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
         current_reading: billingMethod === 'consumo_kwh' ? parseFloat(currReading) : null,
         kwh_price: billingMethod === 'consumo_kwh' ? parseFloat(kwhPrice) : null,
         residents: billingMethod === 'por_pessoa' ? parseInt(residents) : null,
-        status
+        status,
+        description: description || null
       };
       if (isEdit) {
         const { error } = await supabase.from('bills').update(payload).eq('id', bill.id);
@@ -212,6 +211,7 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
                   <SelectItem value="internet">Internet</SelectItem>
                   <SelectItem value="iptu">IPTU</SelectItem>
                   <SelectItem value="extra">Taxa Extra</SelectItem>
+                  <SelectItem value="receita">Receita Geral</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -302,6 +302,16 @@ export const BillingModal = ({ isOpen, onClose, onSave, bill }: BillingModalProp
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Observação / Descrição da Dívida</Label>
+            <Input 
+              placeholder="Ex: Saldo devedor restante do acordo de Maio" 
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              className="h-12 rounded-xl bg-slate-50 border-none font-bold"
+            />
           </div>
 
           <div className="p-6 bg-slate-900 rounded-[2rem] text-white flex justify-between items-center shadow-xl">
