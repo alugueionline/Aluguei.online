@@ -232,7 +232,7 @@ const Dashboard = () => {
 
       const totalExpected = rec + pen + atr;
 
-      // Cálculo do histórico dos últimos 12 meses
+      // Cálculo do histórico dos últimos 12 meses com comparação numérica robusta
       const now = new Date();
       const last12Months = Array.from({ length: 12 }).map((_, i) => {
         const date = subMonths(now, i);
@@ -248,13 +248,17 @@ const Dashboard = () => {
         const monthBills = bills.filter(b => {
           const isIncome = isIncomeType(b.type);
           const isPaid = b.status === 'pago';
+          
           if (b.payment_date) {
             const pDate = parseISO(b.payment_date);
             return isIncome && isPaid && 
-                   format(pDate, 'MM') === monthData.monthNum && 
-                   format(pDate, 'yyyy') === monthData.year;
+                   (pDate.getMonth() + 1) === Number(monthData.monthNum) && 
+                   pDate.getFullYear() === Number(monthData.year);
           }
-          return isIncome && isPaid && b.month === monthData.monthNum && b.year === monthData.year;
+          
+          return isIncome && isPaid && 
+                 Number(b.month) === Number(monthData.monthNum) && 
+                 Number(b.year) === Number(monthData.year);
         });
 
         monthData.value = monthBills.reduce((acc, curr) => acc + Number(curr.total_value || curr.calculated_value || 0), 0);
