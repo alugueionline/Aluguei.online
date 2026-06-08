@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { TenantModal } from '@/components/modals/TenantModal';
 import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
 import { ApplyInterestModal } from '@/components/modals/ApplyInterestModal';
+import { BillingModal } from '@/components/modals/BillingModal';
 import { TenantProfileCard } from '@/components/tenant-details/TenantProfileCard';
 import { TenantPropertiesList } from '@/components/tenant-details/TenantPropertiesList';
 import { TenantPaymentHistory } from '@/components/tenant-details/TenantPaymentHistory';
@@ -25,6 +26,8 @@ const TenantDetails = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);
   const [isInterestModalOpen, setIsInterestModalOpen] = useState(false);
+  const [isSingleBillModalOpen, setIsSingleBillModalOpen] = useState(false);
+  const [selectedBillForEdit, setSelectedBillForEdit] = useState<any>(null);
   const [processingBillId, setProcessingBillId] = useState<string | null>(null);
   
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('all');
@@ -280,6 +283,11 @@ const TenantDetails = () => {
     }
   };
 
+  const handleEditBill = (bill: any) => {
+    setSelectedBillForEdit(bill);
+    setIsSingleBillModalOpen(true);
+  };
+
   if (isLoading) return <DashboardLayout><div className="h-[60vh] flex flex-col items-center justify-center gap-4"><Loader2 className="w-10 h-10 text-blue-600 animate-spin" /><p className="text-gray-500 font-medium">Carregando perfil...</p></div></DashboardLayout>;
   if (!tenant) return <DashboardLayout><div className="text-center py-20"><h2 className="text-2xl font-bold text-gray-900">Inquilino não encontrado</h2><Button onClick={() => navigate('/tenants')} className="mt-4">Voltar</Button></div></DashboardLayout>;
 
@@ -303,10 +311,10 @@ const TenantDetails = () => {
         <div className="lg:col-span-1"><TenantProfileCard tenant={tenant} financialData={financialData} /></div>
         <div className="lg:col-span-2 space-y-6">
           <TenantPropertiesList activeContracts={activeContracts} />
-          <TenantPaymentHistory groupedHistory={groupedHistory} expandedMonths={expandedMonths} onToggleMonth={toggleMonth} historyFilter={historyFilter} onFilterChange={setHistoryFilter} processingBillId={processingBillId} onMarkAsPaid={handleMarkAsPaid} onRevertPayment={handleRevertPayment} onDeleteBill={handleDeleteBill} activeContracts={activeContracts} isBillOverdue={isBillOverdue} />
+          <TenantPaymentHistory groupedHistory={groupedHistory} expandedMonths={expandedMonths} onToggleMonth={toggleMonth} historyFilter={historyFilter} onFilterChange={setHistoryFilter} processingBillId={processingBillId} onMarkAsPaid={handleMarkAsPaid} onRevertPayment={handleRevertPayment} onDeleteBill={handleDeleteBill} onEditBill={handleEditBill} activeContracts={activeContracts} isBillOverdue={isBillOverdue} />
         </div>
       </div>
-      <TenantModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); queryClient.invalidateQueries({ queryKey: ['tenant', id] }); }} tenant={tenant} />
+      <TenantModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); queryClient.invalidateQueries({ key: ['tenant', id] }); }} tenant={tenant} />
       <BillingSummaryModal isOpen={isBillingModalOpen} onClose={() => setIsBillingModalOpen(false)} tenantId={id} />
       <ApplyInterestModal 
         isOpen={isInterestModalOpen} 
@@ -316,6 +324,20 @@ const TenantDetails = () => {
           queryClient.invalidateQueries({ queryKey: ['tenant-financial-v6', id] });
           queryClient.invalidateQueries({ queryKey: ['bills'] });
         }}
+      />
+      <BillingModal 
+        isOpen={isSingleBillModalOpen} 
+        onClose={() => { 
+          setIsSingleBillModalOpen(false); 
+          setSelectedBillForEdit(null); 
+          queryClient.invalidateQueries({ queryKey: ['tenant-financial-v6', id] }); 
+          queryClient.invalidateQueries({ queryKey: ['bills'] });
+        }} 
+        onSave={() => {
+          queryClient.invalidateQueries({ queryKey: ['tenant-financial-v6', id] });
+          queryClient.invalidateQueries({ queryKey: ['bills'] });
+        }}
+        bill={selectedBillForEdit} 
       />
     </DashboardLayout>
   );
