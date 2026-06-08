@@ -62,8 +62,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
           supabase
             .from('bills')
             .select('*, properties(name)')
-            .eq('tenant_id', tenantId)
-            .neq('status', 'pago'),
+            .eq('tenant_id', tenantId), // Buscamos todas as faturas para calcular o saldo devedor real
           supabase
             .from('contracts')
             .select('*, properties(name)')
@@ -96,9 +95,41 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
           }];
         }
 
-        const filteredBills = dbBills.filter(
-          (b: any) => b.type !== 'multa' && b.type !== 'juros' && b.type !== 'multa_juros'
-        );
+        // Agrupar faturas por propriedade, tipo, mês e ano para compensação de pagamentos parciais
+        const groups: Record<string, { paid: number, pending: number, bills: any[] }> = {};
+        dbBills.forEach((b: any) => {
+          const key = `${b.property_id || 'none'}-${b.type}-${b.month}-${b.year}`;
+          if (!groups[key]) {
+            groups[key] = { paid: 0, pending: 0, bills: [] };
+          }
+          const val = Number(b.total_value || b.calculated_value || 0);
+          if (b.status === 'pago') {
+            groups[key].paid += val;
+          } else {
+            groups[key].pending += val;
+          }
+          groups[key].bills.push(b);
+        });
+
+        const filteredBills: any[] = [];
+        Object.keys(groups).forEach(key => {
+          const group = groups[key];
+          const netPending = Math.max(0, group.pending - group.paid);
+          const firstBill = group.bills.find(b => b.status !== 'pago') || group.bills[0];
+          
+          // Ignorar faturas de multa/juros para evitar juros sobre juros
+          if (firstBill.type === 'multa' || firstBill.type === 'juros' || firstBill.type === 'multa_juros') {
+            return;
+          }
+
+          if (netPending > 0) {
+            filteredBills.push({
+              ...firstBill,
+              total_value: netPending,
+              calculated_value: netPending
+            });
+          }
+        });
 
         const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
         const currentYear = new Date().getFullYear();
@@ -306,7 +337,7 @@ export const ApplyInterestModal = ({ isOpen, onClose, tenantId, onSuccess }: App
         }
       }
 
-      showSuccess('Lançamento de multa e juros updated com sucesso!');
+      showSuccess('Lançamento de multa e juros atualizado com sucesso!');
       onSuccess();
       onClose();
     } catch (err: any) {
