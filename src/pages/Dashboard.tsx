@@ -2,42 +2,23 @@
 
 import React, { useState, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { 
-  Search,
-  Bell,
-  Calendar,
-  Plus,
-  FileText,
-  Home,
-  UserPlus,
-  ArrowUpRight,
-  Loader2
-} from 'lucide-react';
-import { 
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
+import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { QuickPaymentModal } from '@/components/modals/QuickPaymentModal';
 import { BillingSummaryModal } from '@/components/financial/BillingSummaryModal';
-import { getTenantAvatar } from '@/utils/avatar';
 import { isBillOverdue } from '@/utils/financial';
 import { format, subMonths, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+// Importação dos componentes modulares
+import { KpiCards } from '@/components/dashboard/KpiCards';
+import { RevenueChart } from '@/components/dashboard/RevenueChart';
+import { PerformanceCard } from '@/components/dashboard/PerformanceCard';
+import { OverdueTenantsTable } from '@/components/dashboard/OverdueTenantsTable';
+import { QuickActions } from '@/components/dashboard/QuickActions';
+import { RecentPaymentsTable } from '@/components/dashboard/RecentPaymentsTable';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -328,15 +309,6 @@ const Dashboard = () => {
     return maxDays;
   };
 
-  // Dados para o gráfico de rosca (Mix de Recebimento)
-  const donutData = useMemo(() => {
-    return [
-      { name: 'Recebido', value: stats.receitas, color: '#10B981' },
-      { name: 'Pendente', value: stats.pendente, color: '#F59E0B' },
-      { name: 'Atrasado', value: stats.atrasado, color: '#EF4444' }
-    ].filter(d => d.value > 0);
-  }, [stats]);
-
   if (loadingBills || loadingTenants) {
     return (
       <DashboardLayout>
@@ -350,352 +322,40 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout>
-      {/* PRIMEIRA LINHA: 4 KPI Cards Horizontais */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-        {/* Recebido */}
-        <Card className="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 hover:shadow-md transition-all duration-300">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Recebido</span>
-            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-0.5">
-              <ArrowUpRight className="w-3 h-3" /> +12%
-            </span>
-          </div>
-          <h3 className="text-xl font-black text-slate-900 tracking-tight">
-            R$ {stats.receitas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </h3>
-          <p className="text-[10px] text-slate-400 font-medium mt-1">vs. mês anterior</p>
-        </Card>
+      {/* Indicadores Financeiros do Topo */}
+      <KpiCards 
+        receitas={stats.receitas} 
+        pendente={stats.pendente} 
+        atrasado={stats.atrasado} 
+        collectionRate={collectionRate} 
+      />
 
-        {/* Pendente */}
-        <Card className="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 hover:shadow-md transition-all duration-300">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pendente</span>
-            <span className="w-2 h-2 rounded-full bg-amber-500" />
-          </div>
-          <h3 className="text-xl font-black text-slate-900 tracking-tight">
-            R$ {stats.pendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </h3>
-          <p className="text-[10px] text-slate-400 font-medium mt-1">A vencer no período</p>
-        </Card>
-
-        {/* Atrasado */}
-        <Card className="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 hover:shadow-md transition-all duration-300">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Atrasado</span>
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-          </div>
-          <h3 className="text-xl font-black text-rose-600 tracking-tight">
-            R$ {stats.atrasado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </h3>
-          <p className="text-[10px] text-slate-400 font-medium mt-1">Faturas vencidas</p>
-        </Card>
-
-        {/* Taxa de Recebimento */}
-        <Card className="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 hover:shadow-md transition-all duration-300">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Taxa de Recebimento</span>
-            <span className="w-2 h-2 rounded-full bg-blue-500" />
-          </div>
-          <h3 className="text-xl font-black text-blue-600 tracking-tight">
-            {collectionRate}%
-          </h3>
-          <p className="text-[10px] text-slate-400 font-medium mt-1">Eficiência de cobrança</p>
-        </Card>
-      </div>
-
-      {/* SEGUNDA LINHA: Gráfico Principal (70%) + Performance (30%) */}
+      {/* Gráfico de Evolução + Performance */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        {/* Gráfico Principal */}
-        <Card className="lg:col-span-2 bg-white border border-slate-100 shadow-sm rounded-2xl overflow-hidden">
-          <CardHeader className="p-6 pb-2">
-            <CardTitle className="text-sm font-bold text-slate-900 tracking-tight">Evolução dos Recebimentos</CardTitle>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Histórico de receitas confirmadas nos últimos 12 meses</p>
-          </CardHeader>
-          <CardContent className="p-6 pt-0">
-            <div className="h-[260px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={revenueHistory} margin={{ top: 10, right: 5, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#2563FF" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="#2563FF" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F8FAFC" />
-                  <XAxis 
-                    dataKey="month" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94A3B8', fontSize: 10, fontWeight: 700 }} 
-                    dy={10} 
-                  />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94A3B8', fontSize: 10, fontWeight: 700 }} 
-                    tickFormatter={(v) => `R$ ${v >= 1000 ? (v/1000).toFixed(0) + 'k' : v}`} 
-                  />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '12px', border: '1px solid #F1F5F9', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', padding: '10px' }}
-                    formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Recebido']}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="value" 
-                    stroke="#2563FF" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorValue)" 
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card de Performance */}
-        <Card className="bg-white border border-slate-100 shadow-sm rounded-2xl p-6 flex flex-col justify-between">
-          <div>
-            <h4 className="text-sm font-bold text-slate-900 tracking-tight mb-1">Performance</h4>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Taxa de adimplência atual</p>
-          </div>
-
-          <div className="flex justify-center my-4">
-            <div className="w-32 h-32 relative">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={donutData}
-                    innerRadius="75%"
-                    outerRadius="95%"
-                    paddingAngle={4}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    {donutData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-2xl font-black text-slate-900">{collectionRate}%</span>
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Recebido</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2 border-t border-slate-50 pt-4">
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 font-bold text-slate-500">
-                <div className="w-2 h-2 rounded-full bg-[#10B981]" /> Recebido
-              </div>
-              <span className="font-black text-slate-900">R$ {stats.receitas.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 font-bold text-slate-500">
-                <div className="w-2 h-2 rounded-full bg-[#F59E0B]" /> Pendente
-              </div>
-              <span className="font-black text-slate-900">R$ {stats.pendente.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 font-bold text-slate-500">
-                <div className="w-2 h-2 rounded-full bg-[#EF4444]" /> Atrasado
-              </div>
-              <span className="font-black text-slate-900">R$ {stats.atrasado.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</span>
-            </div>
-          </div>
-        </Card>
+        <RevenueChart data={revenueHistory} />
+        <PerformanceCard 
+          receitas={stats.receitas} 
+          pendente={stats.pendente} 
+          atrasado={stats.atrasado} 
+          collectionRate={collectionRate} 
+        />
       </div>
 
-      {/* TERCEIRA LINHA: Inquilinos em Atraso (Coluna 1) + Ações Rápidas (Coluna 2) */}
+      {/* Inquilinos em Atraso + Ações Rápidas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        {/* Inquilinos em Atraso */}
-        <Card className="lg:col-span-2 bg-white border border-slate-100 shadow-sm rounded-2xl overflow-hidden">
-          <div className="p-6 border-b border-slate-50 flex items-center justify-between">
-            <div>
-              <h4 className="text-sm font-bold text-slate-900 tracking-tight">Inquilinos em atraso</h4>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ações de cobrança necessárias</p>
-            </div>
-            <Button 
-              onClick={() => setIsCollectionModalOpen(true)}
-              variant="outline"
-              className="h-8 px-3 rounded-lg border-slate-100 text-slate-600 font-bold text-xs hover:bg-slate-50"
-            >
-              Abrir Central de Cobrança
-            </Button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-50 bg-slate-50/30">
-                  <th className="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Nome</th>
-                  <th className="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Imóvel</th>
-                  <th className="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Dias em atraso</th>
-                  <th className="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valor</th>
-                  <th className="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Ação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {overdueTenants.length > 0 ? (
-                  overdueTenants.slice(0, 4).map((t) => {
-                    const daysOverdue = getDaysOverdue(t);
-                    return (
-                      <tr key={t.id} className="hover:bg-slate-50/30 transition-colors">
-                        <td className="p-4">
-                          <div className="flex items-center gap-2.5">
-                            <Avatar className="w-7 h-7 rounded-lg border border-slate-100">
-                              <AvatarImage src={getTenantAvatar(t.name)} />
-                              <AvatarFallback className="bg-blue-50 text-blue-600 font-black text-[10px]">
-                                {t.name.substring(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-xs font-bold text-slate-900">{t.name}</span>
-                          </div>
-                        </td>
-                        <td className="p-4 text-xs font-medium text-slate-500">
-                          {t.properties?.name || 'Sem imóvel'}
-                        </td>
-                        <td className="p-4">
-                          <Badge className="bg-rose-50 text-rose-600 border-none font-bold text-[10px] px-2 py-0.5 rounded-md">
-                            {daysOverdue} {daysOverdue === 1 ? 'dia' : 'dias'}
-                          </Badge>
-                        </td>
-                        <td className="p-4 text-xs font-black text-slate-900">
-                          R$ {t.totalDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="p-4 text-right">
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            className="h-7 px-3 rounded-lg text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-bold text-xs"
-                            onClick={() => { setSelectedTenantForCollection(t.id); setIsCollectionModalOpen(true); }}
-                          >
-                            Cobrar
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="p-8 text-center text-xs font-medium text-slate-400">
-                      Nenhum inquilino em atraso no momento.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-
-        {/* Ações Rápidas */}
-        <Card className="bg-white border border-slate-100 shadow-sm rounded-2xl p-6 flex flex-col justify-between">
-          <div>
-            <h4 className="text-sm font-bold text-slate-900 tracking-tight mb-1">Ações rápidas</h4>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-6">Atalhos operacionais</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <button 
-              onClick={() => navigate('/contracts')}
-              className="flex flex-col items-start p-4 rounded-xl border border-slate-100 hover:border-blue-500/20 hover:bg-blue-50/10 transition-all text-left group"
-            >
-              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center mb-3 group-hover:bg-blue-100 transition-colors">
-                <FileText className="w-4 h-4" />
-              </div>
-              <span className="text-xs font-bold text-slate-900">Novo contrato</span>
-            </button>
-
-            <button 
-              onClick={() => navigate('/properties')}
-              className="flex flex-col items-start p-4 rounded-xl border border-slate-100 hover:border-blue-500/20 hover:bg-blue-50/10 transition-all text-left group"
-            >
-              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3 group-hover:bg-emerald-100 transition-colors">
-                <Home className="w-4 h-4" />
-              </div>
-              <span className="text-xs font-bold text-slate-900">Novo imóvel</span>
-            </button>
-
-            <button 
-              onClick={() => navigate('/financial')}
-              className="flex flex-col items-start p-4 rounded-xl border border-slate-100 hover:border-blue-500/20 hover:bg-blue-50/10 transition-all text-left group"
-            >
-              <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center mb-3 group-hover:bg-amber-100 transition-colors">
-                <Plus className="w-4 h-4" />
-              </div>
-              <span className="text-xs font-bold text-slate-900">Nova cobrança</span>
-            </button>
-
-            <button 
-              onClick={() => navigate('/tenants')}
-              className="flex flex-col items-start p-4 rounded-xl border border-slate-100 hover:border-blue-500/20 hover:bg-blue-50/10 transition-all text-left group"
-            >
-              <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center mb-3 group-hover:bg-purple-100 transition-colors">
-                <UserPlus className="w-4 h-4" />
-              </div>
-              <span className="text-xs font-bold text-slate-900">Cadastrar inquilino</span>
-            </button>
-          </div>
-        </Card>
+        <OverdueTenantsTable 
+          tenants={overdueTenants} 
+          getDaysOverdue={getDaysOverdue} 
+          onCobrarClick={(id) => { setSelectedTenantForCollection(id); setIsCollectionModalOpen(true); }}
+          onOpenCentral={() => navigate('/financial')}
+        />
+        <QuickActions onNavigate={navigate} />
       </div>
 
-      {/* QUARTA LINHA: Recebimentos Recentes */}
-      <Card className="bg-white border border-slate-100 shadow-sm rounded-2xl overflow-hidden">
-        <div className="p-6 border-b border-slate-50">
-          <h4 className="text-sm font-bold text-slate-900 tracking-tight">Recebimentos recentes</h4>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Últimas transações confirmadas</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-50 bg-slate-50/30">
-                <th className="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Data</th>
-                <th className="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Inquilino</th>
-                <th className="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Imóvel</th>
-                <th className="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valor</th>
-                <th className="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {recentPayments.length > 0 ? (
-                recentPayments.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50/30 transition-colors">
-                    <td className="p-4 text-xs font-medium text-slate-500">{p.date}</td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        <Avatar className="w-6 h-6 rounded-md border border-slate-100">
-                          <AvatarImage src={getTenantAvatar(p.tenantName)} />
-                          <AvatarFallback className="bg-slate-100 text-slate-600 text-[9px] font-bold">
-                            {p.tenantName.substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs font-bold text-slate-900">{p.tenantName}</span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-xs font-medium text-slate-500">{p.property}</td>
-                    <td className="p-4 text-xs font-black text-slate-900">
-                      R$ {p.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="p-4">
-                      <Badge className="bg-emerald-50 text-emerald-600 border-none font-bold text-[10px] px-2 py-0.5 rounded-md">
-                        Pago
-                      </Badge>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="p-8 text-center text-xs font-medium text-slate-400">
-                    Nenhum recebimento recente registrado.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      {/* Recebimentos Recentes */}
+      <RecentPaymentsTable payments={recentPayments} />
 
+      {/* Modais de Ação */}
       <QuickPaymentModal 
         isOpen={isPaymentModalOpen} 
         onClose={() => setIsPaymentModalOpen(false)} 
