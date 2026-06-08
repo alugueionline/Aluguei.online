@@ -125,7 +125,7 @@ const Dashboard = () => {
 
           if (remainingRent > 0) {
             projectedTotal += remainingRent;
-            if (currentDay > dueDay) projectedIsOverdue = true;
+            if (currentDay >= dueDay) projectedIsOverdue = true;
           }
           
           const condoBills = t.bills?.filter((b: any) => b.type === 'condominio' && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id) || [];
@@ -135,7 +135,7 @@ const Dashboard = () => {
 
           if (remainingCondo > 0) {
             projectedTotal += remainingCondo;
-            if (currentDay > dueDay) projectedIsOverdue = true;
+            if (currentDay >= dueDay) projectedIsOverdue = true;
           }
         });
 
@@ -210,7 +210,7 @@ const Dashboard = () => {
 
       contracts.forEach(c => {
         const dueDay = c.due_day || 5;
-        const isOverdue = currentDay > dueDay;
+        const isOverdue = currentDay >= dueDay;
 
         const rentBills = bills.filter(b => b.tenant_id === c.tenant_id && b.property_id === c.property_id && (b.type === 'aluguel' || b.type === 'receita') && b.month === currentMonth && b.year === currentYear);
         const totalRentLaunched = rentBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);

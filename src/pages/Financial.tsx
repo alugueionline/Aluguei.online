@@ -128,7 +128,7 @@ const Financial = () => {
 
     contracts.forEach(c => {
       const dueDay = c.due_day || 5;
-      const isOverdue = currentDay > dueDay;
+      const isOverdue = currentDay >= dueDay;
 
       if (currentDay >= dueDay) {
         const rentBills = bills.filter(b => 
