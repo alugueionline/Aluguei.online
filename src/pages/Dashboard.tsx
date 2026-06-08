@@ -46,7 +46,6 @@ const Dashboard = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedTenantForCollection, setSelectedTenantForCollection] = useState<string | undefined>(undefined);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
-  const [period, setPeriod] = useState('Este mês');
 
   const isIncomeType = (type: string) => {
     const t = type?.toLowerCase() || '';
@@ -347,38 +346,6 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout>
-      {/* TOPO: Barra Horizontal Minimalista */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 pb-6 mb-8 border-b border-slate-100">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="Buscar inquilino, imóvel ou fatura..." 
-            className="w-full pl-10 pr-4 py-2 bg-slate-50/50 border border-slate-100 rounded-xl text-xs font-medium text-slate-600 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-          />
-        </div>
-        
-        <div className="flex items-center gap-4 w-full md:w-auto justify-end">
-          <div className="flex items-center gap-2 bg-white border border-slate-100 rounded-xl px-3 py-1.5 shadow-sm">
-            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            <select 
-              value={period} 
-              onChange={(e) => setPeriod(e.target.value)}
-              className="text-xs font-bold text-slate-600 bg-transparent border-none focus:outline-none cursor-pointer"
-            >
-              <option>Este mês</option>
-              <option>Últimos 30 dias</option>
-              <option>Último trimestre</option>
-            </select>
-          </div>
-
-          <button className="relative p-2 text-slate-400 hover:text-slate-600 transition-colors">
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-blue-600 rounded-full" />
-          </button>
-        </div>
-      </div>
-
       {/* PRIMEIRA LINHA: 4 KPI Cards Horizontais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
         {/* Recebido */}
