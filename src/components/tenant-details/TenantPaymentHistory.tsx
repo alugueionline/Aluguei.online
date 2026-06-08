@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,9 +22,11 @@ import {
   Trash2, 
   Edit2,
   Loader2, 
-  CalendarClock 
+  CalendarClock,
+  DollarSign
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PartialPaymentModal } from '@/components/modals/PartialPaymentModal';
 
 interface TenantPaymentHistoryProps {
   groupedHistory: any[];
@@ -55,9 +57,11 @@ export const TenantPaymentHistory = ({
   activeContracts,
   isBillOverdue
 }: TenantPaymentHistoryProps) => {
+  const [selectedBillForPartial, setSelectedBillForPartial] = useState<any>(null);
+  const [isPartialModalOpen, setIsPartialModalOpen] = useState(false);
 
   const getBillDescription = (bill: any) => {
-    if (bill.description) return bill.description; // Exibe a observação personalizada se houver!
+    if (bill.description) return bill.description;
     
     const type = bill.type?.toLowerCase();
     if (type === 'multa') return 'Multa por atraso de pagamento';
@@ -75,6 +79,11 @@ export const TenantPaymentHistory = ({
       '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro'
     };
     return months[monthStr] || monthStr;
+  };
+
+  const handleOpenPartialPayment = (bill: any) => {
+    setSelectedBillForPartial(bill);
+    setIsPartialModalOpen(true);
   };
 
   return (
@@ -215,18 +224,31 @@ export const TenantPaymentHistory = ({
                               </TableCell>
                               <TableCell className="p-4 pr-6 text-right">
                                 <div className="flex justify-end gap-1.5">
-                                  {bill.status !== 'pago' ? (
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      className="h-8 w-8 rounded-lg text-emerald-600 hover:bg-emerald-50" 
-                                      onClick={() => onMarkAsPaid(bill)} 
-                                      disabled={processingBillId === bill.id} 
-                                      title="Dar Baixa"
-                                    >
-                                      {processingBillId === bill.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                                    </Button>
-                                  ) : (
+                                  {bill.status !== 'pago' && (
+                                    <>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8 rounded-lg text-blue-600 hover:bg-blue-50" 
+                                        onClick={() => handleOpenPartialPayment(bill)} 
+                                        disabled={processingBillId === bill.id} 
+                                        title="Pagar Parcialmente"
+                                      >
+                                        <DollarSign className="w-3.5 h-3.5" />
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8 rounded-lg text-emerald-600 hover:bg-emerald-50" 
+                                        onClick={() => onMarkAsPaid(bill)} 
+                                        disabled={processingBillId === bill.id} 
+                                        title="Dar Baixa Integral"
+                                      >
+                                        {processingBillId === bill.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                      </Button>
+                                    </>
+                                  )}
+                                  {bill.status === 'pago' && (
                                     <Button 
                                       variant="ghost" 
                                       size="icon" 
@@ -283,6 +305,19 @@ export const TenantPaymentHistory = ({
           </div>
         )}
       </CardContent>
+
+      {selectedBillForPartial && (
+        <PartialPaymentModal 
+          isOpen={isPartialModalOpen}
+          onClose={() => {
+            setIsPartialModalOpen(false);
+            setSelectedBillForPartial(null);
+          }}
+          bill={selectedBillForPartial}
+          tenantId={groupedHistory[0]?.bills[0]?.tenant_id}
+          onSuccess={() => {}}
+        />
+      )}
     </Card>
   );
 };
