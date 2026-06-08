@@ -10,7 +10,7 @@ interface RevenueChartProps {
 
 export const RevenueChart = ({ data }: RevenueChartProps) => {
   return (
-    <Card className="bg-white border border-slate-100 shadow-sm rounded-2xl overflow-hidden">
+    <Card className="lg:col-span-2 bg-white border border-slate-100 shadow-sm rounded-2xl overflow-hidden">
       <CardHeader className="p-6 pb-2">
         <CardTitle className="text-sm font-bold text-slate-900 tracking-tight">Evolução dos Recebimentos</CardTitle>
         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Histórico de receitas confirmadas nos últimos 12 meses</p>

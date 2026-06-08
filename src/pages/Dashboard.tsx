@@ -290,22 +290,42 @@ const Dashboard = () => {
     return tenants.filter(t => t.dashboardStatus === 'atrasado' && t.totalDebt > 0);
   }, [tenants]);
 
-  // Calcula dias de atraso para o inquilino (baseado na fatura mais antiga)
+  // Calcula dias de atraso para o inquilino (baseado na fatura mais antiga, incluindo projetadas)
   const getDaysOverdue = (tenant: any) => {
     const dueDay = tenant.activeContracts?.[0]?.due_day || 5;
     const now = new Date();
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
     const overdueBills = tenant.bills?.filter((b: any) => b.status !== 'pago' && isBillOverdue(b, dueDay)) || [];
-    if (overdueBills.length === 0) return 0;
     
     let maxDays = 0;
+    
+    // 1. Verificar faturas reais no banco
     overdueBills.forEach((b: any) => {
       const dueDateMidnight = new Date(Number(b.year), Number(b.month) - 1, dueDay);
       const diffTime = todayMidnight.getTime() - dueDateMidnight.getTime();
       const days = Math.max(0, Math.round(diffTime / (1000 * 60 * 60 * 24)));
       if (days > maxDays) maxDays = days;
     });
+
+    // 2. Verificar faturas projetadas (aluguel do mês atual que já venceu)
+    const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
+    const currentYear = now.getFullYear();
+    
+    tenant.activeContracts?.forEach((contract: any) => {
+      const contractDueDay = contract.due_day || 5;
+      const rentBills = tenant.bills?.filter((b: any) => (b.type === 'aluguel' || b.type === 'receita') && b.month === currentMonth && b.year === currentYear && b.property_id === contract.property_id) || [];
+      const totalRentLaunched = rentBills.reduce((acc: number, b: any) => acc + Number(b.total_value || b.calculated_value || 0), 0);
+      const remainingRent = Math.max(0, Number(contract.rent_value || 0) - totalRentLaunched);
+
+      if (remainingRent > 0 && now.getDate() >= contractDueDay) {
+        const dueDateMidnight = new Date(currentYear, now.getMonth(), contractDueDay);
+        const diffTime = todayMidnight.getTime() - dueDateMidnight.getTime();
+        const days = Math.max(0, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+        if (days > maxDays) maxDays = days;
+      }
+    });
+
     return maxDays;
   };
 
