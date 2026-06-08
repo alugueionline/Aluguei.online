@@ -41,6 +41,7 @@ interface TenantPaymentHistoryProps {
   onEditBill?: (bill: any) => void;
   activeContracts: any[];
   isBillOverdue: (bill: any, dueDay: number) => boolean;
+  tenantId: string;
 }
 
 export const TenantPaymentHistory = ({
@@ -55,7 +56,8 @@ export const TenantPaymentHistory = ({
   onDeleteBill,
   onEditBill,
   activeContracts,
-  isBillOverdue
+  isBillOverdue,
+  tenantId
 }: TenantPaymentHistoryProps) => {
   const [selectedBillForPartial, setSelectedBillForPartial] = useState<any>(null);
   const [isPartialModalOpen, setIsPartialModalOpen] = useState(false);
@@ -314,7 +316,7 @@ export const TenantPaymentHistory = ({
             setSelectedBillForPartial(null);
           }}
           bill={selectedBillForPartial}
-          tenantId={groupedHistory[0]?.bills[0]?.tenant_id}
+          tenantId={tenantId}
           onSuccess={() => {}}
         />
       )}

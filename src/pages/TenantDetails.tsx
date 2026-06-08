@@ -231,7 +231,8 @@ const TenantDetails = () => {
           year: bill.year,
           total_value: bill.total_value,
           status: 'pago',
-          payment_date: new Date().toISOString()
+          payment_date: new Date().toISOString(),
+          description: bill.description || 'Pagamento Integral'
         }]);
         if (insertError) throw insertError;
       } else {
@@ -311,7 +312,7 @@ const TenantDetails = () => {
         <div className="lg:col-span-1"><TenantProfileCard tenant={tenant} financialData={financialData} /></div>
         <div className="lg:col-span-2 space-y-6">
           <TenantPropertiesList activeContracts={activeContracts} />
-          <TenantPaymentHistory groupedHistory={groupedHistory} expandedMonths={expandedMonths} onToggleMonth={toggleMonth} historyFilter={historyFilter} onFilterChange={setHistoryFilter} processingBillId={processingBillId} onMarkAsPaid={handleMarkAsPaid} onRevertPayment={handleRevertPayment} onDeleteBill={handleDeleteBill} onEditBill={handleEditBill} activeContracts={activeContracts} isBillOverdue={isBillOverdue} />
+          <TenantPaymentHistory groupedHistory={groupedHistory} expandedMonths={expandedMonths} onToggleMonth={toggleMonth} historyFilter={historyFilter} onFilterChange={setHistoryFilter} processingBillId={processingBillId} onMarkAsPaid={handleMarkAsPaid} onRevertPayment={handleRevertPayment} onDeleteBill={handleDeleteBill} onEditBill={handleEditBill} activeContracts={activeContracts} isBillOverdue={isBillOverdue} tenantId={id || ''} />
         </div>
       </div>
       <TenantModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); queryClient.invalidateQueries({ key: ['tenant', id] }); }} tenant={tenant} />
