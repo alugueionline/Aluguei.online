@@ -113,7 +113,7 @@ export const TenantCollectionList = () => {
 
         activeContracts.forEach((contract: any) => {
           const dueDay = contract.due_day || 5;
-          const isOverdue = currentDay > dueDay;
+          const isOverdue = currentDay >= dueDay;
 
           // Projeta o aluguel restante desde o dia 1º do mês atual
           const rentBills = tenantBills.filter(b => 

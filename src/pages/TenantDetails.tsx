@@ -119,7 +119,7 @@ const TenantDetails = () => {
           
           if (projected > 0) {
             totalDebt += projected;
-            const isOverdue = currentDay > dueDay;
+            const isOverdue = currentDay >= dueDay;
             if (isOverdue) totalOverdue += projected;
             
             displayHistory.unshift({
