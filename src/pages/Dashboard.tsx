@@ -15,13 +15,6 @@ import {
   FileText,
   Home,
   UserPlus,
-  MessageSquare,
-  Check,
-  ChevronRight,
-  TrendingUp,
-  AlertCircle,
-  Clock,
-  CheckCircle2,
   ArrowUpRight,
   Loader2
 } from 'lucide-react';
@@ -169,13 +162,15 @@ const Dashboard = () => {
   const { data: financialData, isLoading: loadingBills } = useQuery({
     queryKey: ['dashboard-stats-v12'],
     queryFn: async () => {
-      const [billsRes, contractsRes] = await Promise.all([
+      const [billsRes, contractsRes, tenantsRes] = await Promise.all([
         supabase.from('bills').select('*'), 
-        supabase.from('contracts').select('*, properties(condo_fee, base_rent)').eq('status', 'ativo')
+        supabase.from('contracts').select('*, properties(condo_fee, base_rent)').eq('status', 'ativo'),
+        supabase.from('tenants').select('*, properties(name)')
       ]);
       
       const bills = billsRes.data || [];
       const contracts = contractsRes.data || [];
+      const allTenants = tenantsRes.data || [];
       
       let rec = 0, des = 0, pen = 0, atr = 0;
       const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
@@ -268,7 +263,7 @@ const Dashboard = () => {
 
       const revenueHistory = last12Months.map(m => ({ month: m.monthName, value: m.value }));
 
-      // Recebimentos recentes (últimas faturas pagas)
+      // Recebimentos recentes (últimas faturas pagas) com nomes reais dos inquilinos
       const recentPayments = bills
         .filter(b => isIncomeType(b.type) && b.status === 'pago')
         .sort((a, b) => {
@@ -278,10 +273,10 @@ const Dashboard = () => {
         })
         .slice(0, 5)
         .map(b => {
-          const tenant = tenants.find(t => t.id === b.tenant_id);
+          const tenant = allTenants.find(t => t.id === b.tenant_id);
           return {
             id: b.id,
-            date: b.payment_date ? format(parseISO(b.payment_date), 'dd/MM/yyyy') : 'Recent',
+            date: b.payment_date ? format(parseISO(b.payment_date), 'dd/MM/yyyy') : 'Recente',
             tenantName: tenant?.name || 'Inquilino',
             property: tenant?.properties?.name || 'Imóvel',
             value: Number(b.total_value || b.calculated_value || 0),
@@ -381,15 +376,6 @@ const Dashboard = () => {
             <Bell className="w-4 h-4" />
             <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-blue-600 rounded-full" />
           </button>
-
-          <div className="h-8 w-px bg-slate-100" />
-
-          <div className="flex items-center gap-2.5">
-            <Avatar className="w-8 h-8 rounded-lg border border-slate-100">
-              <AvatarImage src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" />
-              <AvatarFallback className="bg-slate-100 text-slate-600 text-xs font-bold">AO</AvatarFallback>
-            </Avatar>
-          </div>
         </div>
       </div>
 
