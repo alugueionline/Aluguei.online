@@ -269,7 +269,7 @@ export const TenantCollectionList = () => {
                             </p>
                           ) : (
                             <p className="text-xs text-blue-600 font-black uppercase tracking-widest">
-                              Vence todo dia {defaultDueDay}
+                              Vence dia {defaultDueDay}
                             </p>
                           )}
                         </>
