@@ -8,6 +8,7 @@ import { isBillOverdue } from '@/utils/financial';
 import { BillingSummaryForm } from './billing-summary/BillingSummaryForm';
 import { BillingSummaryPreview } from './billing-summary/BillingSummaryPreview';
 import { ExtraValue } from './billing-summary/ExtraValuesList';
+import { cn } from '@/lib/utils';
 
 interface BillingSummaryModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
   const [tenants, setTenants] = useState<any[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [pixKey, setPixKey] = useState('seu-pix@email.com');
+  const [activeTab, setActiveTab] = useState<'form' | 'preview'>('form');
   
   // Dados brutos para cálculo reativo
   const [rawBills, setRawBills] = useState<any[]>([]);
@@ -50,6 +52,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
     if (isOpen) {
       fetchInitialData();
       setFilterType('all');
+      setActiveTab('form');
     }
   }, [isOpen, tenantId]);
 
@@ -361,35 +364,65 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95vw] md:max-w-[900px] rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl bg-white max-h-[90vh]">
-        <div className="flex flex-col md:grid md:grid-cols-2 h-[85vh] md:h-[620px] overflow-hidden">
-          <BillingSummaryForm 
-            tenants={tenants}
-            selectedTenantId={selectedTenantId}
-            onSelectTenant={handleSelectTenant}
-            loading={loading}
-            filterType={filterType}
-            onFilterTypeChange={setFilterType}
-            rentValue={rentValue}
-            onRentValueChange={setRentValue}
-            fineValue={fineValue}
-            onFineValueChange={setFineValue}
-            interestValue={interestValue}
-            onInterestValueChange={setInterestValue}
-            extraValues={extraValues}
-            onAddExtra={() => setExtraValues([...extraValues, { label: '', value: '0' }])}
-            onRemoveExtra={(index) => setExtraValues(extraValues.filter((_, i) => i !== index))}
-            onUpdateExtra={handleUpdateExtra}
-            total={total}
-          />
+      <DialogContent className="max-w-[95vw] md:max-w-[900px] rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl bg-white max-h-[95vh] md:max-h-[90vh] flex flex-col">
+        {/* Seletor de Abas para Celular */}
+        <div className="flex md:hidden bg-slate-100 p-1.5 m-4 mb-0 rounded-2xl shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('form')}
+            className={cn(
+              "flex-1 py-2.5 rounded-xl text-xs font-black uppercase transition-all",
+              activeTab === 'form' ? "bg-white shadow-sm text-blue-600" : "text-slate-500"
+            )}
+          >
+            1. Configurar Valores
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('preview')}
+            className={cn(
+              "flex-1 py-2.5 rounded-xl text-xs font-black uppercase transition-all",
+              activeTab === 'preview' ? "bg-white shadow-sm text-blue-600" : "text-slate-500"
+            )}
+          >
+            2. Ver Mensagem
+          </button>
+        </div>
 
-          <BillingSummaryPreview 
-            generatedMessage={generatedMessage}
-            sendMethod={sendMethod}
-            onSendMethodChange={setSendMethod}
-            onSend={handleSend}
-            onCopy={() => { navigator.clipboard.writeText(generatedMessage); showSuccess('Copiado!'); }}
-          />
+        <div className="flex-1 flex flex-col md:grid md:grid-cols-2 h-[75vh] md:h-[620px] overflow-hidden">
+          {/* Coluna 1: Formulário */}
+          <div className={cn("h-full flex-col overflow-hidden md:flex", activeTab === 'form' ? 'flex' : 'hidden')}>
+            <BillingSummaryForm 
+              tenants={tenants}
+              selectedTenantId={selectedTenantId}
+              onSelectTenant={handleSelectTenant}
+              loading={loading}
+              filterType={filterType}
+              onFilterTypeChange={setFilterType}
+              rentValue={rentValue}
+              onRentValueChange={setRentValue}
+              fineValue={fineValue}
+              onFineValueChange={setFineValue}
+              interestValue={interestValue}
+              onInterestValueChange={setInterestValue}
+              extraValues={extraValues}
+              onAddExtra={() => setExtraValues([...extraValues, { label: '', value: '0' }])}
+              onRemoveExtra={(index) => setExtraValues(extraValues.filter((_, i) => i !== index))}
+              onUpdateExtra={handleUpdateExtra}
+              total={total}
+            />
+          </div>
+
+          {/* Coluna 2: Preview */}
+          <div className={cn("h-full flex-col overflow-hidden md:flex", activeTab === 'preview' ? 'flex' : 'hidden')}>
+            <BillingSummaryPreview 
+              generatedMessage={generatedMessage}
+              sendMethod={sendMethod}
+              onSendMethodChange={setSendMethod}
+              onSend={handleSend}
+              onCopy={() => { navigator.clipboard.writeText(generatedMessage); showSuccess('Copiado!'); }}
+            />
+          </div>
         </div>
       </DialogContent>
     </Dialog>
