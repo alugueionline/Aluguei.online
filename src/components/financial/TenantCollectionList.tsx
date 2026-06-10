@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MessageSquare, Clock, Loader2, ChevronRight, AlertCircle, Info, Check } from 'lucide-react';
+import { MessageSquare, Clock, Loader2, ChevronRight, AlertCircle, Info, Check, CalendarAlert } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { BillingSummaryModal } from './BillingSummaryModal';
@@ -122,7 +122,7 @@ export const TenantCollectionList = () => {
             b.month === currentMonth && 
             b.year === currentYear
           );
-          const totalRentLaunched = rentBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
+          const totalRentLaunched = rentBills.reduce((acc: number, b: any) => acc + Number(b.total_value || b.calculated_value || 0), 0);
           const remainingRent = Math.max(0, Number(contract.rent_value || 0) - totalRentLaunched);
 
           if (remainingRent > 0) {
@@ -138,7 +138,7 @@ export const TenantCollectionList = () => {
             b.month === currentMonth && 
             b.year === currentYear
           );
-          const totalCondoLaunched = condoBills.reduce((acc, b) => acc + Number(b.total_value || b.calculated_value || 0), 0);
+          const totalCondoLaunched = condoBills.reduce((acc: number, b: any) => acc + Number(b.total_value || b.calculated_value || 0), 0);
           const condoFee = Number(contract.properties?.condo_fee || 0);
           const remainingCondo = Math.max(0, condoFee - totalCondoLaunched);
 
@@ -152,12 +152,50 @@ export const TenantCollectionList = () => {
         const totalDebt = existingBillsTotal + projectedTotal;
         const hasOverdue = existingIsOverdue || projectedIsOverdue;
 
+        // Calcular dias de atraso
+        let maxDaysOverdue = 0;
+        const todayMidnight = new Date(currentYear, new Date().getMonth(), currentDay);
+
+        // 1. Faturas reais atrasadas
+        pendingBillsList.forEach(b => {
+          const contract = activeContracts.find(c => c.property_id === b.property_id);
+          const dueDay = contract?.due_day || t.due_day || 5;
+          if (isBillOverdue(b, dueDay)) {
+            const dueDateMidnight = new Date(Number(b.year), Number(b.month) - 1, dueDay);
+            const diffTime = todayMidnight.getTime() - dueDateMidnight.getTime();
+            const days = Math.max(0, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+            if (days > maxDaysOverdue) maxDaysOverdue = days;
+          }
+        });
+
+        // 2. Faturas projetadas atrasadas
+        activeContracts.forEach((contract: any) => {
+          const contractDueDay = contract.due_day || t.due_day || 5;
+          const rentBills = tenantBills.filter(b => 
+            b.property_id === contract.property_id &&
+            (b.type === 'aluguel' || b.type === 'receita') && 
+            b.month === currentMonth && 
+            b.year === currentYear
+          );
+          const totalRentLaunched = rentBills.reduce((acc: number, b: any) => acc + Number(b.total_value || b.calculated_value || 0), 0);
+          const remainingRent = Math.max(0, Number(contract.rent_value || 0) - totalRentLaunched);
+
+          if (remainingRent > 0 && currentDay >= contractDueDay) {
+            const dueDateMidnight = new Date(currentYear, new Date().getMonth(), contractDueDay);
+            const diffTime = todayMidnight.getTime() - dueDateMidnight.getTime();
+            const days = Math.max(0, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+            if (days > maxDaysOverdue) maxDaysOverdue = days;
+          }
+        });
+
         return {
           ...t,
           totalDebt,
           pendingCount: pendingBillsList.length + projectedItems.length,
           hasOverdue,
+          daysOverdue: maxDaysOverdue,
           bills: tenantBills,
+          activeContracts,
           breakdown: {
             projectedItems,
             pendingBills: pendingBillsList
@@ -191,109 +229,131 @@ export const TenantCollectionList = () => {
   return (
     <div className="space-y-4">
       <TooltipProvider>
-        {tenantDebts.map((tenant) => (
-          <Card 
-            key={tenant.id} 
-            className={cn(
-              "border-none shadow-sm hover:shadow-md transition-all rounded-[2rem] overflow-hidden group cursor-pointer",
-              tenant.hasOverdue ? "bg-rose-50/50 ring-1 ring-rose-100" : "bg-white"
-            )}
-            onClick={() => navigate(`/tenants/${tenant.id}`)}
-          >
-            <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="flex items-center gap-4 w-full md:w-auto">
-                <Avatar className="w-14 h-14 rounded-2xl border-2 border-white shadow-sm group-hover:border-blue-200 transition-all">
-                  <AvatarImage src={getTenantAvatar(tenant.name)} />
-                  <AvatarFallback className="bg-blue-50 text-blue-600 font-black">
-                    {tenant.name.substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors">{tenant.name}</h3>
-                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5">
-                    <Clock className="w-3 h-3 text-blue-500" /> 
-                    {tenant.contracts?.length > 1 
-                      ? `${tenant.contracts.length} Contratos Ativos` 
-                      : (tenant.properties?.name || 'Sem imóvel')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between md:justify-end gap-8 w-full md:w-auto border-t md:border-none pt-4 md:pt-0">
-                <div className="text-left md:text-right">
-                  <div className="flex items-center gap-2 md:justify-end">
-                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Total Pendente</p>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="w-3 h-3 text-slate-300 cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-none p-4 rounded-2xl shadow-xl">
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Detalhamento</p>
-                          
-                          {tenant.breakdown.projectedItems.map((item: any, i: number) => (
-                            <div key={`proj-${i}`} className="flex justify-between gap-8 text-xs">
-                              <span>{item.type}:</span>
-                              <span className="font-bold text-amber-400">R$ {Number(item.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                          ))}
-
-                          {tenant.breakdown.pendingBills.map((b: any, i: number) => (
-                            <div key={`bill-${i}`} className="flex justify-between gap-8 text-xs">
-                              <span className="capitalize">{b.type} ({b.month}/{b.year}):</span>
-                              <span className="font-bold">R$ {Number(b.total_value || b.calculated_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                          ))}
-
-                          {tenant.totalDebt === 0 && (
-                            <p className="text-xs text-slate-400 italic">Nenhum débito pendente</p>
+        {tenantDebts.map((tenant) => {
+          const defaultDueDay = tenant.activeContracts?.[0]?.due_day || tenant.due_day || 5;
+          
+          return (
+            <Card 
+              key={tenant.id} 
+              className={cn(
+                "border-none shadow-sm hover:shadow-md transition-all rounded-[2rem] overflow-hidden group cursor-pointer",
+                tenant.hasOverdue ? "bg-rose-50/50 ring-1 ring-rose-100" : "bg-white"
+              )}
+              onClick={() => navigate(`/tenants/${tenant.id}`)}
+            >
+              <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                  <Avatar className="w-14 h-14 rounded-2xl border-2 border-white shadow-sm group-hover:border-blue-200 transition-all">
+                    <AvatarImage src={getTenantAvatar(tenant.name)} />
+                    <AvatarFallback className="bg-blue-50 text-blue-600 font-black">
+                      {tenant.name.substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors">{tenant.name}</h3>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-0.5">
+                      <p className="text-xs text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5">
+                        <Clock className="w-3 h-3 text-blue-500" /> 
+                        {tenant.activeContracts?.length > 1 
+                          ? `${tenant.activeContracts.length} Contratos Ativos` 
+                          : (tenant.properties?.name || 'Sem imóvel')}
+                      </p>
+                      
+                      {tenant.totalDebt > 0 && (
+                        <>
+                          <span className="hidden sm:inline text-slate-300">•</span>
+                          {tenant.hasOverdue ? (
+                            <p className="text-xs text-rose-600 font-black uppercase tracking-widest flex items-center gap-1">
+                              <CalendarAlert className="w-3 h-3" />
+                              Vencido há {tenant.daysOverdue} {tenant.daysOverdue === 1 ? 'dia' : 'dias'}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-blue-600 font-black uppercase tracking-widest">
+                              Vence todo dia {defaultDueDay}
+                            </p>
                           )}
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                    {tenant.hasOverdue && <AlertCircle className="w-3 h-3 text-rose-500" />}
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <p className={cn(
-                    "text-xl font-black tracking-tight",
-                    tenant.totalDebt > 0 ? (tenant.hasOverdue ? "text-rose-600" : "text-amber-600") : "text-emerald-600"
-                  )}>
-                    R$ {tenant.totalDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </p>
                 </div>
-                
-                <div className="flex items-center gap-3">
-                  {tenant.totalDebt > 0 ? (
-                    <Button 
-                      onClick={(e) => handleOpenPayment(e, tenant)}
-                      className="h-12 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black gap-2 shadow-lg shadow-emerald-100 active:scale-95 transition-all"
-                    >
-                      <Check className="w-4 h-4" />
-                      Dar Baixa
-                    </Button>
-                  ) : (
-                    <Badge className="bg-emerald-50 text-emerald-600 border-none px-4 py-2 rounded-xl font-black text-[10px] uppercase">
-                      Tudo Pago
-                    </Badge>
-                  )}
-                  <Button 
-                    onClick={(e) => handleCollect(e, tenant.id)}
-                    variant="outline"
-                    className={cn(
-                      "h-12 px-6 rounded-2xl font-black gap-2 transition-all active:scale-95",
-                      tenant.totalDebt > 0 
-                        ? "border-blue-200 text-blue-600 hover:bg-blue-50" 
-                        : "bg-slate-100 text-slate-400 border-none"
+
+                <div className="flex items-center justify-between md:justify-end gap-8 w-full md:w-auto border-t md:border-none pt-4 md:pt-0">
+                  <div className="text-left md:text-right">
+                    <div className="flex items-center gap-2 md:justify-end">
+                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Total Pendente</p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="w-3 h-3 text-slate-300 cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-none p-4 rounded-2xl shadow-xl">
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Detalhamento</p>
+                            
+                            {tenant.breakdown.projectedItems.map((item: any, i: number) => (
+                              <div key={`proj-${i}`} className="flex justify-between gap-8 text-xs">
+                                <span>{item.type}:</span>
+                                <span className="font-bold text-amber-400">R$ {Number(item.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            ))}
+
+                            {tenant.breakdown.pendingBills.map((b: any, i: number) => (
+                              <div key={`bill-${i}`} className="flex justify-between gap-8 text-xs">
+                                <span className="capitalize">{b.type} ({b.month}/{b.year}):</span>
+                                <span className="font-bold">R$ {Number(b.total_value || b.calculated_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            ))}
+
+                            {tenant.totalDebt === 0 && (
+                              <p className="text-xs text-slate-400 italic">Nenhum débito pendente</p>
+                            )}
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                      {tenant.hasOverdue && <AlertCircle className="w-3 h-3 text-rose-500" />}
+                    </div>
+                    <p className={cn(
+                      "text-xl font-black tracking-tight",
+                      tenant.totalDebt > 0 ? (tenant.hasOverdue ? "text-rose-600" : "text-amber-600") : "text-emerald-600"
+                    )}>
+                      R$ {tenant.totalDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    {tenant.totalDebt > 0 ? (
+                      <Button 
+                        onClick={(e) => handleOpenPayment(e, tenant)}
+                        className="h-12 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black gap-2 shadow-lg shadow-emerald-100 active:scale-95 transition-all"
+                      >
+                        <Check className="w-4 h-4" />
+                        Dar Baixa
+                      </Button>
+                    ) : (
+                      <Badge className="bg-emerald-50 text-emerald-600 border-none px-4 py-2 rounded-xl font-black text-[10px] uppercase">
+                        Tudo Pago
+                      </Badge>
                     )}
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                    Cobrar
-                  </Button>
-                  <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-600 transition-all" />
+                    <Button 
+                      onClick={(e) => handleCollect(e, tenant.id)}
+                      variant="outline"
+                      className={cn(
+                        "h-12 px-6 rounded-2xl font-black gap-2 transition-all active:scale-95",
+                        tenant.totalDebt > 0 
+                          ? "border-blue-200 text-blue-600 hover:bg-blue-50" 
+                          : "bg-slate-100 text-slate-400 border-none"
+                      )}
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      Cobrar
+                    </Button>
+                    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-600 transition-all" />
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </TooltipProvider>
 
       <BillingSummaryModal 
