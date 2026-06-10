@@ -73,7 +73,6 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
           rent_value: tenantRes.data.properties?.base_rent || 0,
           due_day: tenantRes.data.due_day || 5,
           status: 'ativo',
-          start_date: tenantRes.data.contract_start_date,
           properties: {
             name: tenantRes.data.properties?.name || 'Imóvel',
             condo_fee: tenantRes.data.properties?.condo_fee || 0
@@ -363,7 +362,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-[95vw] md:max-w-[900px] rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl">
-        <div className="flex flex-col md:grid md:grid-cols-2 h-[90vh] md:h-[750px]">
+        <div className="flex flex-col md:grid md:grid-cols-2 h-[90vh] md:h-[750px] overflow-hidden">
           <BillingSummaryForm 
             tenants={tenants}
             selectedTenantId={selectedTenantId}

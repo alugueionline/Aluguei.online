@@ -20,8 +20,8 @@ export const BillingSummaryPreview = ({
   onCopy
 }: BillingSummaryPreviewProps) => {
   return (
-    <div className="bg-slate-900 p-6 md:p-8 flex flex-col h-full">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-slate-900 p-6 md:p-8 flex flex-col h-full flex-1 min-h-0">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <div className="flex items-center gap-2 text-blue-400">
           <MessageSquare className="w-5 h-5" />
           <span className="text-[10px] font-black uppercase tracking-widest">Preview da Cobrança</span>
@@ -50,7 +50,7 @@ export const BillingSummaryPreview = ({
         {generatedMessage}
       </div>
       
-      <div className="grid grid-cols-2 gap-3 mt-auto">
+      <div className="grid grid-cols-2 gap-3 mt-auto shrink-0">
         <Button 
           variant="ghost" 
           className="rounded-xl h-12 font-bold text-slate-400 hover:bg-slate-800 hover:text-white gap-2" 
