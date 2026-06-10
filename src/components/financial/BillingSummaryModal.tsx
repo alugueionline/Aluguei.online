@@ -364,7 +364,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95vw] md:max-w-[900px] rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl bg-white max-h-[95vh] md:max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-[95vw] md:max-w-[900px] rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl bg-white max-h-[90vh] flex flex-col">
         {/* Seletor de Abas para Celular */}
         <div className="flex md:hidden bg-slate-100 p-1.5 m-4 mb-0 rounded-2xl shrink-0">
           <button
@@ -391,7 +391,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
 
         <div className="flex-1 flex flex-col md:grid md:grid-cols-2 h-[75vh] md:h-[620px] overflow-hidden">
           {/* Coluna 1: Formulário */}
-          <div className={cn("h-full flex-col overflow-hidden md:flex", activeTab === 'form' ? 'flex' : 'hidden')}>
+          <div className={cn("flex-1 md:h-full flex-col overflow-hidden md:flex", activeTab === 'form' ? 'flex' : 'hidden')}>
             <BillingSummaryForm 
               tenants={tenants}
               selectedTenantId={selectedTenantId}
@@ -414,7 +414,7 @@ export const BillingSummaryModal = ({ isOpen, onClose, tenantId }: BillingSummar
           </div>
 
           {/* Coluna 2: Preview */}
-          <div className={cn("h-full flex-col overflow-hidden md:flex", activeTab === 'preview' ? 'flex' : 'hidden')}>
+          <div className={cn("flex-1 md:h-full flex-col overflow-hidden md:flex", activeTab === 'preview' ? 'flex' : 'hidden')}>
             <BillingSummaryPreview 
               generatedMessage={generatedMessage}
               sendMethod={sendMethod}
