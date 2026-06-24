@@ -24,7 +24,6 @@ import {
   UserX, 
   Loader2, 
   Home, 
-  Archive, 
   AlertCircle, 
   RefreshCw 
 } from 'lucide-react';
@@ -73,7 +72,7 @@ const Tenants = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
 
-      // 1. Criar o inquilino Marivaldo como encerrado
+      // 1. Criar o inquilino Marivaldo como encerrado (Ex-Inquilino)
       const { data: tenantData, error: tenantError } = await supabase
         .from('tenants')
         .insert([{
@@ -91,26 +90,45 @@ const Tenants = () => {
 
       if (tenantError) throw tenantError;
 
-      // 2. Criar uma fatura pendente (dívida em aberto) para ele
-      const { error: billError } = await supabase
+      // 2. Buscar se já existem faturas órfãs no banco de dados que mencionam "Marivaldo" na descrição
+      const { data: existingOrphanBills } = await supabase
         .from('bills')
-        .insert([{
-          user_id: user.id,
-          tenant_id: tenantData.id,
-          type: 'aluguel',
-          month: '05',
-          year: 2024,
-          total_value: 1250.00,
-          calculated_value: 1250.00,
-          status: 'atrasado',
-          description: 'Aluguel residual pendente de acerto de desocupação'
-        }]);
+        .select('id, description')
+        .or('description.ilike.%Marivaldo%,description.ilike.%Souza%');
 
-      if (billError) throw billError;
+      if (existingOrphanBills && existingOrphanBills.length > 0) {
+        // Vincular as faturas existentes ao novo ID do Marivaldo
+        const billIds = existingOrphanBills.map(b => b.id);
+        const { error: updateError } = await supabase
+          .from('bills')
+          .update({ tenant_id: tenantData.id })
+          .in('id', billIds);
 
-      showSuccess('Marivaldo Souza recuperado com sucesso como Ex-Inquilino com dívida ativa!');
+        if (updateError) throw updateError;
+        showSuccess(`Marivaldo Souza recuperado! Vinculamos ${existingOrphanBills.length} faturas antigas encontradas no banco.`);
+      } else {
+        // Se não houver faturas antigas no banco, criamos a fatura padrão de R$ 1.250,00
+        const { error: billError } = await supabase
+          .from('bills')
+          .insert([{
+            user_id: user.id,
+            tenant_id: tenantData.id,
+            type: 'aluguel',
+            month: '05',
+            year: 2024,
+            total_value: 1250.00,
+            calculated_value: 1250.00,
+            status: 'atrasado',
+            description: 'Aluguel residual pendente de acerto de desocupação (Marivaldo Souza)'
+          }]);
+
+        if (billError) throw billError;
+        showSuccess('Marivaldo Souza recuperado com sucesso com sua dívida ativa de R$ 1.250,00!');
+      }
+
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       queryClient.invalidateQueries({ queryKey: ['bills'] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-collection-list'] });
       setActiveTab('encerrados');
     } catch (error: any) {
       showError('Erro ao recuperar Marivaldo: ' + error.message);
