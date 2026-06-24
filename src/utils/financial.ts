@@ -1,5 +1,7 @@
 "use client";
 
+import { isBefore, parseISO, startOfDay } from 'date-fns';
+
 /**
  * Verifica se uma fatura está atrasada com base no dia de vencimento do contrato.
  */
@@ -27,14 +29,22 @@ export const isBillOverdue = (bill: any, dueDay: number = 5) => {
 
 /**
  * Retorna o valor do aluguel projetado restante para o mês atual, abatendo qualquer pagamento parcial já lançado.
+ * Também verifica se o contrato já começou de fato.
  */
 export const getProjectedRent = (contract: any, bills: any[]) => {
-  const now = new Date();
+  const now = startOfDay(new Date());
   const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
   const currentYear = now.getFullYear();
 
+  // Se o contrato tem uma data de início e ela é no futuro, não projeta aluguel ainda
+  if (contract.start_date) {
+    const startDate = startOfDay(parseISO(contract.start_date));
+    if (isBefore(now, startDate)) {
+      return 0;
+    }
+  }
+
   // Filtra todos os lançamentos de aluguel deste imóvel para o mês atual (pagos ou pendentes)
-  // Permite correspondência mesmo se o property_id for nulo no lançamento
   const rentBills = bills.filter(b => 
     (b.property_id === contract.property_id || !b.property_id || !contract.property_id) && 
     (b.type === 'aluguel' || b.type === 'receita') && 
