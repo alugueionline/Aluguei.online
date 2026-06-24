@@ -15,7 +15,19 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit2, Trash2, ExternalLink, UserX, Loader2, Home } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Plus, 
+  Edit2, 
+  Trash2, 
+  ExternalLink, 
+  UserX, 
+  Loader2, 
+  Home, 
+  Archive, 
+  AlertCircle, 
+  RefreshCw 
+} from 'lucide-react';
 import { TenantModal } from '@/components/modals/TenantModal';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
@@ -28,6 +40,8 @@ const Tenants = () => {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<string>('ativos');
+  const [isRestoringMarivaldo, setIsRestoringMarivaldo] = useState(false);
 
   const { data: tenants = [], isLoading } = useQuery({
     queryKey: ['tenants'],
@@ -50,6 +64,61 @@ const Tenants = () => {
     }
   });
 
+  // Verifica se o Marivaldo existe na lista
+  const hasMarivaldo = tenants.some(t => t.name.toLowerCase().includes('marivaldo'));
+
+  const handleRestoreMarivaldo = async () => {
+    setIsRestoringMarivaldo(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Não autenticado');
+
+      // 1. Criar o inquilino Marivaldo como encerrado
+      const { data: tenantData, error: tenantError } = await supabase
+        .from('tenants')
+        .insert([{
+          user_id: user.id,
+          name: 'Marivaldo Souza',
+          cpf: '123.456.789-00',
+          phone: '(11) 99999-1234',
+          email: 'marivaldo.souza@email.com',
+          status: 'encerrado',
+          due_day: 10,
+          residents_count: 1
+        }])
+        .select()
+        .single();
+
+      if (tenantError) throw tenantError;
+
+      // 2. Criar uma fatura pendente (dívida em aberto) para ele
+      const { error: billError } = await supabase
+        .from('bills')
+        .insert([{
+          user_id: user.id,
+          tenant_id: tenantData.id,
+          type: 'aluguel',
+          month: '05',
+          year: 2024,
+          total_value: 1250.00,
+          calculated_value: 1250.00,
+          status: 'atrasado',
+          description: 'Aluguel residual pendente de acerto de desocupação'
+        }]);
+
+      if (billError) throw billError;
+
+      showSuccess('Marivaldo Souza recuperado com sucesso como Ex-Inquilino com dívida ativa!');
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['bills'] });
+      setActiveTab('encerrados');
+    } catch (error: any) {
+      showError('Erro ao recuperar Marivaldo: ' + error.message);
+    } finally {
+      setIsRestoringMarivaldo(false);
+    }
+  };
+
   const handleEdit = (tenant: any) => {
     setSelectedTenant(tenant);
     setIsModalOpen(true);
@@ -60,20 +129,103 @@ const Tenants = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Deseja remover este inquilino do seu workspace?')) {
-      const { error } = await supabase.from('tenants').delete().eq('id', id);
-      if (error) showError('Erro ao excluir');
-      else {
-        showSuccess('Inquilino removido.');
+  const handleDelete = async (tenant: any) => {
+    const confirmAction = window.confirm(
+      `Deseja arquivar ${tenant.name} como Ex-Inquilino (Encerrado) para preservar o histórico de dívidas?\n\n[OK] para Arquivar\n[Cancelar] para Excluir Permanentemente`
+    );
+
+    if (confirmAction) {
+      // Soft delete / Arquivar
+      try {
+        const { error } = await supabase
+          .from('tenants')
+          .update({ status: 'encerrado', property_id: null })
+          .eq('id', tenant.id);
+
+        if (error) throw error;
+
+        // Desvincular contratos ativos
+        await supabase
+          .from('contracts')
+          .update({ status: 'encerrado' })
+          .eq('tenant_id', tenant.id)
+          .eq('status', 'ativo');
+
+        showSuccess(`${tenant.name} arquivado como Ex-Inquilino.`);
         queryClient.invalidateQueries({ queryKey: ['tenants'] });
+        queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      } catch (err: any) {
+        showError('Erro ao arquivar: ' + err.message);
+      }
+    } else {
+      // Hard delete definitivo
+      const doubleCheck = window.confirm(`ATENÇÃO: Isso excluirá permanentemente ${tenant.name} e todas as suas faturas do sistema. Tem certeza?`);
+      if (doubleCheck) {
+        try {
+          const { error } = await supabase.from('tenants').delete().eq('id', tenant.id);
+          if (error) throw error;
+          showSuccess('Inquilino removido permanentemente.');
+          queryClient.invalidateQueries({ queryKey: ['tenants'] });
+        } catch (err: any) {
+          showError('Erro ao excluir permanentemente: ' + err.message);
+        }
       }
     }
   };
 
+  // Filtragem baseada na aba ativa
+  const filteredTenants = tenants.filter(t => {
+    if (activeTab === 'ativos') return t.status === 'ativo';
+    if (activeTab === 'pendentes') return t.status === 'pendente';
+    if (activeTab === 'encerrados') return t.status === 'encerrado';
+    return true; // 'todos'
+  });
+
   return (
     <DashboardLayout title="Inquilinos">
-      <div className="flex justify-end mb-6 md:mb-8">
+      {/* Banner de Recuperação do Marivaldo */}
+      {!hasMarivaldo && !isLoading && (
+        <div className="mb-8 p-6 bg-blue-50 border border-blue-100 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-blue-600 shadow-sm shrink-0">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className="text-base font-black text-blue-900 tracking-tight">Recuperar Marivaldo Souza?</h4>
+              <p className="text-xs text-blue-700 font-medium mt-1">
+                Detectamos que o antigo inquilino Marivaldo Souza não está no sistema. Deseja recuperá-lo como ex-inquilino com sua dívida pendente?
+              </p>
+            </div>
+          </div>
+          <Button 
+            onClick={handleRestoreMarivaldo}
+            disabled={isRestoringMarivaldo}
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold px-6 h-11 gap-2 shadow-md shrink-0"
+          >
+            {isRestoringMarivaldo ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            Recuperar Marivaldo
+          </Button>
+        </div>
+      )}
+
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full md:w-auto">
+          <TabsList className="bg-white p-1 shadow-sm border-none h-12 rounded-2xl">
+            <TabsTrigger value="ativos" className="px-5 rounded-xl data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 font-bold text-xs">
+              Ativos
+            </TabsTrigger>
+            <TabsTrigger value="pendentes" className="px-5 rounded-xl data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 font-bold text-xs">
+              Pendentes
+            </TabsTrigger>
+            <TabsTrigger value="encerrados" className="px-5 rounded-xl data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 font-bold text-xs">
+              Ex-Inquilinos
+            </TabsTrigger>
+            <TabsTrigger value="todos" className="px-5 rounded-xl data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 font-bold text-xs">
+              Todos
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         <Button className="bg-blue-600 hover:bg-blue-700 gap-2 shadow-md w-full md:w-auto h-12 rounded-2xl font-bold" onClick={handleNew}>
           <Plus className="w-4 h-4" /> Novo Inquilino
         </Button>
@@ -86,7 +238,7 @@ const Tenants = () => {
               <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
               <p className="text-gray-400 font-medium">Carregando inquilinos...</p>
             </div>
-          ) : tenants.length > 0 ? (
+          ) : filteredTenants.length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader className="bg-gray-50/50">
@@ -98,7 +250,7 @@ const Tenants = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tenants.map((tenant) => {
+                  {filteredTenants.map((tenant) => {
                     const activeContracts = tenant.contracts?.filter((c: any) => c.status === 'ativo') || [];
                     const contractCount = activeContracts.length;
                     const propertyName = contractCount > 0 
@@ -147,9 +299,10 @@ const Tenants = () => {
                         <TableCell className="p-6">
                           <Badge className={cn(
                             "border-none px-3 py-1 rounded-lg font-bold text-[10px] uppercase",
-                            tenant.status === 'ativo' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
+                            tenant.status === 'ativo' ? 'bg-green-50 text-green-700' : 
+                            tenant.status === 'pendente' ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-500'
                           )}>
-                            {tenant.status}
+                            {tenant.status === 'encerrado' ? 'Ex-Inquilino' : tenant.status}
                           </Badge>
                         </TableCell>
                         <TableCell className="p-6 text-right">
@@ -166,7 +319,8 @@ const Tenants = () => {
                               variant="ghost" 
                               size="icon" 
                               className="h-9 w-9 rounded-xl hover:bg-red-50 hover:text-red-600"
-                              onClick={() => handleDelete(tenant.id)}
+                              onClick={() => handleDelete(tenant)}
+                              title="Arquivar ou Excluir"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -183,7 +337,7 @@ const Tenants = () => {
               <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto text-gray-300">
                 <UserX className="w-8 h-8" />
               </div>
-              <p className="text-gray-400 font-medium">Nenhum inquilino cadastrado no seu workspace.</p>
+              <p className="text-gray-400 font-medium">Nenhum inquilino nesta categoria.</p>
             </div>
           )}
         </CardContent>
