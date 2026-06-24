@@ -40,7 +40,6 @@ const Tenants = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<string>('ativos');
-  const [isRestoringMarivaldo, setIsRestoringMarivaldo] = useState(false);
 
   const { data: tenants = [], isLoading } = useQuery({
     queryKey: ['tenants'],
@@ -66,75 +65,15 @@ const Tenants = () => {
   // Verifica se o Marivaldo existe na lista
   const hasMarivaldo = tenants.some(t => t.name.toLowerCase().includes('marivaldo'));
 
-  const handleRestoreMarivaldo = async () => {
-    setIsRestoringMarivaldo(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Não autenticado');
-
-      // 1. Criar o inquilino Marivaldo como encerrado (Ex-Inquilino)
-      const { data: tenantData, error: tenantError } = await supabase
-        .from('tenants')
-        .insert([{
-          user_id: user.id,
-          name: 'Marivaldo Souza',
-          cpf: '123.456.789-00',
-          phone: '(11) 99999-1234',
-          email: 'marivaldo.souza@email.com',
-          status: 'encerrado',
-          due_day: 10,
-          residents_count: 1
-        }])
-        .select()
-        .single();
-
-      if (tenantError) throw tenantError;
-
-      // 2. Buscar se já existem faturas órfãs no banco de dados que mencionam "Marivaldo" na descrição
-      const { data: existingOrphanBills } = await supabase
-        .from('bills')
-        .select('id, description')
-        .or('description.ilike.%Marivaldo%,description.ilike.%Souza%');
-
-      if (existingOrphanBills && existingOrphanBills.length > 0) {
-        // Vincular as faturas existentes ao novo ID do Marivaldo
-        const billIds = existingOrphanBills.map(b => b.id);
-        const { error: updateError } = await supabase
-          .from('bills')
-          .update({ tenant_id: tenantData.id })
-          .in('id', billIds);
-
-        if (updateError) throw updateError;
-        showSuccess(`Marivaldo Souza recuperado! Vinculamos ${existingOrphanBills.length} faturas antigas encontradas no banco.`);
-      } else {
-        // Se não houver faturas antigas no banco, criamos a fatura padrão de R$ 1.250,00
-        const { error: billError } = await supabase
-          .from('bills')
-          .insert([{
-            user_id: user.id,
-            tenant_id: tenantData.id,
-            type: 'aluguel',
-            month: '05',
-            year: 2024,
-            total_value: 1250.00,
-            calculated_value: 1250.00,
-            status: 'atrasado',
-            description: 'Aluguel residual pendente de acerto de desocupação (Marivaldo Souza)'
-          }]);
-
-        if (billError) throw billError;
-        showSuccess('Marivaldo Souza recuperado com sucesso com sua dívida ativa de R$ 1.250,00!');
-      }
-
-      queryClient.invalidateQueries({ queryKey: ['tenants'] });
-      queryClient.invalidateQueries({ queryKey: ['bills'] });
-      queryClient.invalidateQueries({ queryKey: ['tenant-collection-list'] });
-      setActiveTab('encerrados');
-    } catch (error: any) {
-      showError('Erro ao recuperar Marivaldo: ' + error.message);
-    } finally {
-      setIsRestoringMarivaldo(false);
-    }
+  const handleRestoreMarivaldoClick = () => {
+    // Abre o modal de cadastro pré-preenchido com o nome do Marivaldo para o usuário colocar os dados reais
+    setSelectedTenant({
+      name: 'Marivaldo Souza',
+      status: 'encerrado',
+      due_day: 10,
+      residents_count: 1
+    });
+    setIsModalOpen(true);
   };
 
   const handleEdit = (tenant: any) => {
@@ -211,16 +150,15 @@ const Tenants = () => {
             <div>
               <h4 className="text-base font-black text-blue-900 tracking-tight">Recuperar Marivaldo Souza?</h4>
               <p className="text-xs text-blue-700 font-medium mt-1">
-                Detectamos que o antigo inquilino Marivaldo Souza não está no sistema. Deseja recuperá-lo como ex-inquilino com sua dívida pendente?
+                Detectamos que o antigo inquilino Marivaldo Souza não está no sistema. Deseja recuperá-lo como ex-inquilino preenchendo seus dados reais?
               </p>
             </div>
           </div>
           <Button 
-            onClick={handleRestoreMarivaldo}
-            disabled={isRestoringMarivaldo}
+            onClick={handleRestoreMarivaldoClick}
             className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold px-6 h-11 gap-2 shadow-md shrink-0"
           >
-            {isRestoringMarivaldo ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            <RefreshCw className="w-4 h-4" />
             Recuperar Marivaldo
           </Button>
         </div>
