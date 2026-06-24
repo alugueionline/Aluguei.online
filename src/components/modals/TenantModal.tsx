@@ -38,8 +38,6 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
     residents_count: '1'
   });
 
-  const tenantId = tenant?.id;
-
   useEffect(() => {
     const fetchProperties = async () => {
       const { data } = await supabase.from('properties').select('id, name, status, base_rent');
@@ -78,9 +76,8 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         });
       }
     }
-  }, [isOpen, tenantId]);
+  }, [isOpen, tenant?.id]);
 
-  // Cálculo automático da data de término
   useEffect(() => {
     if (formData.contract_start_date && formData.duration_months) {
       const startDate = parseISO(formData.contract_start_date);
@@ -88,7 +85,6 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
       if (isValid(startDate) && !isNaN(months)) {
         const endDate = addMonths(startDate, months);
         const formattedEndDate = format(endDate, 'yyyy-MM-dd');
-        
         if (formData.contract_end_date !== formattedEndDate) {
           setFormData(prev => ({ ...prev, contract_end_date: formattedEndDate }));
         }
@@ -125,8 +121,6 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
       if (isEdit) {
         const { error } = await supabase.from('tenants').update(tenantPayload).eq('id', tenant.id);
         if (error) throw error;
-        
-        // Se mudou de imóvel, libera o antigo
         if (tenant.property_id && tenant.property_id !== propertyId) {
           await supabase.from('properties').update({ status: 'disponivel' }).eq('id', tenant.property_id);
         }
@@ -136,31 +130,21 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
         currentTenantId = data.id;
       }
 
-      // Atualiza status do imóvel e cria contrato se houver imóvel vinculado
       if (propertyId) {
         await supabase.from('properties').update({ status: 'alugado' }).eq('id', propertyId);
-        
         const selectedProp = properties.find(p => p.id === propertyId);
-        const rentValue = selectedProp?.base_rent || 0;
-
         const contractPayload = {
           user_id: user.id,
           tenant_id: currentTenantId,
           property_id: propertyId,
-          rent_value: rentValue,
-          start_date: formData.contract_start_date || format(new Date(), 'yyyy-MM-dd'),
+          rent_value: selectedProp?.base_rent || 0,
+          start_date: formData.contract_start_date,
           duration_months: parseInt(formData.duration_months) || 12,
+          due_day: parseInt(formData.due_day) || 5,
           status: 'ativo'
         };
 
-        // Verifica se já existe contrato para este par inquilino/imóvel
-        const { data: existingContract } = await supabase
-          .from('contracts')
-          .select('id')
-          .eq('tenant_id', currentTenantId)
-          .eq('property_id', propertyId)
-          .maybeSingle();
-
+        const { data: existingContract } = await supabase.from('contracts').select('id').eq('tenant_id', currentTenantId).eq('property_id', propertyId).maybeSingle();
         if (existingContract) {
           await supabase.from('contracts').update(contractPayload).eq('id', existingContract.id);
         } else {
@@ -182,128 +166,44 @@ export const TenantModal = ({ isOpen, onClose, tenant }: TenantModalProps) => {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] p-6 md:p-8 max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-black tracking-tight">
-            {isEdit ? 'Editar Inquilino' : 'Novo Inquilino'}
-          </DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle className="text-2xl font-black tracking-tight">{isEdit ? 'Editar Inquilino' : 'Novo Inquilino'}</DialogTitle></DialogHeader>
         <form onSubmit={handleSave} className="space-y-5 py-4">
           <div className="space-y-2">
             <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nome Completo</Label>
-            <Input 
-              value={formData.name}
-              onChange={e => setFormData({...formData, name: e.target.value})}
-              required 
-              className="rounded-xl h-12 bg-gray-50 border-none font-bold" 
-            />
+            <Input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required className="rounded-xl h-12 bg-gray-50 border-none font-bold" />
           </div>
-          
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">CPF</Label>
-              <Input 
-                placeholder="000.000.000-00" 
-                value={formData.cpf}
-                onChange={e => setFormData({...formData, cpf: e.target.value})}
-                className="rounded-xl h-12 bg-gray-50 border-none font-bold"
-              />
+              <Input placeholder="000.000.000-00" value={formData.cpf} onChange={e => setFormData({...formData, cpf: e.target.value})} className="rounded-xl h-12 bg-gray-50 border-none font-bold" />
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nº de Moradores</Label>
-              <div className="relative">
-                <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400" />
-                <Input 
-                  type="number"
-                  min="1"
-                  value={formData.residents_count}
-                  onChange={e => setFormData({...formData, residents_count: e.target.value})}
-                  className="rounded-xl h-12 bg-blue-50/30 border-none font-bold pl-10"
-                />
-              </div>
+              <div className="relative"><Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400" /><Input type="number" min="1" value={formData.residents_count} onChange={e => setFormData({...formData, residents_count: e.target.value})} className="rounded-xl h-12 bg-blue-50/30 border-none font-bold pl-10" /></div>
             </div>
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Imóvel Vinculado</Label>
-              <Select 
-                value={formData.property_id || 'none'} 
-                onValueChange={v => setFormData({...formData, property_id: v})}
-              >
-                <SelectTrigger className="rounded-xl h-12 bg-blue-50/50 border-none font-bold text-blue-900">
-                  <SelectValue placeholder="Selecione um imóvel" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum imóvel</SelectItem>
-                  {properties.map(p => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name} {p.status === 'alugado' && p.id !== tenant?.property_id ? '(Locado)' : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={formData.property_id || 'none'} onValueChange={v => setFormData({...formData, property_id: v})}>
+                <SelectTrigger className="h-12 rounded-xl bg-blue-50/50 border-none font-bold text-blue-900"><SelectValue placeholder="Selecione um imóvel" /></SelectTrigger>
+                <SelectContent><SelectItem value="none">Nenhum imóvel</SelectItem>{properties.map(p => <SelectItem key={p.id} value={p.id}>{p.name} {p.status === 'alugado' && p.id !== tenant?.property_id ? '(Locado)' : ''}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-1">Dia de Vencimento</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
-                <Input 
-                  type="number"
-                  min="1"
-                  max="31"
-                  value={formData.due_day}
-                  onChange={e => setFormData({...formData, due_day: e.target.value})}
-                  className="rounded-xl h-12 bg-emerald-50/30 border-none font-bold pl-10"
-                />
-              </div>
+              <div className="relative"><DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" /><Input type="number" min="1" max="31" value={formData.due_day} onChange={e => setFormData({...formData, due_day: e.target.value})} className="rounded-xl h-12 bg-emerald-50/30 border-none font-bold pl-10" /></div>
             </div>
           </div>
-
           <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-4">
-            <div className="flex items-center gap-2 text-slate-900">
-              <Calendar className="w-4 h-4 text-blue-600" />
-              <span className="text-xs font-black uppercase tracking-widest">Vigência do Contrato</span>
-            </div>
+            <div className="flex items-center gap-2 text-slate-900"><Calendar className="w-4 h-4 text-blue-600" /><span className="text-xs font-black uppercase tracking-widest">Vigência do Contrato</span></div>
             <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold text-slate-400 uppercase">Início</Label>
-                <Input 
-                  type="date"
-                  value={formData.contract_start_date}
-                  onChange={e => setFormData({...formData, contract_start_date: e.target.value})}
-                  className="h-10 rounded-xl bg-white border-slate-200 font-bold text-xs"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold text-slate-400 uppercase">Meses</Label>
-                <div className="relative">
-                  <Hash className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-300" />
-                  <Input 
-                    type="number"
-                    value={formData.duration_months}
-                    onChange={e => setFormData({...formData, duration_months: e.target.value})}
-                    className="h-10 pl-7 rounded-xl bg-white border-slate-200 font-bold text-xs"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold text-slate-400 uppercase">Término</Label>
-                <Input 
-                  type="date"
-                  value={formData.contract_end_date}
-                  onChange={e => setFormData({...formData, contract_end_date: e.target.value})}
-                  className="h-10 rounded-xl bg-white border-slate-200 font-bold text-xs"
-                />
-              </div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-bold text-slate-400 uppercase">Início</Label><Input type="date" value={formData.contract_start_date} onChange={e => setFormData({...formData, contract_start_date: e.target.value})} className="h-10 rounded-xl bg-white border-slate-200 font-bold text-xs" /></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-bold text-slate-400 uppercase">Meses</Label><div className="relative"><Hash className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-300" /><Input type="number" value={formData.duration_months} onChange={e => setFormData({...formData, duration_months: e.target.value})} className="h-10 pl-7 rounded-xl bg-white border-slate-200 font-bold text-xs" /></div></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-bold text-slate-400 uppercase">Término</Label><Input type="date" value={formData.contract_end_date} onChange={e => setFormData({...formData, contract_end_date: e.target.value})} className="h-10 rounded-xl bg-white border-slate-200 font-bold text-xs" /></div>
             </div>
           </div>
-
-          <DialogFooter className="pt-4">
-            <Button type="button" variant="ghost" onClick={onClose} className="rounded-xl font-bold text-slate-400">Cancelar</Button>
-            <Button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8 font-black h-12 shadow-lg shadow-blue-100">
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Salvar Inquilino'}
-            </Button>
-          </DialogFooter>
+          <DialogFooter className="pt-4"><Button type="button" variant="ghost" onClick={onClose} className="rounded-xl font-bold text-slate-400">Cancelar</Button><Button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8 font-black h-12 shadow-lg shadow-blue-100">{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Salvar Inquilino'}</Button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
