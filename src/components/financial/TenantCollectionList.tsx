@@ -97,7 +97,7 @@ export const TenantCollectionList = () => {
             const firstBill = group.bills.find(b => b.status !== 'pago') || group.bills[0];
             const contract = activeContracts.find(c => c.property_id === firstBill.property_id);
             
-            if (isBillOverdue(firstBill, contract?.due_day || 5)) {
+            if (isBillOverdue(firstBill, contract?.due_day || t.due_day || 5)) {
               existingIsOverdue = true;
             }
 
@@ -110,15 +110,11 @@ export const TenantCollectionList = () => {
         });
 
         let projectedTotal = 0;
-        let projectedIsOverdue = false;
         let projectedItems: any[] = [];
 
         // Apenas projeta aluguel futuro se o inquilino estiver ATIVO
         if (t.status === 'ativo') {
           activeContracts.forEach((contract: any) => {
-            const dueDay = contract.due_day || 5;
-            const isOverdue = currentDay >= dueDay;
-
             // Projeta o aluguel restante desde o dia 1º do mês atual
             const rentBills = tenantBills.filter(b => 
               b.property_id === contract.property_id &&
@@ -132,7 +128,6 @@ export const TenantCollectionList = () => {
             if (remainingRent > 0) {
               projectedTotal += remainingRent;
               projectedItems.push({ type: 'Aluguel Restante (Projetado)', value: remainingRent });
-              if (isOverdue) projectedIsOverdue = true;
             }
 
             // Projeta o condomínio restante desde o dia 1º do mês atual
@@ -149,19 +144,19 @@ export const TenantCollectionList = () => {
             if (remainingCondo > 0) {
               projectedTotal += remainingCondo;
               projectedItems.push({ type: 'Condomínio Restante (Projetado)', value: remainingCondo });
-              if (isOverdue) projectedIsOverdue = true;
             }
           });
         }
         
         const totalDebt = existingBillsTotal + projectedTotal;
-        const hasOverdue = existingIsOverdue || projectedIsOverdue;
+        
+        // ATENÇÃO: O status de atrasado (hasOverdue) deve vir APENAS de faturas reais do banco de dados!
+        const hasOverdue = existingIsOverdue;
 
-        // Calcular dias de atraso
+        // Calcular dias de atraso apenas para faturas reais atrasadas
         let maxDaysOverdue = 0;
         const todayMidnight = new Date(currentYear, new Date().getMonth(), currentDay);
 
-        // 1. Faturas reais atrasadas
         pendingBillsList.forEach(b => {
           const contract = activeContracts.find(c => c.property_id === b.property_id);
           const dueDay = contract?.due_day || t.due_day || 5;
@@ -172,28 +167,6 @@ export const TenantCollectionList = () => {
             if (days > maxDaysOverdue) maxDaysOverdue = days;
           }
         });
-
-        // 2. Faturas projetadas atrasadas (apenas para ativos)
-        if (t.status === 'ativo') {
-          activeContracts.forEach((contract: any) => {
-            const contractDueDay = contract.due_day || t.due_day || 5;
-            const rentBills = tenantBills.filter(b => 
-              b.property_id === contract.property_id &&
-              (b.type === 'aluguel' || b.type === 'receita') && 
-              b.month === currentMonth && 
-              b.year === currentYear
-            );
-            const totalRentLaunched = rentBills.reduce((acc: number, b: any) => acc + Number(b.total_value || b.calculated_value || 0), 0);
-            const remainingRent = Math.max(0, Number(contract.rent_value || 0) - totalRentLaunched);
-
-            if (remainingRent > 0 && currentDay >= contractDueDay) {
-              const dueDateMidnight = new Date(currentYear, new Date().getMonth(), contractDueDay);
-              const diffTime = todayMidnight.getTime() - dueDateMidnight.getTime();
-              const days = Math.max(0, Math.round(diffTime / (1000 * 60 * 60 * 24)));
-              if (days > maxDaysOverdue) maxDaysOverdue = days;
-            }
-          });
-        }
 
         return {
           ...t,
